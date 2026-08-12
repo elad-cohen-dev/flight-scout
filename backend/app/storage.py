@@ -112,11 +112,26 @@ def save_deals(search_query: str, deals: list[FlightDeal]) -> list[StoredDeal]:
     return stored
 
 
+def _fingerprint(row: dict) -> tuple:
+    """Identity of a deal across search runs. A changed price is a *different*
+    entry on purpose — repricing is information, not duplication."""
+    return (
+        row["origin"].strip().lower(),
+        row["destination"].strip().lower(),
+        row["airline"].strip().lower(),
+        row["depart_date"].strip().lower(),
+        row["return_date"].strip().lower(),
+        row["currency"],
+        round(row["price"], 2),
+    )
+
+
 def list_deals(
     origin: str | None = None,
     destination: str | None = None,
     max_price: float | None = None,
     limit: int = 100,
+    dedupe: bool = True,
 ) -> list[StoredDeal]:
     query = "SELECT * FROM deals WHERE 1=1"
     params: list = []
@@ -129,15 +144,33 @@ def list_deals(
     if max_price is not None:
         query += " AND price <= ?"
         params.append(max_price)
-    query += " ORDER BY found_at DESC, price ASC LIMIT ?"
-    params.append(limit)
+    query += " ORDER BY found_at DESC, price ASC"
+    if not dedupe:
+        query += " LIMIT ?"
+        params.append(limit)
 
     conn = _connect()
     try:
         rows = _rows_as_dicts(conn.execute(query, params))
     finally:
         conn.close()
-    return [StoredDeal(**row) for row in rows]
+
+    if not dedupe:
+        return [StoredDeal(**row) for row in rows]
+
+    # Rows are newest-first, so the first occurrence of a fingerprint is the
+    # latest sighting — keep it, and fold older sightings into its counters.
+    kept: dict[tuple, dict] = {}
+    for row in rows:
+        key = _fingerprint(row)
+        if key in kept:
+            kept[key]["times_seen"] += 1
+            kept[key]["first_found_at"] = row["found_at"]  # rows keep getting older
+        else:
+            row["times_seen"] = 1
+            kept[key] = row
+    deals = [StoredDeal(**row) for row in list(kept.values())[:limit]]
+    return deals
 
 
 def _route_of(search_query: str) -> str:

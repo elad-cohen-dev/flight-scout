@@ -2,6 +2,8 @@ export interface StoredDeal {
   id: number;
   search_query: string;
   found_at: string;
+  times_seen: number;
+  first_found_at: string | null;
   origin: string;
   destination: string;
   airline: string;

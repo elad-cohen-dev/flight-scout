@@ -96,8 +96,11 @@ def get_deals(
     destination: str | None = None,
     max_price: float | None = None,
     limit: int = 200,
+    dedupe: bool = True,
 ) -> list[StoredDeal]:
-    return storage.list_deals(origin, destination, max_price, limit)
+    """List deals. With dedupe (default), a deal re-found by later runs appears
+    once — its latest sighting — carrying times_seen / first_found_at."""
+    return storage.list_deals(origin, destination, max_price, limit, dedupe)
 
 
 @app.get("/api/history", response_model=list[RouteHistory])

@@ -36,6 +36,8 @@ class StoredDeal(FlightDeal):
     id: int
     search_query: str
     found_at: datetime
+    times_seen: int = Field(default=1, description="How many search runs found this exact deal")
+    first_found_at: datetime | None = Field(default=None, description="When this deal was first seen (set when times_seen > 1)")
 
 
 class HistoryPoint(BaseModel):

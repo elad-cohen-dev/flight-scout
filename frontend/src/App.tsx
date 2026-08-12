@@ -57,6 +57,14 @@ function DealRow({ deal }: { deal: StoredDeal }) {
           <span className={deal.stops === 0 ? "badge-direct" : ""}>
             {deal.stops === 0 ? "Direct" : `${deal.stops} stop${deal.stops > 1 ? "s" : ""}`}
           </span>
+          {deal.times_seen > 1 && deal.first_found_at && (
+            <span
+              className="badge-seen"
+              title="This exact deal keeps appearing in searches — likely a stable fare"
+            >
+              seen {deal.times_seen}× since {new Date(deal.first_found_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </span>
+          )}
         </div>
         {deal.notes && <div className="deal-notes">{deal.notes}</div>}
       </div>
