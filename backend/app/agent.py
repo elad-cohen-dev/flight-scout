@@ -28,7 +28,9 @@ load_dotenv()
 
 DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
-    "openai": "gpt-5.5",
+    # mini-tier is plenty for search-and-extract work and far cheaper;
+    # override with FLIGHT_SCOUT_MODEL if you want a bigger model.
+    "openai": "gpt-5.4-mini",
 }
 
 # Server-side web search: executed on the provider's infrastructure, results come

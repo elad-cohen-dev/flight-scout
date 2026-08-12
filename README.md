@@ -72,7 +72,7 @@ The workflow authenticates with the `CRON_SECRET` repo secret, which must match 
 |---|---|---|
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | — (one required) | LLM API access; provider auto-detected from the key |
 | `FLIGHT_SCOUT_PROVIDER` | auto | Force `anthropic` or `openai` when both keys are set |
-| `FLIGHT_SCOUT_MODEL` | `claude-opus-5` / `gpt-5.5` | Model powering the agent (per provider) |
+| `FLIGHT_SCOUT_MODEL` | `claude-opus-5` / `gpt-5.4-mini` | Model powering the agent (per provider) |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | — | Hosted DB ([Turso](https://turso.tech)); falls back to local SQLite when unset |
 | `STATIC_DIR` | `frontend/dist` | Directory of built frontend for FastAPI to serve |
 
