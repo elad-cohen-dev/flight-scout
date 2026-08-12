@@ -63,8 +63,12 @@ export default function App() {
     setSearching(true);
     setError(null);
     try {
-      const result = await runSearch({ origin, destination, dates_hint: datesHint });
-      setDeals((prev) => [...result.deals, ...prev]);
+      const job = await runSearch({ origin, destination, dates_hint: datesHint });
+      if (job.status === "error") {
+        setError(job.error ?? "Search failed");
+      } else {
+        setDeals((prev) => [...(job.deals ?? []), ...prev]);
+      }
     } catch (e) {
       setError(String(e));
     } finally {

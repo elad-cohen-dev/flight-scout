@@ -45,8 +45,3 @@ class SearchRequest(BaseModel):
         default="anytime in the next 3 months",
         description="Free-text date preference, e.g. 'first two weeks of October', 'a weekend in November'",
     )
-
-
-class SearchResponse(BaseModel):
-    query: str
-    deals: list[StoredDeal]

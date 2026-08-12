@@ -22,7 +22,10 @@ export interface SearchRequest {
   dates_hint: string;
 }
 
-export interface SearchResponse {
+export interface SearchJob {
+  job_id: string;
+  status: "running" | "done" | "error";
   query: string;
-  deals: StoredDeal[];
+  deals: StoredDeal[] | null;
+  error: string | null;
 }

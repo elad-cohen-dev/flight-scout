@@ -49,7 +49,8 @@ Open http://localhost:5173, enter a route (e.g. `TLV` → `London`, "first two w
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/search` | `{origin, destination, dates_hint}` → runs the agent, stores + returns deals |
+| `POST` | `/api/search` | `{origin, destination, dates_hint}` → starts a search job, returns `{job_id}` (202) |
+| `GET` | `/api/search/{job_id}` | Poll a job: `{status: running\|done\|error, deals, error}` |
 | `GET` | `/api/deals` | List stored deals. Filters: `origin`, `destination`, `max_price`, `limit` |
 | `GET` | `/api/health` | Liveness check |
 
@@ -60,6 +61,23 @@ Open http://localhost:5173, enter a route (e.g. `TLV` → `London`, "first two w
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | — (one required) | LLM API access; provider auto-detected from the key |
 | `FLIGHT_SCOUT_PROVIDER` | auto | Force `anthropic` or `openai` when both keys are set |
 | `FLIGHT_SCOUT_MODEL` | `claude-opus-5` / `gpt-5.5` | Model powering the agent (per provider) |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | — | Hosted DB ([Turso](https://turso.tech)); falls back to local SQLite when unset |
+| `STATIC_DIR` | `frontend/dist` | Directory of built frontend for FastAPI to serve |
+
+## Deployment (Render free tier + Turso free tier)
+
+The repo ships a `Dockerfile` (builds the frontend, serves everything from FastAPI on one port) and a `render.yaml` blueprint.
+
+1. **Turso** (persistent DB — Render's free disk is ephemeral):
+   - Sign up at https://turso.tech, create a database.
+   - Grab the database URL (`libsql://...`) and create an auth token.
+2. **Render**:
+   - Sign up at https://render.com and connect your GitHub.
+   - New → Blueprint → select this repo; Render reads `render.yaml`.
+   - Fill in the env vars: `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`), `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`.
+3. Every push to `main` auto-deploys.
+
+Free-tier notes: the service spins down after ~15 min idle (first request takes ~1 min to cold-start), and searches run as background jobs the UI polls — so keep the tab open until a search finishes.
 
 ## Roadmap
 

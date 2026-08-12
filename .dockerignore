@@ -1,0 +1,8 @@
+.git
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/.env
+backend/flight_scout.db
+README.md
