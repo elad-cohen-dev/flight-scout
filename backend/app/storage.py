@@ -18,7 +18,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from .models import FlightDeal, StoredDeal, Watch, WatchCreate
+from collections import Counter, defaultdict
+
+from .models import FlightDeal, HistoryPoint, RouteHistory, StoredDeal, Watch, WatchCreate
 
 load_dotenv()
 
@@ -136,6 +138,51 @@ def list_deals(
     finally:
         conn.close()
     return [StoredDeal(**row) for row in rows]
+
+
+def _route_of(search_query: str) -> str:
+    """'TLV -> London (anytime in October) [watch #4]' -> 'TLV -> London'.
+
+    Grouping by the *requested* route keeps history stable even though extracted
+    deals name specific airports (LTN/LHR/...) inconsistently across runs.
+    """
+    return search_query.split(" (")[0].strip()
+
+
+def get_route_history() -> list[RouteHistory]:
+    """Best price per route per search run, in each route's dominant currency.
+
+    Prices in other currencies are excluded from the min rather than mixed in —
+    a £95 and a $95 on one line would make the chart lie.
+    """
+    conn = _connect()
+    try:
+        rows = _rows_as_dicts(
+            conn.execute("SELECT search_query, found_at, price, currency FROM deals")
+        )
+    finally:
+        conn.close()
+
+    by_route: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        by_route[_route_of(row["search_query"])].append(row)
+
+    histories: list[RouteHistory] = []
+    for route, route_rows in by_route.items():
+        currency = Counter(r["currency"] for r in route_rows).most_common(1)[0][0]
+        runs: dict[str, list[float]] = defaultdict(list)
+        for r in route_rows:
+            if r["currency"] == currency:
+                runs[r["found_at"]].append(r["price"])
+        points = [
+            HistoryPoint(found_at=found_at, price=min(prices), deals=len(prices))
+            for found_at, prices in sorted(runs.items())
+        ]
+        if points:
+            histories.append(RouteHistory(route=route, currency=currency, points=points))
+
+    histories.sort(key=lambda h: len(h.points), reverse=True)
+    return histories
 
 
 def _row_to_watch(row: dict) -> Watch:

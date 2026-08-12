@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import agent, storage, watcher
-from .models import SearchRequest, StoredDeal, Watch, WatchCreate
+from .models import RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate
 
 app = FastAPI(title="Flight Scout", version="0.3.0")
 
@@ -98,6 +98,12 @@ def get_deals(
     limit: int = 200,
 ) -> list[StoredDeal]:
     return storage.list_deals(origin, destination, max_price, limit)
+
+
+@app.get("/api/history", response_model=list[RouteHistory])
+def get_history() -> list[RouteHistory]:
+    """Best price per route per search run — the data behind the price chart."""
+    return storage.get_route_history()
 
 
 # --- watches ----------------------------------------------------------------

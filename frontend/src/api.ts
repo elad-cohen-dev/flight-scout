@@ -1,4 +1,4 @@
-import type { Job, SearchRequest, StoredDeal, Watch, WatchCreate } from "./types";
+import type { Job, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate } from "./types";
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -35,6 +35,10 @@ export async function runSearch(req: SearchRequest): Promise<Job> {
     const current = await getJob(job.job_id);
     if (current.status !== "running") return current;
   }
+}
+
+export async function fetchHistory(): Promise<RouteHistory[]> {
+  return handle(await fetch("/api/history"));
 }
 
 export async function fetchWatches(): Promise<Watch[]> {

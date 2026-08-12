@@ -52,6 +52,18 @@ export interface WatchCreate {
   max_price: number;
 }
 
+export interface HistoryPoint {
+  found_at: string;
+  price: number;
+  deals: number;
+}
+
+export interface RouteHistory {
+  route: string;
+  currency: string;
+  points: HistoryPoint[];
+}
+
 /** Deals grouped by search run (same query + same found_at timestamp). */
 export interface SearchGroup {
   key: string;

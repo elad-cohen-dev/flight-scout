@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { createWatch, deleteWatch, fetchDeals, fetchWatches, runSearch } from "./api";
-import type { SearchGroup, StoredDeal, Watch } from "./types";
+import { createWatch, deleteWatch, fetchDeals, fetchHistory, fetchWatches, runSearch } from "./api";
+import PriceChart from "./PriceChart";
+import type { RouteHistory, SearchGroup, StoredDeal, Watch } from "./types";
 
 const CURRENCY_SYMBOLS: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", ILS: "₪" };
 
@@ -75,6 +76,10 @@ function DealRow({ deal }: { deal: StoredDeal }) {
   );
 }
 
+function prettyQuery(query: string): string {
+  return query.replace(" -> ", " → ").replace(/\s*\[watch #\d+\]/, " · watch");
+}
+
 function SearchGroupCard({ group, defaultOpen }: { group: SearchGroup; defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   const currency = group.deals[0]?.currency ?? "USD";
@@ -82,7 +87,7 @@ function SearchGroupCard({ group, defaultOpen }: { group: SearchGroup; defaultOp
     <section className="group-card">
       <button className="group-header" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="group-chevron">{open ? "▾" : "▸"}</span>
-        <span className="group-title">{group.query}</span>
+        <span className="group-title">{prettyQuery(group.query)}</span>
         <span className="group-summary">
           {group.deals.length} deal{group.deals.length !== 1 && "s"} · from{" "}
           <strong>{formatPrice(group.minPrice, currency)}</strong> · {timeAgo(group.foundAt)}
@@ -126,9 +131,46 @@ function WatchesPanel({
   );
 }
 
+function HistoryPanel({
+  history,
+  formatPrice,
+}: {
+  history: RouteHistory[];
+  formatPrice: (price: number, currency: string) => string;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const routes = history.filter((h) => h.points.length > 0);
+  if (routes.length === 0) return null;
+
+  const active = routes.find((h) => h.route === selected) ?? routes[0];
+  return (
+    <section className="history-panel">
+      <h2>📈 Price history — {active.route.replace("->", "→")}</h2>
+      {routes.length > 1 && (
+        <div className="route-chips">
+          {routes.map((h) => (
+            <button
+              key={h.route}
+              className={`chip${h.route === active.route ? " chip-active" : ""}`}
+              onClick={() => setSelected(h.route)}
+            >
+              {h.route.replace("->", "→")}
+            </button>
+          ))}
+        </div>
+      )}
+      <PriceChart points={active.points} currency={active.currency} formatPrice={formatPrice} />
+      {active.points.length < 2 && (
+        <p className="watch-hint">One data point so far — the chart fills in as daily watch runs accumulate.</p>
+      )}
+    </section>
+  );
+}
+
 export default function App() {
   const [deals, setDeals] = useState<StoredDeal[]>([]);
   const [watches, setWatches] = useState<Watch[]>([]);
+  const [history, setHistory] = useState<RouteHistory[]>([]);
   const [origin, setOrigin] = useState("TLV");
   const [destination, setDestination] = useState("");
   const [datesHint, setDatesHint] = useState("anytime in the next 3 months");
@@ -142,7 +184,13 @@ export default function App() {
   useEffect(() => {
     fetchDeals().then(setDeals).catch((e) => setError(String(e)));
     fetchWatches().then(setWatches).catch(() => {});
+    fetchHistory().then(setHistory).catch(() => {});
   }, []);
+
+  // deals change (new search / watch run) => history changes too
+  useEffect(() => {
+    if (deals.length > 0) fetchHistory().then(setHistory).catch(() => {});
+  }, [deals.length]);
 
   const groups = useMemo(() => {
     let filtered = deals;
@@ -242,6 +290,8 @@ export default function App() {
       {notice && <div className="status notice">{notice}</div>}
 
       <WatchesPanel watches={watches} onDelete={onDeleteWatch} />
+
+      <HistoryPanel history={history} formatPrice={formatPrice} />
 
       {deals.length > 0 && (
         <div className="filter-bar">

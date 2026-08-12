@@ -52,6 +52,7 @@ Open http://localhost:5173, enter a route (e.g. `TLV` → `London`, "first two w
 | `POST` | `/api/search` | `{origin, destination, dates_hint}` → starts a search job, returns `{job_id}` (202) |
 | `GET` | `/api/jobs/{job_id}` | Poll a job: `{status: running\|done\|error, deals, summary, error}` |
 | `GET` | `/api/deals` | List stored deals. Filters: `origin`, `destination`, `max_price`, `limit` |
+| `GET` | `/api/history` | Best price per route per search run (feeds the price chart) |
 | `POST` | `/api/watches` | Create a price watch: `{origin, destination, dates_hint, max_price}` |
 | `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches |
 | `POST` | `/api/watches/run` | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header) |
@@ -95,6 +96,6 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 
 - [x] Notifications — daily scheduled re-searches of watched routes, push alert on price drops (GitHub Actions cron + ntfy/Telegram)
 - [x] Background searches (`POST /api/search` returns a job id instead of blocking)
-- [ ] Price history chart per route
+- [x] Price history chart per route
 - [ ] De-duplication of identical deals across runs
 - [ ] Access control (each search spends LLM credit)

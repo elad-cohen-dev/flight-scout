@@ -38,6 +38,20 @@ class StoredDeal(FlightDeal):
     found_at: datetime
 
 
+class HistoryPoint(BaseModel):
+    """Best price found for a route in one search run."""
+
+    found_at: datetime
+    price: float
+    deals: int = Field(description="How many deals that run found for the route")
+
+
+class RouteHistory(BaseModel):
+    route: str = Field(description="Requested route, e.g. 'TLV -> London'")
+    currency: str
+    points: list[HistoryPoint] = Field(description="Chronological, oldest first")
+
+
 class WatchCreate(BaseModel):
     """A route the user wants monitored for price drops."""
 
