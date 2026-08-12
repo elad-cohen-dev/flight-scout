@@ -283,6 +283,20 @@ export default function App() {
         </button>
       </form>
 
+      {deals.length > 0 && (
+        <div className="filter-bar">
+          <input
+            value={routeFilter}
+            onChange={(e) => setRouteFilter(e.target.value)}
+            placeholder="Filter results by city / airport / airline"
+          />
+          <label>
+            <input type="checkbox" checked={directOnly} onChange={(e) => setDirectOnly(e.target.checked)} />
+            Direct only
+          </label>
+        </div>
+      )}
+
       {searching && (
         <div className="status">The agent is searching the live web — this usually takes a minute or two ☕</div>
       )}
@@ -292,20 +306,6 @@ export default function App() {
       <WatchesPanel watches={watches} onDelete={onDeleteWatch} />
 
       <HistoryPanel history={history} formatPrice={formatPrice} />
-
-      {deals.length > 0 && (
-        <div className="filter-bar">
-          <input
-            value={routeFilter}
-            onChange={(e) => setRouteFilter(e.target.value)}
-            placeholder="Filter by city / airport / airline"
-          />
-          <label>
-            <input type="checkbox" checked={directOnly} onChange={(e) => setDirectOnly(e.target.checked)} />
-            Direct only
-          </label>
-        </div>
-      )}
 
       <main>
         {groups.length === 0 && !searching ? (
