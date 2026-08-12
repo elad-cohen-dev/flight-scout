@@ -4,10 +4,14 @@ Graph shape:
 
     START -> research -> extract -> END
 
-- ``research`` calls Claude with Anthropic's server-side web-search tool bound, so the
-  searching/fetching loop runs on Anthropic's side and the node gets back prose findings.
-- ``extract`` runs a second, cheaper structured-output pass that turns those findings
-  into a validated ``FlightDealList``.
+- ``research`` calls the model with its provider's server-side web-search tool bound,
+  so the searching/fetching loop runs on the provider's side and the node gets back
+  prose findings.
+- ``extract`` runs a second structured-output pass that turns those findings into a
+  validated ``FlightDealList``.
+
+Works with either Anthropic (ANTHROPIC_API_KEY) or OpenAI (OPENAI_API_KEY); the
+provider is auto-detected from whichever key is set.
 """
 
 from __future__ import annotations
@@ -16,22 +20,53 @@ import os
 from typing import TypedDict
 
 from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
 from langgraph.graph import END, START, StateGraph
 
 from .models import FlightDeal, FlightDealList
 
 load_dotenv()
 
-MODEL = os.environ.get("FLIGHT_SCOUT_MODEL", "claude-opus-5")
-
-# Anthropic server-side web search: executed on Anthropic's infrastructure,
-# results come back inside the same model response — no client tool loop needed.
-WEB_SEARCH_TOOL = {
-    "type": "web_search_20260209",
-    "name": "web_search",
-    "max_uses": 8,
+DEFAULT_MODELS = {
+    "anthropic": "claude-opus-5",
+    "openai": "gpt-5.5",
 }
+
+# Server-side web search: executed on the provider's infrastructure, results come
+# back inside the same model response — no client tool loop needed.
+WEB_SEARCH_TOOLS = {
+    "anthropic": {"type": "web_search_20260209", "name": "web_search", "max_uses": 8},
+    "openai": {"type": "web_search"},
+}
+
+
+def _provider() -> str:
+    forced = os.environ.get("FLIGHT_SCOUT_PROVIDER")
+    if forced:
+        return forced.lower()
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "anthropic"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai"
+    raise RuntimeError(
+        "No model credentials found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY "
+        "in backend/.env (see .env.example)."
+    )
+
+
+def _make_llm():
+    """Return (chat model, web-search tool dict) for the active provider."""
+    provider = _provider()
+    model = os.environ.get("FLIGHT_SCOUT_MODEL", DEFAULT_MODELS[provider])
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        return ChatAnthropic(model=model, max_tokens=16000), WEB_SEARCH_TOOLS["anthropic"]
+    if provider == "openai":
+        from langchain_openai import ChatOpenAI
+
+        # Built-in web search requires OpenAI's Responses API.
+        return ChatOpenAI(model=model, use_responses_api=True), WEB_SEARCH_TOOLS["openai"]
+    raise RuntimeError(f"Unknown FLIGHT_SCOUT_PROVIDER: {provider}")
 
 RESEARCH_PROMPT = """You are a flight-deal researcher.
 
@@ -70,7 +105,12 @@ class AgentState(TypedDict):
 
 
 def _text_of(message) -> str:
-    """Join the text blocks of a model response (content may be str or a block list)."""
+    """Join the text of a model response (content may be str or a block list)."""
+    text = getattr(message, "text", None)
+    if isinstance(text, str) and text:
+        return text
+    if callable(text):  # older langchain-core: .text is a method
+        return text()
     content = message.content
     if isinstance(content, str):
         return content
@@ -82,8 +122,8 @@ def _text_of(message) -> str:
 
 
 def research(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=MODEL, max_tokens=16000)
-    llm_with_search = llm.bind_tools([WEB_SEARCH_TOOL])
+    llm, web_search_tool = _make_llm()
+    llm_with_search = llm.bind_tools([web_search_tool])
     prompt = RESEARCH_PROMPT.format(
         origin=state["origin"],
         destination=state["destination"],
@@ -94,7 +134,7 @@ def research(state: AgentState) -> dict:
 
 
 def extract(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=MODEL, max_tokens=16000)
+    llm, _ = _make_llm()
     extractor = llm.with_structured_output(FlightDealList)
     prompt = EXTRACT_PROMPT.format(
         origin=state["origin"],

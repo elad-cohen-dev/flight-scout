@@ -17,20 +17,20 @@ LangGraph agent (backend/app/agent.py):
                results, airline deal pages, fare aggregators — live, on every run)
 ```
 
-- **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving Claude (`claude-opus-5` by default) with Anthropic's **server-side web search tool** — no scraping infrastructure or flight-API keys needed.
+- **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving an LLM with the provider's **server-side web search tool** — no scraping infrastructure or flight-API keys needed. Works with **Anthropic** (Claude) or **OpenAI** (GPT); the provider is auto-detected from whichever API key you set.
 - **Storage**: SQLite (`backend/flight_scout.db`), created automatically.
 - **API**: FastAPI — `POST /api/search` runs the agent, `GET /api/deals` lists stored deals.
 - **App**: React + Vite. Search form → deal cards with price, airline, dates, duration, stops, and booking/source links.
 
 ## Setup
 
-Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, an [Anthropic API key](https://platform.claude.com/).
+Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, and **one** LLM API key — [Anthropic](https://platform.claude.com/) or [OpenAI](https://platform.openai.com/api-keys).
 
 ### Backend
 
 ```sh
 cd backend
-cp .env.example .env        # then put your ANTHROPIC_API_KEY in .env
+cp .env.example .env        # then put your ANTHROPIC_API_KEY or OPENAI_API_KEY in .env
 uv sync
 uv run uvicorn app.main:app --reload --port 8000
 ```
@@ -57,8 +57,9 @@ Open http://localhost:5173, enter a route (e.g. `TLV` → `London`, "first two w
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — (required) | Claude API access |
-| `FLIGHT_SCOUT_MODEL` | `claude-opus-5` | Model powering the agent |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | — (one required) | LLM API access; provider auto-detected from the key |
+| `FLIGHT_SCOUT_PROVIDER` | auto | Force `anthropic` or `openai` when both keys are set |
+| `FLIGHT_SCOUT_MODEL` | `claude-opus-5` / `gpt-5.5` | Model powering the agent (per provider) |
 
 ## Roadmap
 
