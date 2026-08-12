@@ -18,7 +18,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from .models import FlightDeal, StoredDeal
+from .models import FlightDeal, StoredDeal, Watch, WatchCreate
 
 load_dotenv()
 
@@ -43,6 +43,18 @@ _SCHEMA = [
         found_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_deals_route ON deals (origin, destination)",
+    """CREATE TABLE IF NOT EXISTS watches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        origin TEXT NOT NULL,
+        destination TEXT NOT NULL,
+        dates_hint TEXT NOT NULL,
+        max_price REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        last_run_at TEXT,
+        last_best_price REAL
+    )""",
 ]
 
 
@@ -124,3 +136,60 @@ def list_deals(
     finally:
         conn.close()
     return [StoredDeal(**row) for row in rows]
+
+
+def _row_to_watch(row: dict) -> Watch:
+    row["active"] = bool(row["active"])
+    return Watch(**row)
+
+
+def add_watch(watch: WatchCreate) -> Watch:
+    created_at = datetime.now(timezone.utc)
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            """INSERT INTO watches (origin, destination, dates_hint, max_price, currency, active, created_at)
+               VALUES (?, ?, ?, ?, ?, 1, ?)""",
+            (watch.origin, watch.destination, watch.dates_hint,
+             watch.max_price, watch.currency, created_at.isoformat()),
+        )
+        conn.commit()
+        watch_id = cur.lastrowid
+    finally:
+        conn.close()
+    return Watch(id=watch_id, created_at=created_at, **watch.model_dump())
+
+
+def list_watches(active_only: bool = False) -> list[Watch]:
+    query = "SELECT * FROM watches"
+    if active_only:
+        query += " WHERE active = 1"
+    query += " ORDER BY id"
+    conn = _connect()
+    try:
+        rows = _rows_as_dicts(conn.execute(query))
+    finally:
+        conn.close()
+    return [_row_to_watch(row) for row in rows]
+
+
+def delete_watch(watch_id: int) -> bool:
+    conn = _connect()
+    try:
+        cur = conn.execute("DELETE FROM watches WHERE id = ?", (watch_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def update_watch_run(watch_id: int, best_price: float | None) -> None:
+    conn = _connect()
+    try:
+        conn.execute(
+            "UPDATE watches SET last_run_at = ?, last_best_price = ? WHERE id = ?",
+            (datetime.now(timezone.utc).isoformat(), best_price, watch_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()

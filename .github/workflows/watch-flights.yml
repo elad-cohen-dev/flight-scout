@@ -1,0 +1,41 @@
+name: Flight watches
+
+on:
+  schedule:
+    - cron: "0 5 * * *" # daily 05:00 UTC (08:00 Israel time)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  run-watches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the app (Render free tier sleeps when idle)
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS -m 30 "$APP_URL/api/health" > /dev/null; then exit 0; fi
+            echo "waking... ($i)"; sleep 10
+          done
+          echo "app did not wake up" >&2; exit 1
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://flight-scout-8k34.onrender.com' }}
+
+      - name: Run watches and wait for completion
+        run: |
+          job=$(curl -fsS -X POST "$APP_URL/api/watches/run" -H "X-Cron-Secret: $CRON_SECRET")
+          echo "$job"
+          job_id=$(echo "$job" | jq -r .job_id)
+
+          # Poll every 30s (keeps the Render instance awake) for up to 30 min.
+          st=running
+          for i in $(seq 1 60); do
+            sleep 30
+            st=$(curl -fsS "$APP_URL/api/jobs/$job_id" | jq -r .status)
+            echo "[$i] status: $st"
+            [ "$st" != "running" ] && break
+          done
+
+          curl -fsS "$APP_URL/api/jobs/$job_id" | jq .
+          [ "$st" = "done" ]
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://flight-scout-8k34.onrender.com' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

@@ -11,4 +11,9 @@ services:
         sync: false
       - key: TURSO_AUTH_TOKEN
         sync: false
-      # Optional: set FLIGHT_SCOUT_MODEL to override the default model
+      - key: NTFY_TOPIC
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      # Optional: set FLIGHT_SCOUT_MODEL to override the default model,
+      # TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID for Telegram alerts

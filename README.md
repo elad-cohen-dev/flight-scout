@@ -50,9 +50,21 @@ Open http://localhost:5173, enter a route (e.g. `TLV` → `London`, "first two w
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/search` | `{origin, destination, dates_hint}` → starts a search job, returns `{job_id}` (202) |
-| `GET` | `/api/search/{job_id}` | Poll a job: `{status: running\|done\|error, deals, error}` |
+| `GET` | `/api/jobs/{job_id}` | Poll a job: `{status: running\|done\|error, deals, summary, error}` |
 | `GET` | `/api/deals` | List stored deals. Filters: `origin`, `destination`, `max_price`, `limit` |
+| `POST` | `/api/watches` | Create a price watch: `{origin, destination, dates_hint, max_price}` |
+| `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches |
+| `POST` | `/api/watches/run` | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header) |
 | `GET` | `/api/health` | Liveness check |
+
+## Notifications
+
+Watched routes are re-searched daily by the [`watch-flights` GitHub Actions workflow](.github/workflows/watch-flights.yml) (also runnable manually from the Actions tab). When a deal is found at or below a watch's `max_price`, a push notification is sent via every configured channel:
+
+- **ntfy** (default, zero signup): set `NTFY_TOPIC` to a private topic name and subscribe to it in the [ntfy app](https://ntfy.sh/app) or at `https://ntfy.sh/<topic>`.
+- **Telegram** (optional): set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
+
+The workflow authenticates with the `CRON_SECRET` repo secret, which must match the `CRON_SECRET` env var on the server.
 
 ## Configuration
 
@@ -81,7 +93,8 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 
 ## Roadmap
 
-- [ ] **Notifications** — scheduled re-searches of saved routes (cron / LangGraph cron), push a notification (email / Telegram / ntfy) when a deal drops below a price threshold. The storage layer already keeps `found_at` history per route, so price-drop detection is a query away.
-- [ ] Background searches (`POST /api/search` returns a job id instead of blocking)
+- [x] Notifications — daily scheduled re-searches of watched routes, push alert on price drops (GitHub Actions cron + ntfy/Telegram)
+- [x] Background searches (`POST /api/search` returns a job id instead of blocking)
 - [ ] Price history chart per route
 - [ ] De-duplication of identical deals across runs
+- [ ] Access control (each search spends LLM credit)

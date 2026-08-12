@@ -38,6 +38,24 @@ class StoredDeal(FlightDeal):
     found_at: datetime
 
 
+class WatchCreate(BaseModel):
+    """A route the user wants monitored for price drops."""
+
+    origin: str
+    destination: str
+    dates_hint: str = "anytime in the next 3 months"
+    max_price: float = Field(gt=0, description="Alert when a deal is at or below this price")
+    currency: str = Field(default="USD", description="Currency the threshold is expressed in (informational)")
+
+
+class Watch(WatchCreate):
+    id: int
+    active: bool = True
+    created_at: datetime
+    last_run_at: datetime | None = None
+    last_best_price: float | None = None
+
+
 class SearchRequest(BaseModel):
     origin: str
     destination: str

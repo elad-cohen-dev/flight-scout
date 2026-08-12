@@ -50,7 +50,7 @@ header h1 {
 
 .search-form {
   display: grid;
-  grid-template-columns: 1fr 1fr 2fr auto;
+  grid-template-columns: 1fr 1fr 2fr 1fr auto auto;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
@@ -94,21 +94,171 @@ header h1 {
   border-color: #dc2626;
 }
 
+.status.notice {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.btn-watch {
+  background: transparent !important;
+  color: var(--accent) !important;
+  border: 1px solid var(--accent) !important;
+}
+
+/* --- watches panel --- */
+.watches-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.watches-panel h2 {
+  font-size: 1rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.watch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.watch-route {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.watch-meta {
+  flex: 1;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.2rem 0.4rem;
+}
+
+.btn-delete:hover {
+  color: #dc2626;
+}
+
+.watch-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+/* --- filter bar --- */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.filter-bar input[type="text"],
+.filter-bar input:not([type]) {
+  flex: 1;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+}
+
+.filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* --- search groups --- */
+.group-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.8rem 1.25rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.group-header:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.group-chevron {
+  color: var(--muted);
+}
+
+.group-title {
+  font-weight: 600;
+  flex: 1;
+}
+
+.group-summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.group-summary strong {
+  color: var(--green);
+}
+
+.group-body {
+  border-top: 1px solid var(--border);
+}
+
+.deal-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.75rem 1.25rem;
+}
+
+.deal-row + .deal-row {
+  border-top: 1px solid var(--border);
+}
+
+.deal-airline {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.badge-direct {
+  color: var(--green);
+  font-weight: 600;
+}
+
 .empty {
   text-align: center;
   color: var(--muted);
   padding: 3rem 0;
-}
-
-.deal-card {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  margin-bottom: 0.75rem;
 }
 
 .deal-price {
@@ -172,19 +322,14 @@ header h1 {
   color: var(--accent);
 }
 
-.deal-found {
-  font-size: 0.7rem;
-  color: var(--muted);
-}
-
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .search-form {
     grid-template-columns: 1fr 1fr;
   }
   .dates-input {
     grid-column: 1 / -1;
   }
-  .deal-card {
+  .deal-row {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
@@ -192,5 +337,11 @@ header h1 {
   .deal-actions {
     flex-direction: row;
     align-items: center;
+  }
+  .group-summary {
+    display: none;
+  }
+  .watch-row {
+    flex-wrap: wrap;
   }
 }
