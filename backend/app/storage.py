@@ -52,11 +52,17 @@ _SCHEMA = [
         dates_hint TEXT NOT NULL,
         max_price REAL NOT NULL,
         currency TEXT NOT NULL DEFAULT 'USD',
+        direct_only INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         last_run_at TEXT,
         last_best_price REAL
     )""",
+]
+
+# Applied best-effort on connect; each fails harmlessly once the column exists.
+_MIGRATIONS = [
+    "ALTER TABLE watches ADD COLUMN direct_only INTEGER NOT NULL DEFAULT 0",
 ]
 
 
@@ -70,6 +76,11 @@ def _connect():
         conn = sqlite3.connect(DB_PATH)
     for statement in _SCHEMA:
         conn.execute(statement)
+    for statement in _MIGRATIONS:
+        try:
+            conn.execute(statement)
+        except Exception:
+            pass  # column already exists
     conn.commit()
     return conn
 
@@ -220,6 +231,7 @@ def get_route_history() -> list[RouteHistory]:
 
 def _row_to_watch(row: dict) -> Watch:
     row["active"] = bool(row["active"])
+    row["direct_only"] = bool(row.get("direct_only", 0))
     return Watch(**row)
 
 
@@ -228,10 +240,10 @@ def add_watch(watch: WatchCreate) -> Watch:
     conn = _connect()
     try:
         cur = conn.execute(
-            """INSERT INTO watches (origin, destination, dates_hint, max_price, currency, active, created_at)
-               VALUES (?, ?, ?, ?, ?, 1, ?)""",
+            """INSERT INTO watches (origin, destination, dates_hint, max_price, currency, direct_only, active, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, 1, ?)""",
             (watch.origin, watch.destination, watch.dates_hint,
-             watch.max_price, watch.currency, created_at.isoformat()),
+             watch.max_price, watch.currency, int(watch.direct_only), created_at.isoformat()),
         )
         conn.commit()
         watch_id = cur.lastrowid

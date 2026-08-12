@@ -62,6 +62,7 @@ class WatchCreate(BaseModel):
     dates_hint: str = "anytime in the next 3 months"
     max_price: float = Field(gt=0, description="Alert when a deal is at or below this price")
     currency: str = Field(default="USD", description="Currency the threshold is expressed in (informational)")
+    direct_only: bool = Field(default=False, description="Only consider direct (non-stop) flights")
 
 
 class Watch(WatchCreate):
@@ -79,3 +80,4 @@ class SearchRequest(BaseModel):
         default="anytime in the next 3 months",
         description="Free-text date preference, e.g. 'first two weeks of October', 'a weekend in November'",
     )
+    direct_only: bool = Field(default=False, description="Only consider direct (non-stop) flights")

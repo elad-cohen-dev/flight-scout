@@ -104,10 +104,11 @@ def get_job(job_id: str) -> Job:
 
 @app.post("/api/search", response_model=Job, status_code=202, dependencies=[Depends(require_auth)])
 def start_search(req: SearchRequest) -> Job:
-    query = f"{req.origin} -> {req.destination} ({req.dates_hint})"
+    constraint = ", direct only" if req.direct_only else ""
+    query = f"{req.origin} -> {req.destination} ({req.dates_hint}{constraint})"
 
     def work() -> dict:
-        deals = agent.find_deals(req.origin, req.destination, req.dates_hint)
+        deals = agent.find_deals(req.origin, req.destination, req.dates_hint, req.direct_only)
         return {"deals": storage.save_deals(query, deals)}
 
     return _start_job("search", query, work)

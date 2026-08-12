@@ -94,18 +94,30 @@ function DealRow({ deal }: { deal: StoredDeal }) {
   );
 }
 
-function prettyQuery(query: string): string {
-  return query.replace(" -> ", " → ").replace(/\s*\[watch #\d+\]/, " · watch");
+function prettyQuery(query: string, activeWatchIds: Set<number>): string {
+  const pretty = query.replace(" -> ", " → ");
+  const tag = pretty.match(/\s*\[watch #(\d+)\]/);
+  if (!tag) return pretty;
+  // Keep the "watch" marker only while that watch still exists.
+  return pretty.replace(tag[0], activeWatchIds.has(Number(tag[1])) ? " · watch" : "");
 }
 
-function SearchGroupCard({ group, defaultOpen }: { group: SearchGroup; defaultOpen: boolean }) {
+function SearchGroupCard({
+  group,
+  defaultOpen,
+  activeWatchIds,
+}: {
+  group: SearchGroup;
+  defaultOpen: boolean;
+  activeWatchIds: Set<number>;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   const currency = group.deals[0]?.currency ?? "USD";
   return (
     <section className="group-card">
       <button className="group-header" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="group-chevron">{open ? "▾" : "▸"}</span>
-        <span className="group-title">{prettyQuery(group.query)}</span>
+        <span className="group-title">{prettyQuery(group.query, activeWatchIds)}</span>
         <span className="group-summary">
           {group.deals.length} deal{group.deals.length !== 1 && "s"} · from{" "}
           <strong>{formatPrice(group.minPrice, currency)}</strong> · {timeAgo(group.foundAt)}
@@ -133,7 +145,8 @@ function WatchesPanel({
             {w.origin} → {w.destination}
           </span>
           <span className="watch-meta">
-            {w.dates_hint} · alert ≤ {formatPrice(w.max_price, w.currency)}
+            {w.dates_hint}
+            {w.direct_only && <> · direct only</>} · alert ≤ {formatPrice(w.max_price, w.currency)}
             {w.last_best_price != null && (
               <> · last best {formatPrice(w.last_best_price, w.currency)}</>
             )}
@@ -197,7 +210,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState("");
-  const [directOnly, setDirectOnly] = useState(false);
+  const [directOnly, setDirectOnly] = useState(false); // results-display filter
+  const [searchDirect, setSearchDirect] = useState(false); // constraint sent with searches & watches
   const [locked, setLocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -266,6 +280,8 @@ export default function App() {
     return groupDeals(filtered);
   }, [deals, routeFilter, directOnly]);
 
+  const activeWatchIds = useMemo(() => new Set(watches.map((w) => w.id)), [watches]);
+
   async function onSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!origin || !destination) return;
@@ -273,7 +289,7 @@ export default function App() {
     setError(null);
     setNotice(null);
     try {
-      const job = await runSearch({ origin, destination, dates_hint: datesHint });
+      const job = await runSearch({ origin, destination, dates_hint: datesHint, direct_only: searchDirect });
       if (job.status === "error") {
         setError(job.error ?? "Search failed");
       } else {
@@ -303,9 +319,12 @@ export default function App() {
         destination,
         dates_hint: datesHint,
         max_price: Number(maxPrice),
+        direct_only: searchDirect,
       });
       setWatches((prev) => [...prev, watch]);
-      setNotice(`Watching ${watch.origin} → ${watch.destination} for deals under ${formatPrice(watch.max_price, watch.currency)}.`);
+      setNotice(
+        `Watching ${watch.origin} → ${watch.destination}${watch.direct_only ? " (direct flights only)" : ""} for deals under ${formatPrice(watch.max_price, watch.currency)}.`
+      );
     } catch (e) {
       if (e instanceof AuthError) {
         clearAppPassword();
@@ -317,6 +336,11 @@ export default function App() {
   }
 
   async function onDeleteWatch(id: number) {
+    const watch = watches.find((w) => w.id === id);
+    const label = watch ? `${watch.origin} → ${watch.destination}` : "this route";
+    if (!window.confirm(`Delete the watch on ${label}? Daily checks and alerts for it will stop.`)) {
+      return;
+    }
     try {
       await deleteWatch(id);
       setWatches((prev) => prev.filter((w) => w.id !== id));
@@ -374,6 +398,10 @@ export default function App() {
         <button type="button" className="btn-watch" onClick={onAddWatch} disabled={searching}>
           + Watch route
         </button>
+        <label className="search-direct" title="Applies to this search and to new watches">
+          <input type="checkbox" checked={searchDirect} onChange={(e) => setSearchDirect(e.target.checked)} />
+          Direct flights only
+        </label>
       </form>
 
       {deals.length > 0 && (
@@ -406,7 +434,9 @@ export default function App() {
             {deals.length === 0 ? "No deals yet. Run a search above to get started." : "Nothing matches the filters."}
           </div>
         ) : (
-          groups.map((group, i) => <SearchGroupCard key={group.key} group={group} defaultOpen={i === 0} />)
+          groups.map((group, i) => (
+            <SearchGroupCard key={group.key} group={group} defaultOpen={i === 0} activeWatchIds={activeWatchIds} />
+          ))
         )}
       </main>
     </div>

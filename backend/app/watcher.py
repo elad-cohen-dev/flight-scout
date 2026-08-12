@@ -23,8 +23,11 @@ def run_watches() -> dict:
     for watch in watches:
         route = f"{watch.origin} → {watch.destination}"
         try:
-            deals = agent.find_deals(watch.origin, watch.destination, watch.dates_hint)
-            query = f"{watch.origin} -> {watch.destination} ({watch.dates_hint}) [watch #{watch.id}]"
+            deals = agent.find_deals(
+                watch.origin, watch.destination, watch.dates_hint, watch.direct_only
+            )
+            constraint = ", direct only" if watch.direct_only else ""
+            query = f"{watch.origin} -> {watch.destination} ({watch.dates_hint}{constraint}) [watch #{watch.id}]"
             stored = storage.save_deals(query, deals)
             best = min(stored, key=lambda d: d.price) if stored else None
 

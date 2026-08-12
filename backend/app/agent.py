@@ -72,7 +72,7 @@ def _make_llm():
 
 RESEARCH_PROMPT = """You are a flight-deal researcher.
 
-Find the cheapest flights from {origin} to {destination}, dates: {dates_hint}.
+Find the cheapest flights from {origin} to {destination}, dates: {dates_hint}.{direct_clause}
 
 Search the web (Google Flights results pages, airline deal pages, deal aggregators like
 Secret Flying / Fly4Free, and travel fare posts). Prefer recent results — prices go stale fast.
@@ -98,10 +98,17 @@ Research notes:
 {notes}"""
 
 
+DIRECT_ONLY_CLAUSE = (
+    "\nIMPORTANT: only DIRECT (non-stop) flights qualify — skip every itinerary "
+    "with a connection or stopover, even if it is cheaper."
+)
+
+
 class AgentState(TypedDict):
     origin: str
     destination: str
     dates_hint: str
+    direct_only: bool
     research_notes: str
     deals: list[FlightDeal]
 
@@ -130,6 +137,7 @@ def research(state: AgentState) -> dict:
         origin=state["origin"],
         destination=state["destination"],
         dates_hint=state["dates_hint"],
+        direct_clause=DIRECT_ONLY_CLAUSE if state["direct_only"] else "",
     )
     response = llm_with_search.invoke(prompt)
     return {"research_notes": _text_of(response)}
@@ -145,6 +153,10 @@ def extract(state: AgentState) -> dict:
     )
     result: FlightDealList = extractor.invoke(prompt)
     deals = sorted(result.deals, key=lambda d: d.price)
+    # Hard guarantee on top of the prompt: the model occasionally reports a
+    # 1-stop fare anyway, so filter rather than trust.
+    if state["direct_only"]:
+        deals = [d for d in deals if d.stops == 0]
     return {"deals": deals}
 
 
@@ -158,7 +170,9 @@ def build_graph():
     return graph.compile()
 
 
-def find_deals(origin: str, destination: str, dates_hint: str) -> list[FlightDeal]:
+def find_deals(
+    origin: str, destination: str, dates_hint: str, direct_only: bool = False
+) -> list[FlightDeal]:
     """Run the agent end to end and return the structured deals."""
     app = build_graph()
     final_state = app.invoke(
@@ -166,6 +180,7 @@ def find_deals(origin: str, destination: str, dates_hint: str) -> list[FlightDea
             "origin": origin,
             "destination": destination,
             "dates_hint": dates_hint,
+            "direct_only": direct_only,
             "research_notes": "",
             "deals": [],
         }
