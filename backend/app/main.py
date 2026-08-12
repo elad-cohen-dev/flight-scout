@@ -11,12 +11,13 @@ In production the built frontend (static files) is served from STATIC_DIR.
 from __future__ import annotations
 
 import os
+import secrets
 import threading
 import uuid
 from pathlib import Path
 from typing import Callable, Literal
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -24,7 +25,29 @@ from pydantic import BaseModel
 from . import agent, storage, watcher
 from .models import RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate
 
-app = FastAPI(title="Flight Scout", version="0.3.0")
+app = FastAPI(title="Flight Scout", version="0.4.0")
+
+
+def require_auth(
+    authorization: str | None = Header(default=None),
+    x_cron_secret: str | None = Header(default=None),
+) -> None:
+    """Gate API access behind APP_PASSWORD when it is set.
+
+    Accepted credentials: `Authorization: Bearer <APP_PASSWORD>` (the web app),
+    or a valid X-Cron-Secret (so the scheduled workflow can poll job status).
+    With APP_PASSWORD unset the API is open — convenient for local dev.
+    """
+    app_password = os.environ.get("APP_PASSWORD")
+    if not app_password:
+        return
+    if authorization and authorization.startswith("Bearer "):
+        if secrets.compare_digest(authorization.removeprefix("Bearer "), app_password):
+            return
+    cron_secret = os.environ.get("CRON_SECRET")
+    if cron_secret and x_cron_secret and secrets.compare_digest(x_cron_secret, cron_secret):
+        return
+    raise HTTPException(status_code=401, detail="Invalid or missing app password")
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,7 +91,7 @@ def _start_job(kind: Literal["search", "watch_run"], query: str, work: Callable[
     return job
 
 
-@app.get("/api/jobs/{job_id}", response_model=Job)
+@app.get("/api/jobs/{job_id}", response_model=Job, dependencies=[Depends(require_auth)])
 def get_job(job_id: str) -> Job:
     with _JOBS_LOCK:
         job = _JOBS.get(job_id)
@@ -79,7 +102,7 @@ def get_job(job_id: str) -> Job:
 
 # --- searches ---------------------------------------------------------------
 
-@app.post("/api/search", response_model=Job, status_code=202)
+@app.post("/api/search", response_model=Job, status_code=202, dependencies=[Depends(require_auth)])
 def start_search(req: SearchRequest) -> Job:
     query = f"{req.origin} -> {req.destination} ({req.dates_hint})"
 
@@ -90,7 +113,7 @@ def start_search(req: SearchRequest) -> Job:
     return _start_job("search", query, work)
 
 
-@app.get("/api/deals", response_model=list[StoredDeal])
+@app.get("/api/deals", response_model=list[StoredDeal], dependencies=[Depends(require_auth)])
 def get_deals(
     origin: str | None = None,
     destination: str | None = None,
@@ -103,7 +126,7 @@ def get_deals(
     return storage.list_deals(origin, destination, max_price, limit, dedupe)
 
 
-@app.get("/api/history", response_model=list[RouteHistory])
+@app.get("/api/history", response_model=list[RouteHistory], dependencies=[Depends(require_auth)])
 def get_history() -> list[RouteHistory]:
     """Best price per route per search run — the data behind the price chart."""
     return storage.get_route_history()
@@ -111,17 +134,17 @@ def get_history() -> list[RouteHistory]:
 
 # --- watches ----------------------------------------------------------------
 
-@app.post("/api/watches", response_model=Watch, status_code=201)
+@app.post("/api/watches", response_model=Watch, status_code=201, dependencies=[Depends(require_auth)])
 def create_watch(watch: WatchCreate) -> Watch:
     return storage.add_watch(watch)
 
 
-@app.get("/api/watches", response_model=list[Watch])
+@app.get("/api/watches", response_model=list[Watch], dependencies=[Depends(require_auth)])
 def get_watches() -> list[Watch]:
     return storage.list_watches()
 
 
-@app.delete("/api/watches/{watch_id}", status_code=204)
+@app.delete("/api/watches/{watch_id}", status_code=204, dependencies=[Depends(require_auth)])
 def remove_watch(watch_id: int) -> None:
     if not storage.delete_watch(watch_id):
         raise HTTPException(status_code=404, detail="No such watch")

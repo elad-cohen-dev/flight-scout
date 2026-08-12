@@ -76,6 +76,7 @@ The workflow authenticates with the `CRON_SECRET` repo secret, which must match 
 | `FLIGHT_SCOUT_MODEL` | `claude-opus-5` / `gpt-5.4-mini` | Model powering the agent (per provider) |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | — | Hosted DB ([Turso](https://turso.tech)); falls back to local SQLite when unset |
 | `STATIC_DIR` | `frontend/dist` | Directory of built frontend for FastAPI to serve |
+| `APP_PASSWORD` | — (open when unset) | Locks the app/API behind a shared password (UI shows a lock screen) |
 
 ## Deployment (Render free tier + Turso free tier)
 
@@ -98,4 +99,4 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 - [x] Background searches (`POST /api/search` returns a job id instead of blocking)
 - [x] Price history chart per route
 - [x] De-duplication of identical deals across runs
-- [ ] Access control (each search spends LLM credit)
+- [x] Access control — app password (`APP_PASSWORD`) with a lock screen in the UI

@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { createWatch, deleteWatch, fetchDeals, fetchHistory, fetchWatches, runSearch } from "./api";
+import {
+  AuthError,
+  clearAppPassword,
+  createWatch,
+  deleteWatch,
+  fetchDeals,
+  fetchHistory,
+  fetchWatches,
+  runSearch,
+  setAppPassword,
+} from "./api";
 import PriceChart from "./PriceChart";
 import type { RouteHistory, SearchGroup, StoredDeal, Watch } from "./types";
 
@@ -188,17 +198,58 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState("");
   const [directOnly, setDirectOnly] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDeals().then(setDeals).catch((e) => setError(String(e)));
+  function loadAll() {
+    fetchDeals()
+      .then((d) => {
+        setDeals(d);
+        setLocked(false);
+      })
+      .catch((e) => {
+        if (e instanceof AuthError) {
+          clearAppPassword();
+          setLocked(true);
+        } else {
+          setError(String(e));
+        }
+      });
     fetchWatches().then(setWatches).catch(() => {});
     fetchHistory().then(setHistory).catch(() => {});
-  }, []);
+  }
+
+  useEffect(loadAll, []);
+
+  function onUnlock(e: React.FormEvent) {
+    e.preventDefault();
+    if (!passwordInput) return;
+    setAppPassword(passwordInput);
+    setLoginError(null);
+    fetchDeals()
+      .then((d) => {
+        setDeals(d);
+        setLocked(false);
+        setPasswordInput("");
+        fetchWatches().then(setWatches).catch(() => {});
+        fetchHistory().then(setHistory).catch(() => {});
+      })
+      .catch((e) => {
+        if (e instanceof AuthError) {
+          clearAppPassword();
+          setLoginError("Wrong password, try again.");
+        } else {
+          setLoginError(String(e));
+        }
+      });
+  }
 
   // deals change (new search / watch run) => history changes too
   useEffect(() => {
     if (deals.length > 0) fetchHistory().then(setHistory).catch(() => {});
   }, [deals.length]);
+
 
   const groups = useMemo(() => {
     let filtered = deals;
@@ -229,7 +280,12 @@ export default function App() {
         setDeals((prev) => [...(job.deals ?? []), ...prev]);
       }
     } catch (e) {
-      setError(String(e));
+      if (e instanceof AuthError) {
+        clearAppPassword();
+        setLocked(true);
+      } else {
+        setError(String(e));
+      }
     } finally {
       setSearching(false);
     }
@@ -251,7 +307,12 @@ export default function App() {
       setWatches((prev) => [...prev, watch]);
       setNotice(`Watching ${watch.origin} → ${watch.destination} for deals under ${formatPrice(watch.max_price, watch.currency)}.`);
     } catch (e) {
-      setError(String(e));
+      if (e instanceof AuthError) {
+        clearAppPassword();
+        setLocked(true);
+      } else {
+        setError(String(e));
+      }
     }
   }
 
@@ -262,6 +323,30 @@ export default function App() {
     } catch (e) {
       setError(String(e));
     }
+  }
+
+
+  if (locked) {
+    return (
+      <div className="container">
+        <div className="lock-card">
+          <h1>✈️ Flight Scout</h1>
+          <p className="subtitle">This app is password-protected.</p>
+          <form onSubmit={onUnlock} className="lock-form">
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              placeholder="App password"
+              autoFocus
+            />
+            <button type="submit">Unlock</button>
+          </form>
+          {loginError && <div className="status error">{loginError}</div>}
+        </div>
+      </div>
+    );
   }
 
   return (

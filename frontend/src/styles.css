@@ -108,6 +108,52 @@ header h1 {
   border: 1px solid var(--accent) !important;
 }
 
+/* --- lock screen --- */
+.lock-card {
+  max-width: 400px;
+  margin: 15vh auto 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.lock-card h1 {
+  margin: 0 0 0.25rem;
+}
+
+.lock-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.lock-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.lock-form button {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lock-card .status {
+  margin-top: 1rem;
+  text-align: left;
+}
+
 /* --- watches panel --- */
 .watches-panel {
   background: var(--card);
