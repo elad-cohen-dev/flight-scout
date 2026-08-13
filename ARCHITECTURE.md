@@ -64,6 +64,7 @@ A live web search takes 1–2 minutes, far beyond sane HTTP timeouts (and Render
 2. FastAPI spawns a daemon thread and immediately returns `202 {job_id, status: running}`.
 3. The thread runs the agent: *research* (server-side web search → prose findings), then *extract* (structured output → `FlightDeal` list), then inserts the deals into the DB.
 4. Meanwhile the UI polls `GET /api/jobs/{job_id}` every 3 seconds until the status flips to `done` (response carries the saved deals) or `error`.
+5. In parallel, the UI follows `GET /api/jobs/{job_id}/events` — a Server-Sent Events stream of the agent's live progress. The research pass runs with `llm.stream()`, so every web-search call the model issues and every chunk of its findings is pushed to an in-memory event buffer and rendered in the UI as a streaming "agent console" (the LLM-chat feel instead of a frozen spinner). The stream is best-effort: polling remains the source of truth for completion, so a dropped stream costs only the live view.
 
 Jobs live in an in-memory dict guarded by a lock — fine for a single instance; a restart loses in-flight jobs but never stored data. The same mechanism runs watch sweeps (`kind: watch_run`).
 

@@ -16,8 +16,9 @@ provider is auto-detected from whichever key is set.
 
 from __future__ import annotations
 
+import logging
 import os
-from typing import TypedDict
+from typing import Callable, TypedDict
 
 from dotenv import load_dotenv
 from langgraph.graph import END, START, StateGraph
@@ -25,6 +26,14 @@ from langgraph.graph import END, START, StateGraph
 from .models import FlightDeal, FlightDealList
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+# Progress callback: receives {"kind": "phase"|"delta"|"search", "text": str}.
+# "delta" is a streamed chunk of the research pass's prose; "search" fires when
+# the model issues a web-search call. Used by the API to live-stream agent
+# activity to the UI; None (the watcher/CLI case) disables it entirely.
+OnEvent = Callable[[dict], None]
 
 DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
@@ -133,7 +142,50 @@ def _text_of(message) -> str:
     return "\n".join(parts)
 
 
-def research(state: AgentState) -> dict:
+def _blocks_of(content) -> list[dict]:
+    if isinstance(content, list):
+        return [b for b in content if isinstance(b, dict)]
+    return []
+
+
+def _search_query_of(block: dict) -> str:
+    """Best-effort extraction of the query from a web-search tool block —
+    the exact shape varies by provider and langchain version."""
+    for candidate in (block.get("action"), block.get("input"), block):
+        if isinstance(candidate, dict):
+            query = candidate.get("query")
+            if isinstance(query, str) and query:
+                return query
+    return ""
+
+
+def _stream_research(llm_with_search, prompt: str, emit: OnEvent) -> str:
+    """Stream the research pass, emitting text deltas and web-search events."""
+    parts: list[str] = []
+    searches_seen = 0
+    for chunk in llm_with_search.stream(prompt):
+        delta = ""
+        text = getattr(chunk, "text", None)
+        if isinstance(text, str):
+            delta = text
+        elif callable(text):
+            delta = text()
+        elif isinstance(chunk.content, str):
+            delta = chunk.content
+        if delta:
+            parts.append(delta)
+            emit({"kind": "delta", "text": delta})
+        for block in _blocks_of(chunk.content):
+            btype = str(block.get("type", ""))
+            if "search" in btype and "result" not in btype:
+                query = _search_query_of(block)
+                if query or not delta:
+                    searches_seen += 1
+                    emit({"kind": "search", "text": query or f"web search #{searches_seen}"})
+    return "".join(parts)
+
+
+def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
     llm, web_search_tool = _make_llm()
     llm_with_search = llm.bind_tools([web_search_tool])
     prompt = RESEARCH_PROMPT.format(
@@ -143,6 +195,14 @@ def research(state: AgentState) -> dict:
         direct_clause=DIRECT_ONLY_CLAUSE if state["direct_only"] else "",
         currency=state["currency"],
     )
+    if on_event is not None:
+        try:
+            notes = _stream_research(llm_with_search, prompt, on_event)
+            if notes:
+                return {"research_notes": notes}
+            logger.warning("streaming returned no text, retrying without streaming")
+        except Exception:
+            logger.exception("streaming research failed, falling back to invoke")
     response = llm_with_search.invoke(prompt)
     return {"research_notes": _text_of(response)}
 
@@ -164,10 +224,20 @@ def extract(state: AgentState) -> dict:
     return {"deals": deals}
 
 
-def build_graph():
+def build_graph(on_event: OnEvent | None = None):
+    def research_node(state: AgentState) -> dict:
+        if on_event:
+            on_event({"kind": "phase", "text": "Researching the live web for deals…"})
+        return research(state, on_event=on_event)
+
+    def extract_node(state: AgentState) -> dict:
+        if on_event:
+            on_event({"kind": "phase", "text": "Extracting structured deals from the findings…"})
+        return extract(state)
+
     graph = StateGraph(AgentState)
-    graph.add_node("research", research)
-    graph.add_node("extract", extract)
+    graph.add_node("research", research_node)
+    graph.add_node("extract", extract_node)
     graph.add_edge(START, "research")
     graph.add_edge("research", "extract")
     graph.add_edge("extract", END)
@@ -180,9 +250,10 @@ def find_deals(
     dates_hint: str,
     direct_only: bool = False,
     currency: str = "USD",
+    on_event: OnEvent | None = None,
 ) -> list[FlightDeal]:
     """Run the agent end to end and return the structured deals."""
-    app = build_graph()
+    app = build_graph(on_event)
     final_state = app.invoke(
         {
             "origin": origin,
@@ -194,4 +265,6 @@ def find_deals(
             "deals": [],
         }
     )
+    if on_event:
+        on_event({"kind": "phase", "text": f"Found {len(final_state['deals'])} deals."})
     return final_state["deals"]

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
   clearAppPassword,
@@ -10,6 +10,7 @@ import {
   runSearch,
   setAppPassword,
 } from "./api";
+import type { AgentEvent } from "./api";
 import PriceChart from "./PriceChart";
 import type { RouteHistory, SearchGroup, StoredDeal, Watch } from "./types";
 
@@ -38,6 +39,53 @@ function dealMatches(deal: StoredDeal, query: string, directOnly: boolean): bool
     deal.origin.toLowerCase().includes(query) ||
     deal.destination.toLowerCase().includes(query) ||
     deal.airline.toLowerCase().includes(query)
+  );
+}
+
+/** Live "agent console": streams the agent's research prose, web-search calls
+ *  and phase changes while a search runs — the LLM-chat feel instead of a
+ *  frozen "searching…" label. */
+function AgentConsole({ events }: { events: AgentEvent[] }) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [events]);
+
+  // Merge consecutive text deltas into paragraphs; phases/searches break them.
+  const items: { type: "phase" | "search" | "text"; text: string }[] = [];
+  for (const e of events) {
+    if (e.kind === "delta") {
+      const last = items[items.length - 1];
+      if (last && last.type === "text") last.text += e.text;
+      else items.push({ type: "text", text: e.text });
+    } else if (e.kind === "phase" || e.kind === "search") {
+      items.push({ type: e.kind, text: e.text });
+    }
+  }
+
+  return (
+    <div className="agent-console">
+      <div className="agent-console-head">
+        <span className="agent-dot" /> The agent is searching the live web
+      </div>
+      <div className="agent-console-body" ref={bodyRef}>
+        {items.length === 0 && <div className="agent-line agent-phase">Spinning up the agent…</div>}
+        {items.map((item, i) =>
+          item.type === "text" ? (
+            <p key={i} className="agent-text">
+              {item.text}
+              {i === items.length - 1 && <span className="agent-cursor">▋</span>}
+            </p>
+          ) : (
+            <div key={i} className={`agent-line agent-${item.type}`}>
+              {item.type === "search" ? "🔍 " : "→ "}
+              {item.text}
+            </div>
+          )
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -239,6 +287,7 @@ export default function App() {
   const [datesHint, setDatesHint] = useState("anytime in the next 3 months");
   const [maxPrice, setMaxPrice] = useState("");
   const [searching, setSearching] = useState(false);
+  const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState("");
@@ -321,8 +370,14 @@ export default function App() {
     setSearching(true);
     setError(null);
     setNotice(null);
+    setAgentEvents([]);
     try {
-      const job = await runSearch({ origin, destination, dates_hint: datesHint, direct_only: searchDirect });
+      const job = await runSearch(
+        { origin, destination, dates_hint: datesHint, direct_only: searchDirect },
+        (e) => {
+          if (e.kind !== "end") setAgentEvents((prev) => [...prev, e]);
+        }
+      );
       if (job.status === "error") {
         setError(job.error ?? "Search failed");
       } else {
@@ -437,9 +492,7 @@ export default function App() {
         </label>
       </form>
 
-      {searching && (
-        <div className="status">The agent is searching the live web — this usually takes a minute or two ☕</div>
-      )}
+      {searching && <AgentConsole events={agentEvents} />}
       {error && <div className="status error">{error}</div>}
       {notice && <div className="status notice">{notice}</div>}
 

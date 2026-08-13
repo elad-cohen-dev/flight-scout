@@ -101,6 +101,82 @@ header h1 {
   color: var(--muted);
 }
 
+/* --- live agent console --- */
+.agent-console {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.agent-console-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: agent-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes agent-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+.agent-console-body {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.agent-line {
+  color: var(--muted);
+  margin: 0.35rem 0;
+}
+
+.agent-phase {
+  font-weight: 600;
+}
+
+.agent-search {
+  color: var(--accent);
+}
+
+.agent-text {
+  margin: 0.35rem 0;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
+.agent-cursor {
+  color: var(--accent);
+  animation: agent-blink 1s step-end infinite;
+}
+
+@keyframes agent-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-dot,
+  .agent-cursor {
+    animation: none;
+  }
+}
+
 .status.error {
   color: #dc2626;
   border-color: #dc2626;

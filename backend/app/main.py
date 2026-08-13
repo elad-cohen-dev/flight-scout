@@ -10,15 +10,18 @@ In production the built frontend (static files) is served from STATIC_DIR.
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Callable, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -72,16 +75,28 @@ class Job(BaseModel):
 _JOBS: dict[str, Job] = {}
 _JOBS_LOCK = threading.Lock()
 
+# Live progress events per job ({"kind": "phase"|"delta"|"search", "text": ...}),
+# appended by the job thread and streamed to clients by /api/jobs/{id}/events.
+_JOB_EVENTS: dict[str, list[dict]] = {}
+_MAX_EVENTS_PER_JOB = 5000
 
-def _start_job(kind: Literal["search", "watch_run"], query: str, work: Callable[[], dict]) -> Job:
-    """Register a job and run `work` in a daemon thread; its dict return updates the job."""
+
+def _emit_event(job_id: str, event: dict) -> None:
+    with _JOBS_LOCK:
+        events = _JOB_EVENTS.setdefault(job_id, [])
+        if len(events) < _MAX_EVENTS_PER_JOB:
+            events.append(event)
+
+
+def _start_job(kind: Literal["search", "watch_run"], query: str, work: Callable[[str], dict]) -> Job:
+    """Register a job and run `work(job_id)` in a daemon thread; its dict return updates the job."""
     job = Job(job_id=uuid.uuid4().hex, kind=kind, status="running", query=query)
     with _JOBS_LOCK:
         _JOBS[job.job_id] = job
 
     def _run() -> None:
         try:
-            update = {"status": "done", **work()}
+            update = {"status": "done", **work(job.job_id)}
         except Exception as exc:
             update = {"status": "error", "error": str(exc)}
         with _JOBS_LOCK:
@@ -100,6 +115,39 @@ def get_job(job_id: str) -> Job:
     return job
 
 
+@app.get("/api/jobs/{job_id}/events", dependencies=[Depends(require_auth)])
+def stream_job_events(job_id: str) -> StreamingResponse:
+    """Server-Sent Events: replay this job's progress so far, then follow it
+    live until the job leaves the running state. The UI renders these as a
+    streaming 'agent console'; polling /api/jobs/{id} remains the source of
+    truth for completion, so a dropped stream degrades gracefully."""
+    with _JOBS_LOCK:
+        if job_id not in _JOBS:
+            raise HTTPException(status_code=404, detail="Unknown job id (server may have restarted)")
+
+    def gen():
+        sent = 0
+        while True:
+            with _JOBS_LOCK:
+                events = _JOB_EVENTS.get(job_id, [])
+                pending = events[sent:]
+                job = _JOBS.get(job_id)
+            for event in pending:
+                yield f"data: {json.dumps(event)}\n\n"
+            sent += len(pending)
+            if job is None or job.status != "running":
+                status = job.status if job else "error"
+                yield f"data: {json.dumps({'kind': 'end', 'text': status})}\n\n"
+                return
+            time.sleep(0.25)
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # --- searches ---------------------------------------------------------------
 
 @app.post("/api/search", response_model=Job, status_code=202, dependencies=[Depends(require_auth)])
@@ -107,8 +155,11 @@ def start_search(req: SearchRequest) -> Job:
     constraint = ", direct only" if req.direct_only else ""
     query = f"{req.origin} -> {req.destination} ({req.dates_hint}{constraint})"
 
-    def work() -> dict:
-        deals = agent.find_deals(req.origin, req.destination, req.dates_hint, req.direct_only)
+    def work(job_id: str) -> dict:
+        deals = agent.find_deals(
+            req.origin, req.destination, req.dates_hint, req.direct_only,
+            on_event=lambda event: _emit_event(job_id, event),
+        )
         return {"deals": storage.save_deals(query, deals)}
 
     return _start_job("search", query, work)
@@ -161,7 +212,7 @@ def run_watches(x_cron_secret: str | None = Header(default=None)) -> Job:
     expected = os.environ.get("CRON_SECRET")
     if expected and x_cron_secret != expected:
         raise HTTPException(status_code=401, detail="Bad or missing X-Cron-Secret header")
-    return _start_job("watch_run", "scheduled watch run", lambda: {"summary": watcher.run_watches()})
+    return _start_job("watch_run", "scheduled watch run", lambda _job_id: {"summary": watcher.run_watches()})
 
 
 @app.get("/api/health")

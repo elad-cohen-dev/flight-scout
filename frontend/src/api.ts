@@ -51,9 +51,46 @@ export async function getJob(jobId: string): Promise<Job> {
   return handle(await fetch(`/api/jobs/${jobId}`, { headers: authHeaders() }));
 }
 
-/** Start a search and poll until it finishes (or fails). */
-export async function runSearch(req: SearchRequest): Promise<Job> {
+export interface AgentEvent {
+  kind: "phase" | "delta" | "search" | "end";
+  text: string;
+}
+
+/** Follow a job's live progress stream (SSE). Resolves when the stream ends.
+ *  Best-effort: callers treat a failure as "no live view", never as job failure. */
+export async function streamJobEvents(jobId: string, onEvent: (e: AgentEvent) => void): Promise<void> {
+  const res = await fetch(`/api/jobs/${jobId}/events`, { headers: authHeaders() });
+  if (!res.ok || !res.body) throw new Error(`${res.status}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buffer.indexOf("\n\n")) >= 0) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      const data = frame.split("\n").find((l) => l.startsWith("data: "));
+      if (!data) continue;
+      try {
+        onEvent(JSON.parse(data.slice(6)) as AgentEvent);
+      } catch {
+        // malformed frame — skip
+      }
+    }
+  }
+}
+
+/** Start a search and poll until it finishes (or fails).
+ *  With onEvent, also follows the live progress stream in parallel —
+ *  polling stays the source of truth for completion. */
+export async function runSearch(req: SearchRequest, onEvent?: (e: AgentEvent) => void): Promise<Job> {
   const job = await startSearch(req);
+  if (onEvent) {
+    streamJobEvents(job.job_id, onEvent).catch(() => {});
+  }
   for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
     const current = await getJob(job.job_id);

@@ -47,6 +47,7 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 | ---------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `POST`           | `/api/search`                        | `{origin, destination, dates_hint, direct_only}` → starts a search job, returns `{job_id}` (202)                                   |
 | `GET`            | `/api/jobs/{job_id}`                 | Poll a job: `{status: running\|done\|error, deals, summary, error}`                                                                  |
+| `GET`            | `/api/jobs/{job_id}/events`          | Live progress stream (SSE): the agent's web-search calls and streamed research text                                                |
 | `GET`            | `/api/deals`                         | List stored deals, de-duplicated across runs (`dedupe=false` for raw rows). Filters: `origin`, `destination`, `max_price`, `limit` |
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
 | `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, direct_only}`                                        |
@@ -101,7 +102,7 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 
 ## Features
 
-- **Live web search** for deals on any route, in free-text dates ("a weekend in November"), optionally direct flights only
+- **Live web search** for deals on any route, in free-text dates ("a weekend in November"), optionally direct flights only — with the agent's searches and findings **streamed live** into the UI while it works
 - **Price watches** — routes re-searched daily (GitHub Actions cron), push alert via ntfy/Telegram when a deal drops below your threshold, with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
 - **Price-history chart** per route, built from every search run
 - **De-duplication** of identical deals across runs ("seen 3× since Aug 10")
