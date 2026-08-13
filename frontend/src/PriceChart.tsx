@@ -1,9 +1,25 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { HistoryPoint } from "./types";
 
-const W = 640;
-const H = 220;
-const PAD = { top: 16, right: 16, bottom: 28, left: 48 };
+const WIDE = { W: 640, H: 220, PAD: { top: 16, right: 16, bottom: 28, left: 48 } };
+// The SVG scales to the container width, so a 640-unit viewBox on a 350px-wide
+// phone would render the 11px labels at ~6px. A narrower viewBox keeps them legible.
+const NARROW = { W: 360, H: 210, PAD: { top: 14, right: 12, bottom: 26, left: 44 } };
+const NARROW_QUERY = "(max-width: 520px)";
+
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(NARROW_QUERY).matches
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(NARROW_QUERY);
+    const onChange = (e: MediaQueryListEvent) => setNarrow(e.matches);
+    mql.addEventListener("change", onChange);
+    setNarrow(mql.matches);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return narrow;
+}
 
 function niceTicks(min: number, max: number, count = 4): number[] {
   if (min === max) {
@@ -37,6 +53,7 @@ export default function PriceChart({
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const { W, H, PAD } = useNarrow() ? NARROW : WIDE;
 
   const { xs, ys, yTicks } = useMemo(() => {
     const times = points.map((p) => new Date(p.found_at).getTime());
@@ -54,9 +71,9 @@ export default function PriceChart({
     const ys = prices.map((p) => PAD.top + (1 - (p - yMin) / (yMax - yMin)) * plotH);
     const yFor = (v: number) => PAD.top + (1 - (v - yMin) / (yMax - yMin)) * plotH;
     return { xs, ys, yTicks: yTicks.map((v) => ({ v, y: yFor(v) })) };
-  }, [points]);
+  }, [points, W, H, PAD]);
 
-  function onMove(e: React.MouseEvent<SVGSVGElement>) {
+  function onMove(e: React.PointerEvent<SVGSVGElement>) {
     const rect = svgRef.current!.getBoundingClientRect();
     const mx = ((e.clientX - rect.left) / rect.width) * W;
     let best = 0;
@@ -73,8 +90,11 @@ export default function PriceChart({
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="price-chart"
-        onMouseMove={onMove}
-        onMouseLeave={() => setHover(null)}
+        onPointerDown={onMove}
+        onPointerMove={onMove}
+        // A touch pointer "leaves" the moment the finger lifts; clearing then would
+        // make the tooltip unreadable on a phone, so it persists until the next tap.
+        onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}
         role="img"
         aria-label={`Best price over time, ${points.length} search runs`}
       >
@@ -111,7 +131,12 @@ export default function PriceChart({
       </svg>
 
       {h != null && hover != null && (
-        <div className="chart-tooltip" style={{ left: `${(xs[hover] / W) * 100}%` }}>
+        <div
+          className="chart-tooltip"
+          // Clamped so an edge point's tooltip stays inside the card instead of
+          // hanging off the side of a narrow screen.
+          style={{ left: `${Math.min(85, Math.max(15, (xs[hover] / W) * 100))}%` }}
+        >
           <strong>{formatPrice(h.price, currency)}</strong>
           <span>
             {fmtDate(h.found_at)} · {h.deals} deal{h.deals !== 1 && "s"}
