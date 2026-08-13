@@ -360,6 +360,12 @@ header h1 {
   min-height: 0;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .collapse {
+    transition: none;
+  }
+}
+
 main > .collapse {
   margin-bottom: 0.75rem;
 }

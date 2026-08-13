@@ -242,6 +242,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState("");
+  const [debouncedFilter, setDebouncedFilter] = useState("");
   const [directOnly, setDirectOnly] = useState(false); // results-display filter
   const [searchDirect, setSearchDirect] = useState(false); // constraint sent with searches & watches
   const [locked, setLocked] = useState(false);
@@ -296,11 +297,19 @@ export default function App() {
     if (deals.length > 0) fetchHistory().then(setHistory).catch(() => {});
   }, [deals.length]);
 
+  // Debounce the text filter so results animate once per pause, not per
+  // keystroke ("w", "wi", "wiz"... each triggering its own fold). The
+  // checkbox stays immediate — a click is already a settled intent.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilter(routeFilter), 250);
+    return () => clearTimeout(t);
+  }, [routeFilter]);
+
 
   // Groups are built from ALL deals; the filter only toggles visibility so
   // hidden results can animate closed instead of unmounting.
   const groups = useMemo(() => groupDeals(deals), [deals]);
-  const filterQuery = routeFilter.trim().toLowerCase();
+  const filterQuery = debouncedFilter.trim().toLowerCase();
   const groupVisible = (g: SearchGroup) => g.deals.some((d) => dealMatches(d, filterQuery, directOnly));
   const anyVisible = groups.some(groupVisible);
 
