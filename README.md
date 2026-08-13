@@ -4,23 +4,23 @@ An AI agent that hunts the live web for cheap flights, stores what it finds, and
 
 ## How it works
 
-```
-React app ──POST /api/search──▶ FastAPI ──▶ LangGraph agent ──▶ SQLite
-   ▲                                            │
-   └────────GET /api/deals──────────────────────┘
-
-LangGraph agent (backend/app/agent.py):
-  START ─▶ research ─▶ extract ─▶ END
-            │             │
-            │             └─ Claude structured output → validated FlightDeal list
-            └─ Claude + Anthropic server-side web search (searches Google Flights
-               results, airline deal pages, fare aggregators — live, on every run)
+```mermaid
+flowchart LR
+    UI["React app"] -->|"POST /api/search"| API["FastAPI"]
+    API -->|background job| AGENT["LangGraph agent<br/>research → extract"]
+    AGENT -->|"LLM + server-side<br/>web search"| LLM["Anthropic / OpenAI"]
+    AGENT --> DB[("Turso / SQLite")]
+    UI -->|"GET /api/deals · /api/history"| API
+    CRON["GitHub Actions<br/>daily cron"] -->|"POST /api/watches/run"| API
+    API -.->|price-drop alert| N["ntfy / Telegram"]
 ```
 
-- **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving an LLM with the provider's **server-side web search tool** — no scraping infrastructure or flight-API keys needed. Works with **Anthropic** (Claude) or **OpenAI** (GPT); the provider is auto-detected from whichever API key you set.
-- **Storage**: SQLite (`backend/flight_scout.db`), created automatically.
-- **API**: FastAPI — `POST /api/search` runs the agent, `GET /api/deals` lists stored deals.
-- **App**: React + Vite. Search form → deal cards with price, airline, dates, duration, stops, and booking/source links.
+- **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving an LLM with the provider's **server-side web search tool** — no scraping infrastructure or flight-API keys needed. Works with **Anthropic** (Claude) or **OpenAI** (GPT); the provider is auto-detected from whichever API key you set. Two-node graph: a *research* pass that searches the live web, then an *extract* pass that turns the findings into validated structured deals.
+- **Storage**: [Turso](https://turso.tech) (hosted libSQL) in production, a local SQLite file in development — same code path, selected by env var.
+- **API**: FastAPI — searches run as background jobs the UI polls; the built frontend is served from the same port.
+- **App**: React + Vite. Search form → grouped deal cards (price, airline, dates, duration, stops, booking links), price-history chart per route, price watches with daily re-checks.
+
+**→ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full end-to-end design: agent internals, request flow, storage/caching, the cron + notification pipeline, and the free-tier trade-offs.**
 
 
 
@@ -54,11 +54,11 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 
 | Method           | Path                                 | Description                                                                                                                        |
 | ---------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `POST`           | `/api/search`                        | `{origin, destination, dates_hint}` → starts a search job, returns `{job_id}` (202)                                                |
+| `POST`           | `/api/search`                        | `{origin, destination, dates_hint, direct_only}` → starts a search job, returns `{job_id}` (202)                                   |
 | `GET`            | `/api/jobs/{job_id}`                 | Poll a job: `{status: running\|done\|error, deals, summary, error}`                                                                  |
 | `GET`            | `/api/deals`                         | List stored deals, de-duplicated across runs (`dedupe=false` for raw rows). Filters: `origin`, `destination`, `max_price`, `limit` |
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
-| `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price}`                                                               |
+| `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, direct_only}`                                        |
 | `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches                                                                                                              |
 | `POST`           | `/api/watches/run`                   | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header)                                                   |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
@@ -86,6 +86,9 @@ The workflow authenticates with the `CRON_SECRET` repo secret, which must match 
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | —                                | Hosted DB ([Turso](https://turso.tech)); falls back to local SQLite when unset |
 | `STATIC_DIR`                              | `frontend/dist`                  | Directory of built frontend for FastAPI to serve                               |
 | `APP_PASSWORD`                            | — (open when unset)              | Locks the app/API behind a shared password (UI shows a lock screen)            |
+| `CRON_SECRET`                             | —                                | Shared secret for `POST /api/watches/run` (set the same value in GitHub Actions) |
+| `NTFY_TOPIC`                              | —                                | ntfy.sh topic for price-drop alerts                                            |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | —                                | Telegram bot alerts                                                            |
 
 
 
@@ -105,10 +108,11 @@ The repo ships a `Dockerfile` (builds the frontend, serves everything from FastA
 
 Free-tier notes: the service spins down after ~15 min idle (first request takes ~1 min to cold-start), and searches run as background jobs the UI polls — so keep the tab open until a search finishes.
 
-## Roadmap
+## Features
 
-- [x] Notifications — daily scheduled re-searches of watched routes, push alert on price drops (GitHub Actions cron + ntfy/Telegram)
-- [x] Background searches (`POST /api/search` returns a job id instead of blocking)
-- [x] Price history chart per route
-- [x] De-duplication of identical deals across runs
-- [x] Access control — app password (`APP_PASSWORD`) with a lock screen in the UI
+- **Live web search** for deals on any route, in free-text dates ("a weekend in November"), optionally direct flights only
+- **Price watches** — routes re-searched daily (GitHub Actions cron), push alert via ntfy/Telegram when a deal drops below your threshold, with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
+- **Price-history chart** per route, built from every search run
+- **De-duplication** of identical deals across runs ("seen 3× since Aug 10")
+- **Access control** — optional shared password (`APP_PASSWORD`) with a lock screen
+- **Mobile-friendly** responsive UI
