@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .currency import normalize as _normalize_currency
 
 
 class FlightDeal(BaseModel):
@@ -22,6 +24,13 @@ class FlightDeal(BaseModel):
     booking_url: str = Field(default="", description="URL where this fare can be booked or tracked")
     source_url: str = Field(default="", description="URL of the page where the deal was found")
     notes: str = Field(default="", description="Anything relevant: baggage, fare class, deal expiry, caveats")
+
+    @field_validator("currency")
+    @classmethod
+    def _iso_currency(cls, v: str) -> str:
+        # The extractor sometimes emits a symbol ("₪") instead of an ISO code;
+        # normalizing here covers fresh extractions AND old rows read back.
+        return _normalize_currency(v)
 
 
 class FlightDealList(BaseModel):

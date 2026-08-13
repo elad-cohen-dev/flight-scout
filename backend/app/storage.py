@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 
 from collections import Counter, defaultdict
 
+from .currency import normalize as _normalize_currency
 from .models import FlightDeal, HistoryPoint, RouteHistory, StoredDeal, Watch, WatchCreate
 
 load_dotenv()
@@ -276,7 +277,7 @@ def _fingerprint(row: dict) -> tuple:
         row["airline"].strip().lower(),
         row["depart_date"].strip().lower(),
         row["return_date"].strip().lower(),
-        row["currency"],
+        _normalize_currency(row["currency"]),  # "₪" and "ILS" are the same deal
         round(row["price"], 2),
     )
 
@@ -360,6 +361,7 @@ def get_route_history() -> list[RouteHistory]:
 
     by_route: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
+        row["currency"] = _normalize_currency(row["currency"])
         by_route[_route_of(row["search_query"])].append(row)
 
     histories: list[RouteHistory] = []

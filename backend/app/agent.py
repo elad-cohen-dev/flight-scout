@@ -85,13 +85,15 @@ For every concrete deal you find, report:
 - the URL where the fare can be booked or tracked, and the URL of the page you found it on
 - caveats (hand-luggage-only fare, deal expiry, mistake fare, etc.)
 
-Report at least 3 distinct options when possible, cheapest first. If prices are only
-available as ranges or "from X" figures, report them with that caveat. Finish with a short
-plain-text list of the deals — no tables needed."""
+Report at least 3 distinct options when possible, cheapest first. Quote prices in {currency}
+when the source offers it; otherwise give the original price with its currency clearly named.
+If prices are only available as ranges or "from X" figures, report them with that caveat.
+Finish with a short plain-text list of the deals — no tables needed."""
 
 EXTRACT_PROMPT = """Below are research notes about flight deals from {origin} to {destination}.
-Extract every distinct deal into the structured format. Use numeric prices (strip currency
-symbols into the currency field). If a field is unknown, use an empty string (or 0 for stops).
+Extract every distinct deal into the structured format. Use numeric prices, and put the
+currency in the currency field as an ISO 4217 code (USD, EUR, ILS, GBP...) — never a symbol.
+If a field is unknown, use an empty string (or 0 for stops).
 Skip anything that is not an actual priced flight deal.
 
 Research notes:
@@ -109,6 +111,7 @@ class AgentState(TypedDict):
     destination: str
     dates_hint: str
     direct_only: bool
+    currency: str
     research_notes: str
     deals: list[FlightDeal]
 
@@ -138,6 +141,7 @@ def research(state: AgentState) -> dict:
         destination=state["destination"],
         dates_hint=state["dates_hint"],
         direct_clause=DIRECT_ONLY_CLAUSE if state["direct_only"] else "",
+        currency=state["currency"],
     )
     response = llm_with_search.invoke(prompt)
     return {"research_notes": _text_of(response)}
@@ -171,7 +175,11 @@ def build_graph():
 
 
 def find_deals(
-    origin: str, destination: str, dates_hint: str, direct_only: bool = False
+    origin: str,
+    destination: str,
+    dates_hint: str,
+    direct_only: bool = False,
+    currency: str = "USD",
 ) -> list[FlightDeal]:
     """Run the agent end to end and return the structured deals."""
     app = build_graph()
@@ -181,6 +189,7 @@ def find_deals(
             "destination": destination,
             "dates_hint": dates_hint,
             "direct_only": direct_only,
+            "currency": currency,
             "research_notes": "",
             "deals": [],
         }
