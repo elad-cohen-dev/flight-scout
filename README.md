@@ -4,16 +4,7 @@ An AI agent that hunts the live web for cheap flights, stores what it finds, and
 
 ## How it works
 
-```mermaid
-flowchart LR
-    UI["React app"] -->|"POST /api/search"| API["FastAPI"]
-    API -->|background job| AGENT["LangGraph agent<br/>research → extract"]
-    AGENT -->|"LLM + server-side<br/>web search"| LLM["Anthropic / OpenAI"]
-    AGENT --> DB[("Turso / SQLite")]
-    UI -->|"GET /api/deals · /api/history"| API
-    CRON["GitHub Actions<br/>daily cron"] -->|"POST /api/watches/run"| API
-    API -.->|price-drop alert| N["ntfy / Telegram"]
-```
+![Flight Scout system architecture](./docs/architecture.png)
 
 - **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving an LLM with the provider's **server-side web search tool** — no scraping infrastructure or flight-API keys needed. Works with **Anthropic** (Claude) or **OpenAI** (GPT); the provider is auto-detected from whichever API key you set. Two-node graph: a *research* pass that searches the live web, then an *extract* pass that turns the findings into validated structured deals.
 - **Storage**: [Turso](https://turso.tech) (hosted libSQL) in production, a local SQLite file in development — same code path, selected by env var.

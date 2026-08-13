@@ -4,44 +4,9 @@ End-to-end: a LangGraph agent that searches the live web for flight deals, a Fas
 
 ## System overview
 
-```mermaid
-flowchart LR
-    subgraph client["Browser"]
-        UI["React + Vite SPA"]
-    end
+![Flight Scout system architecture](./docs/architecture.png)
 
-    subgraph render["Render (one Docker service, free tier)"]
-        API["FastAPI<br/>app/main.py"]
-        AGENT["LangGraph agent<br/>app/agent.py"]
-        WATCHER["Watcher<br/>app/watcher.py"]
-        STORE["Storage layer<br/>app/storage.py"]
-        STATIC["Static files<br/>frontend/dist"]
-    end
-
-    subgraph external["External services"]
-        LLM["LLM provider<br/>Anthropic / OpenAI<br/>+ server-side web search"]
-        DB[("Turso<br/>hosted libSQL")]
-        FX["frankfurter.dev<br/>ECB exchange rates"]
-        NTFY["ntfy.sh"]
-        TG["Telegram Bot API"]
-    end
-
-    CRON["GitHub Actions<br/>daily cron 05:00 UTC"]
-
-    UI -->|"/api/*  (Bearer APP_PASSWORD)"| API
-    API --> STATIC
-    API -->|background thread| AGENT
-    CRON -->|"POST /api/watches/run<br/>(X-Cron-Secret)"| API
-    API --> WATCHER
-    WATCHER --> AGENT
-    AGENT -->|2 model calls per search| LLM
-    WATCHER --> STORE
-    API --> STORE
-    STORE --> DB
-    WATCHER -->|threshold check| FX
-    WATCHER -->|alert| NTFY
-    WATCHER -->|alert| TG
-```
+*Diagram source: [docs/architecture.excalidraw](./docs/architecture.excalidraw) — open it at [excalidraw.com](https://excalidraw.com) to edit.*
 
 Everything server-side lives in **one process** on one free Render instance: the API, the agent, the watcher, and the static frontend. There is no queue, no worker fleet, no scraping infrastructure — the design goal is the smallest system that does the job on free tiers.
 
@@ -49,14 +14,10 @@ Everything server-side lives in **one process** on one free Render instance: the
 
 The agent is a two-node `StateGraph`:
 
-```mermaid
-stateDiagram-v2
-    [*] --> research
-    research --> extract
-    extract --> [*]
-
-    research : research — LLM + server-side web search, returns prose findings
-    extract : extract — structured output pass, returns validated FlightDeal list
+```
+START ──▶ research ──▶ extract ──▶ END
+          (LLM + server-side       (structured-output pass →
+           web search → prose)      validated FlightDeal list)
 ```
 
 State flowing through the graph (`AgentState`):
@@ -99,27 +60,10 @@ A single call can't reliably do both jobs: web search needs a free-form response
 
 A live web search takes 1–2 minutes, far beyond sane HTTP timeouts (and Render's proxy limits), so searches run as **background jobs**:
 
-```mermaid
-sequenceDiagram
-    participant UI as React app
-    participant API as FastAPI
-    participant T as job thread
-    participant LLM as LLM + web search
-    participant DB as Turso
-
-    UI->>API: POST /api/search {origin, destination, dates_hint, direct_only}
-    API->>T: spawn daemon thread
-    API-->>UI: 202 {job_id, status: running}
-    T->>LLM: research (server-side web search)
-    LLM-->>T: prose findings
-    T->>LLM: extract (structured output)
-    LLM-->>T: FlightDeal list
-    T->>DB: INSERT deals
-    loop every 3s
-        UI->>API: GET /api/jobs/{job_id}
-        API-->>UI: running… / done + deals
-    end
-```
+1. The UI sends `POST /api/search {origin, destination, dates_hint, direct_only}`.
+2. FastAPI spawns a daemon thread and immediately returns `202 {job_id, status: running}`.
+3. The thread runs the agent: *research* (server-side web search → prose findings), then *extract* (structured output → `FlightDeal` list), then inserts the deals into the DB.
+4. Meanwhile the UI polls `GET /api/jobs/{job_id}` every 3 seconds until the status flips to `done` (response carries the saved deals) or `error`.
 
 Jobs live in an in-memory dict guarded by a lock — fine for a single instance; a restart loses in-flight jobs but never stored data. The same mechanism runs watch sweeps (`kind: watch_run`).
 
@@ -147,28 +91,12 @@ Read-time shaping (the DB stays raw; views are computed):
 
 ## Watches, cron, and notifications
 
-```mermaid
-sequenceDiagram
-    participant GH as GitHub Actions (05:00 UTC)
-    participant API as FastAPI on Render
-    participant W as watcher
-    participant FX as frankfurter.dev
-    participant N as ntfy / Telegram
+Every morning (05:00 UTC), the GitHub Actions workflow:
 
-    GH->>API: GET /api/health (retry loop — wakes the sleeping instance)
-    GH->>API: POST /api/watches/run (X-Cron-Secret)
-    API-->>GH: 202 {job_id}
-    loop each active watch
-        W->>W: agent.find_deals(origin, dest, dates, direct_only, currency)
-        W->>FX: convert each deal price to the watch's currency
-        alt best converted price ≤ max_price
-            W->>N: push alert ("1,009 ILS (~336 USD) on Israir…")
-        end
-    end
-    loop every 30s (also keeps Render awake)
-        GH->>API: GET /api/jobs/{job_id} (X-Cron-Secret)
-    end
-```
+1. **Wakes the app** — a retry loop on `GET /api/health`, because the free Render instance sleeps after ~15 idle minutes.
+2. **Triggers the sweep** — `POST /api/watches/run` with the `X-Cron-Secret` header; the API returns `202 {job_id}` and runs the watcher in a background thread.
+3. For **each active watch**, the watcher re-runs the agent (`find_deals(origin, destination, dates_hint, direct_only, currency)`), saves the results, converts every deal price into the watch's currency, and — if the best converted price is at or below `max_price` — pushes an alert like *"1,009 ILS (~336 USD) on Israir…"*.
+4. **Polls the job** every 30 seconds until done (which conveniently also keeps the instance awake for the duration).
 
 - The **threshold comparison is currency-aware** (`app/currency.py`): deal prices convert into the watch's currency using ECB rates from frankfurter.dev (keyless, cached in-process for 12h) with a static fallback table. Raw-number comparison was the original design and it failed both ways: ₪1,009 vs a $300 threshold never alerted; £95 vs a $100 threshold would have alerted wrongly.
 - Alerts go to **every configured channel**: ntfy (topic-based, zero signup) and/or a Telegram bot.
