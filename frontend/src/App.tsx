@@ -31,6 +31,26 @@ function timeAgo(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+function dealMatches(deal: StoredDeal, query: string, directOnly: boolean): boolean {
+  if (directOnly && deal.stops !== 0) return false;
+  if (!query) return true;
+  return (
+    deal.origin.toLowerCase().includes(query) ||
+    deal.destination.toLowerCase().includes(query) ||
+    deal.airline.toLowerCase().includes(query)
+  );
+}
+
+/** Animated show/hide: collapses height + fades instead of unmounting, so
+ *  filtering visibly folds results away rather than snapping them out. */
+function Collapse({ shown, children }: { shown: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`collapse${shown ? "" : " collapsed"}`} aria-hidden={!shown}>
+      <div className="collapse-inner">{children}</div>
+    </div>
+  );
+}
+
 function groupDeals(deals: StoredDeal[]): SearchGroup[] {
   const groups = new Map<string, SearchGroup>();
   for (const deal of deals) {
@@ -106,10 +126,14 @@ function SearchGroupCard({
   group,
   defaultOpen,
   activeWatchIds,
+  filterQuery,
+  directOnly,
 }: {
   group: SearchGroup;
   defaultOpen: boolean;
   activeWatchIds: Set<number>;
+  filterQuery: string;
+  directOnly: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const currency = group.deals[0]?.currency ?? "USD";
@@ -123,7 +147,15 @@ function SearchGroupCard({
           <strong>{formatPrice(group.minPrice, currency)}</strong> · {timeAgo(group.foundAt)}
         </span>
       </button>
-      {open && <div className="group-body">{group.deals.map((d) => <DealRow key={d.id} deal={d} />)}</div>}
+      {open && (
+        <div className="group-body">
+          {group.deals.map((d) => (
+            <Collapse key={d.id} shown={dealMatches(d, filterQuery, directOnly)}>
+              <DealRow deal={d} />
+            </Collapse>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -265,20 +297,12 @@ export default function App() {
   }, [deals.length]);
 
 
-  const groups = useMemo(() => {
-    let filtered = deals;
-    if (routeFilter.trim()) {
-      const q = routeFilter.trim().toLowerCase();
-      filtered = filtered.filter(
-        (d) =>
-          d.origin.toLowerCase().includes(q) ||
-          d.destination.toLowerCase().includes(q) ||
-          d.airline.toLowerCase().includes(q)
-      );
-    }
-    if (directOnly) filtered = filtered.filter((d) => d.stops === 0);
-    return groupDeals(filtered);
-  }, [deals, routeFilter, directOnly]);
+  // Groups are built from ALL deals; the filter only toggles visibility so
+  // hidden results can animate closed instead of unmounting.
+  const groups = useMemo(() => groupDeals(deals), [deals]);
+  const filterQuery = routeFilter.trim().toLowerCase();
+  const groupVisible = (g: SearchGroup) => g.deals.some((d) => dealMatches(d, filterQuery, directOnly));
+  const anyVisible = groups.some(groupVisible);
 
   const activeWatchIds = useMemo(() => new Set(watches.map((w) => w.id)), [watches]);
 
@@ -404,20 +428,6 @@ export default function App() {
         </label>
       </form>
 
-      {deals.length > 0 && (
-        <div className="filter-bar">
-          <input
-            value={routeFilter}
-            onChange={(e) => setRouteFilter(e.target.value)}
-            placeholder="Filter results by city / airport / airline"
-          />
-          <label>
-            <input type="checkbox" checked={directOnly} onChange={(e) => setDirectOnly(e.target.checked)} />
-            Direct only
-          </label>
-        </div>
-      )}
-
       {searching && (
         <div className="status">The agent is searching the live web — this usually takes a minute or two ☕</div>
       )}
@@ -429,15 +439,34 @@ export default function App() {
       <HistoryPanel history={history} formatPrice={formatPrice} />
 
       <main>
-        {groups.length === 0 && !searching ? (
-          <div className="empty">
-            {deals.length === 0 ? "No deals yet. Run a search above to get started." : "Nothing matches the filters."}
+        {deals.length > 0 && (
+          <div className="filter-bar">
+            <input
+              value={routeFilter}
+              onChange={(e) => setRouteFilter(e.target.value)}
+              placeholder="Filter shown results — city / airport / airline"
+            />
+            <label title="Hides non-direct deals below; doesn't run a new search">
+              <input type="checkbox" checked={directOnly} onChange={(e) => setDirectOnly(e.target.checked)} />
+              Show direct only
+            </label>
           </div>
-        ) : (
-          groups.map((group, i) => (
-            <SearchGroupCard key={group.key} group={group} defaultOpen={i === 0} activeWatchIds={activeWatchIds} />
-          ))
         )}
+        {deals.length === 0 && !searching && (
+          <div className="empty">No deals yet. Run a search above to get started.</div>
+        )}
+        {groups.map((group, i) => (
+          <Collapse key={group.key} shown={groupVisible(group)}>
+            <SearchGroupCard
+              group={group}
+              defaultOpen={i === 0}
+              activeWatchIds={activeWatchIds}
+              filterQuery={filterQuery}
+              directOnly={directOnly}
+            />
+          </Collapse>
+        ))}
+        {deals.length > 0 && !anyVisible && <div className="empty">Nothing matches the filters.</div>}
       </main>
     </div>
   );

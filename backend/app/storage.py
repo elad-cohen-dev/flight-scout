@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 
 from collections import Counter, defaultdict
 
+from .currency import convert as _convert_currency
 from .currency import normalize as _normalize_currency
 from .models import FlightDeal, HistoryPoint, RouteHistory, StoredDeal, Watch, WatchCreate
 
@@ -345,8 +346,13 @@ def _route_of(search_query: str) -> str:
 def get_route_history() -> list[RouteHistory]:
     """Best price per route per search run, in each route's dominant currency.
 
-    Prices in other currencies are excluded from the min rather than mixed in —
-    a £95 and a $95 on one line would make the chart lie.
+    Web results quote whatever currency the source page used, so a route's runs
+    mix USD/ILS/EUR freely. Every price is converted into the route's dominant
+    currency before taking the per-run min — dropping other currencies instead
+    (the old behaviour) meant a run's real cheapest fare could be invisible and
+    the chart would flatline on whichever fare happened to share the dominant
+    currency. Conversion uses today's rates for historical points, which is fine
+    at deal-alert precision. Rows in a currency we can't convert are skipped.
     """
     cache_key = ("history",)
     cached, generation = _cache_read(cache_key)
@@ -369,8 +375,9 @@ def get_route_history() -> list[RouteHistory]:
         currency = Counter(r["currency"] for r in route_rows).most_common(1)[0][0]
         runs: dict[str, list[float]] = defaultdict(list)
         for r in route_rows:
-            if r["currency"] == currency:
-                runs[r["found_at"]].append(r["price"])
+            price = _convert_currency(r["price"], r["currency"], currency)
+            if price is not None:
+                runs[r["found_at"]].append(round(price, 2))
         points = [
             HistoryPoint(found_at=found_at, price=min(prices), deals=len(prices))
             for found_at, prices in sorted(runs.items())

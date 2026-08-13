@@ -341,12 +341,39 @@ header h1 {
   font-weight: 600;
 }
 
+/* --- animated show/hide (filtering) --- */
+.collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.35s ease, opacity 0.35s ease, margin 0.35s ease;
+}
+
+.collapse.collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+main > .collapse {
+  margin-bottom: 0.75rem;
+}
+
+main > .collapse.collapsed {
+  margin-bottom: 0;
+}
+
 /* --- filter bar --- */
 .filter-bar {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .filter-bar input[type="text"],
@@ -373,7 +400,7 @@ header h1 {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  margin-bottom: 0.75rem;
+  /* spacing lives on the Collapse wrapper so it can animate to 0 when hidden */
   overflow: hidden;
 }
 
@@ -427,7 +454,8 @@ header h1 {
   padding: 0.75rem 1.25rem;
 }
 
-.deal-row + .deal-row {
+/* rows are wrapped in .collapse for filter animation */
+.group-body .collapse + .collapse .deal-row {
   border-top: 1px solid var(--border);
 }
 
