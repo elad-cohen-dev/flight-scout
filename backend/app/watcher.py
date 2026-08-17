@@ -16,17 +16,26 @@ from .notify import send_notification
 logger = logging.getLogger(__name__)
 
 
-def run_watches() -> dict:
+def run_watches(only_id: int | None = None, on_event=None) -> dict:
+    """Re-search watched routes. `only_id` restricts to a single watch (the UI's
+    "Run now" button); `on_event` streams live progress (see agent.OnEvent)."""
     watches = storage.list_watches(active_only=True)
+    if only_id is not None:
+        watches = [w for w in watches if w.id == only_id]
     results: list[dict] = []
     alerts = 0
+
+    def emit(text: str) -> None:
+        if on_event:
+            on_event({"kind": "phase", "text": text})
 
     for watch in watches:
         route = f"{watch.origin} → {watch.destination}"
         try:
+            emit(f"Checking {route} ({watch.dates_hint}) — alert at ≤ {watch.max_price:,.0f} {watch.currency}")
             deals = agent.find_deals(
                 watch.origin, watch.destination, watch.dates_hint,
-                watch.direct_only, watch.currency,
+                watch.direct_only, watch.currency, on_event=on_event,
             )
             constraint = ", direct only" if watch.direct_only else ""
             query = f"{watch.origin} -> {watch.destination} ({watch.dates_hint}{constraint}) [watch #{watch.id}]"
@@ -66,6 +75,13 @@ def run_watches() -> dict:
                 if alerted:
                     alerts += 1
                 logger.info("watch #%s alerted via %s", watch.id, channels)
+
+            if best is None:
+                emit(f"{route}: no comparable deals found this run.")
+            elif alerted:
+                emit(f"{route}: best {best_price:,.0f} {watch.currency} — below your threshold, alert sent!")
+            else:
+                emit(f"{route}: best {best_price:,.0f} {watch.currency} vs threshold {watch.max_price:,.0f} — no alert.")
 
             # last_best_price is displayed in the watch's currency by the UI.
             storage.update_watch_run(watch.id, round(best_price, 2) if best else None)

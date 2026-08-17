@@ -202,6 +202,25 @@ def remove_watch(watch_id: int) -> None:
         raise HTTPException(status_code=404, detail="No such watch")
 
 
+@app.post("/api/watches/{watch_id}/run", response_model=Job, status_code=202,
+          dependencies=[Depends(require_auth)])
+def run_single_watch(watch_id: int) -> Job:
+    """Run one watch immediately (the UI's "Run now" button) as a background
+    job with live progress events — same alert logic as the daily sweep."""
+    watch = next((w for w in storage.list_watches(active_only=True) if w.id == watch_id), None)
+    if watch is None:
+        raise HTTPException(status_code=404, detail="No such active watch")
+    query = f"{watch.origin} -> {watch.destination} ({watch.dates_hint}) [watch #{watch.id}]"
+
+    def work(job_id: str) -> dict:
+        summary = watcher.run_watches(
+            only_id=watch_id, on_event=lambda event: _emit_event(job_id, event)
+        )
+        return {"summary": summary}
+
+    return _start_job("watch_run", query, work)
+
+
 @app.post("/api/watches/run", response_model=Job, status_code=202)
 def run_watches(x_cron_secret: str | None = Header(default=None)) -> Job:
     """Re-search all active watches and alert on threshold hits.

@@ -83,11 +83,9 @@ export async function streamJobEvents(jobId: string, onEvent: (e: AgentEvent) =>
   }
 }
 
-/** Start a search and poll until it finishes (or fails).
- *  With onEvent, also follows the live progress stream in parallel —
- *  polling stays the source of truth for completion. */
-export async function runSearch(req: SearchRequest, onEvent?: (e: AgentEvent) => void): Promise<Job> {
-  const job = await startSearch(req);
+/** Follow a started job to completion: stream live progress (best-effort)
+ *  while polling as the source of truth. */
+async function followJob(job: Job, onEvent?: (e: AgentEvent) => void): Promise<Job> {
   if (onEvent) {
     streamJobEvents(job.job_id, onEvent).catch(() => {});
   }
@@ -96,6 +94,19 @@ export async function runSearch(req: SearchRequest, onEvent?: (e: AgentEvent) =>
     const current = await getJob(job.job_id);
     if (current.status !== "running") return current;
   }
+}
+
+/** Start a search and poll until it finishes (or fails). */
+export async function runSearch(req: SearchRequest, onEvent?: (e: AgentEvent) => void): Promise<Job> {
+  return followJob(await startSearch(req), onEvent);
+}
+
+/** Run one watch immediately and poll until it finishes (or fails). */
+export async function runWatchNow(id: number, onEvent?: (e: AgentEvent) => void): Promise<Job> {
+  const job = await handle<Job>(
+    await fetch(`/api/watches/${id}/run`, { method: "POST", headers: authHeaders() })
+  );
+  return followJob(job, onEvent);
 }
 
 export async function fetchHistory(): Promise<RouteHistory[]> {

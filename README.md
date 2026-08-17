@@ -52,6 +52,7 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` â
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
 | `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, direct_only}`                                        |
 | `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches                                                                                                              |
+| `POST`           | `/api/watches/{id}/run`              | Run one watch immediately (same check + alert logic as the daily sweep), returns a job                                             |
 | `POST`           | `/api/watches/run`                   | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header)                                                   |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
 

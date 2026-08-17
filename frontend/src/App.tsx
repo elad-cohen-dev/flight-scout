@@ -8,11 +8,12 @@ import {
   fetchHistory,
   fetchWatches,
   runSearch,
+  runWatchNow,
   setAppPassword,
 } from "./api";
 import type { AgentEvent } from "./api";
 import PriceChart from "./PriceChart";
-import type { RouteHistory, SearchGroup, StoredDeal, Watch } from "./types";
+import type { RouteHistory, SearchGroup, SearchRequest, StoredDeal, Watch } from "./types";
 
 const CURRENCY_SYMBOLS: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", ILS: "₪" };
 
@@ -162,6 +163,20 @@ function DealRow({ deal }: { deal: StoredDeal }) {
   );
 }
 
+/** Recover search parameters from a stored query string, e.g.
+ *  "TLV -> Prague (October 11 week, direct only) [watch #5]". */
+function parseSearchQuery(query: string): SearchRequest | null {
+  const m = query.match(/^(.+?)\s*->\s*(.+?)\s*\((.+)\)/);
+  if (!m) return null;
+  const directOnly = /,\s*direct only\s*$/.test(m[3]);
+  return {
+    origin: m[1].trim(),
+    destination: m[2].trim(),
+    dates_hint: m[3].replace(/,\s*direct only\s*$/, "").trim(),
+    direct_only: directOnly,
+  };
+}
+
 function prettyQuery(query: string, activeWatchIds: Set<number>): string {
   const pretty = query.replace(" -> ", " → ");
   const tag = pretty.match(/\s*\[watch #(\d+)\]/);
@@ -176,12 +191,14 @@ function SearchGroupCard({
   activeWatchIds,
   filterQuery,
   directOnly,
+  onRerun,
 }: {
   group: SearchGroup;
   defaultOpen: boolean;
   activeWatchIds: Set<number>;
   filterQuery: string;
   directOnly: boolean;
+  onRerun: (group: SearchGroup) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const currency = group.deals[0]?.currency ?? "USD";
@@ -193,6 +210,17 @@ function SearchGroupCard({
         <span className="group-summary">
           {group.deals.length} deal{group.deals.length !== 1 && "s"} · from{" "}
           <strong>{formatPrice(group.minPrice, currency)}</strong> · {timeAgo(group.foundAt)}
+        </span>
+        <span
+          className="btn-rerun"
+          role="button"
+          title="Search this route again"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRerun(group);
+          }}
+        >
+          ↻
         </span>
       </button>
       {open && (
@@ -211,9 +239,13 @@ function SearchGroupCard({
 function WatchesPanel({
   watches,
   onDelete,
+  onRunNow,
+  busy,
 }: {
   watches: Watch[];
   onDelete: (id: number) => void;
+  onRunNow: (id: number) => void;
+  busy: boolean;
 }) {
   if (watches.length === 0) return null;
   return (
@@ -232,6 +264,14 @@ function WatchesPanel({
             )}
             {w.last_run_at && <> · checked {timeAgo(w.last_run_at)}</>}
           </span>
+          <button
+            className="btn-run"
+            title="Re-search this route now (same check the daily run does)"
+            onClick={() => onRunNow(w.id)}
+            disabled={busy}
+          >
+            {busy ? "…" : "▶ Run now"}
+          </button>
           <button className="btn-delete" title="Delete watch" onClick={() => onDelete(w.id)}>
             ✕
           </button>
@@ -364,32 +404,90 @@ export default function App() {
 
   const activeWatchIds = useMemo(() => new Set(watches.map((w) => w.id)), [watches]);
 
-  async function onSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!origin || !destination) return;
+  function beginAgentRun() {
     setSearching(true);
     setError(null);
     setNotice(null);
     setAgentEvents([]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const onAgentEvent = (e: AgentEvent) => {
+    if (e.kind !== "end") setAgentEvents((prev) => [...prev, e]);
+  };
+
+  function handleRunError(e: unknown) {
+    if (e instanceof AuthError) {
+      clearAppPassword();
+      setLocked(true);
+    } else {
+      setError(String(e));
+    }
+  }
+
+  async function performSearch(params: SearchRequest) {
+    beginAgentRun();
     try {
-      const job = await runSearch(
-        { origin, destination, dates_hint: datesHint, direct_only: searchDirect },
-        (e) => {
-          if (e.kind !== "end") setAgentEvents((prev) => [...prev, e]);
-        }
-      );
+      const job = await runSearch(params, onAgentEvent);
       if (job.status === "error") {
         setError(job.error ?? "Search failed");
       } else {
         setDeals((prev) => [...(job.deals ?? []), ...prev]);
       }
     } catch (e) {
-      if (e instanceof AuthError) {
-        clearAppPassword();
-        setLocked(true);
+      handleRunError(e);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function onSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!origin || !destination) return;
+    performSearch({ origin, destination, dates_hint: datesHint, direct_only: searchDirect });
+  }
+
+  function onRerun(group: SearchGroup) {
+    if (searching) return;
+    const params = parseSearchQuery(group.query) ?? {
+      origin: group.deals[0]?.origin ?? "",
+      destination: group.deals[0]?.destination ?? "",
+      dates_hint: "anytime in the next 3 months",
+      direct_only: false,
+    };
+    if (!params.origin || !params.destination) return;
+    // reflect the re-run in the form so the user sees what's being searched
+    setOrigin(params.origin);
+    setDestination(params.destination);
+    setDatesHint(params.dates_hint);
+    setSearchDirect(params.direct_only);
+    performSearch(params);
+  }
+
+  async function onRunWatch(id: number) {
+    if (searching) return;
+    beginAgentRun();
+    try {
+      const job = await runWatchNow(id, onAgentEvent);
+      if (job.status === "error") {
+        setError(job.error ?? "Watch run failed");
       } else {
-        setError(String(e));
+        loadAll(); // fresh deals, watch stats (last best / checked), history point
+        const results = (job.summary?.results as Record<string, unknown>[] | undefined) ?? [];
+        const r = results[0];
+        if (r && r.error) {
+          setError(String(r.error));
+        } else if (r) {
+          const currency = String(r.currency ?? "USD");
+          setNotice(
+            r.best_price == null
+              ? `Checked ${r.route}: no comparable deals found this run.`
+              : `Checked ${r.route}: best ${formatPrice(Number(r.best_price), currency)} vs your ${formatPrice(Number(r.threshold), currency)} threshold — ${r.alerted ? "alert sent! 📱" : "no alert."}`
+          );
+        }
       }
+    } catch (e) {
+      handleRunError(e);
     } finally {
       setSearching(false);
     }
@@ -496,7 +594,7 @@ export default function App() {
       {error && <div className="status error">{error}</div>}
       {notice && <div className="status notice">{notice}</div>}
 
-      <WatchesPanel watches={watches} onDelete={onDeleteWatch} />
+      <WatchesPanel watches={watches} onDelete={onDeleteWatch} onRunNow={onRunWatch} busy={searching} />
 
       <HistoryPanel history={history} formatPrice={formatPrice} />
 
@@ -525,6 +623,7 @@ export default function App() {
               activeWatchIds={activeWatchIds}
               filterQuery={filterQuery}
               directOnly={directOnly}
+              onRerun={onRerun}
             />
           </Collapse>
         ))}

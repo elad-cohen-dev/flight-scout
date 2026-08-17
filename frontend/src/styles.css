@@ -273,6 +273,23 @@ header h1 {
   font-size: 0.85rem;
 }
 
+.btn-run {
+  background: none;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+  white-space: nowrap;
+}
+
+.btn-run:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
 .btn-delete {
   background: none;
   border: none;
@@ -525,6 +542,19 @@ main > .collapse.collapsed {
   color: var(--green);
 }
 
+.btn-rerun {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+}
+
+.btn-rerun:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .group-body {
   border-top: 1px solid var(--border);
 }
@@ -642,7 +672,7 @@ main > .collapse.collapsed {
      being hidden, which is exactly what you want to see before expanding. */
   .group-header {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
     column-gap: 0.6rem;
     row-gap: 0.1rem;
     align-items: baseline;
@@ -654,8 +684,17 @@ main > .collapse.collapsed {
     grid-area: 1 / 2;
   }
   .group-summary {
-    grid-area: 2 / 2;
+    grid-area: 2 / 2 / 3 / 4;
     white-space: normal;
+  }
+  .btn-rerun {
+    grid-area: 1 / 3;
+    align-self: center;
+    min-width: 36px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   /* Price stays on the route's line (right-aligned); actions get their own row. */
@@ -682,7 +721,7 @@ main > .collapse.collapsed {
 
   .watch-row {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     column-gap: 0.5rem;
     row-gap: 0.1rem;
     align-items: start;
@@ -690,12 +729,18 @@ main > .collapse.collapsed {
   }
   .watch-route {
     grid-area: 1 / 1;
+    align-self: center;
   }
   .watch-meta {
-    grid-area: 2 / 1;
+    grid-area: 2 / 1 / 3 / 4;
+  }
+  .btn-run {
+    grid-area: 1 / 2;
+    align-self: center;
+    min-height: 36px;
   }
   .btn-delete {
-    grid-area: 1 / 2 / 3 / 3;
+    grid-area: 1 / 3;
     align-self: center;
   }
 }
