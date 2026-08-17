@@ -91,7 +91,7 @@ def _make_llm():
 
 RESEARCH_PROMPT = """You are a flight-deal researcher.
 
-Find the cheapest flights from {origin} to {destination}, dates: {dates_hint}.{direct_clause}
+Find the cheapest flights from {origin} to {destination}, dates: {dates_hint}.{direct_clause}{baggage_clause}
 
 Search the web (Google Flights results pages, airline deal pages, deal aggregators like
 Secret Flying / Fly4Free, and travel fare posts). Prefer recent results — prices go stale fast.
@@ -112,6 +112,10 @@ Finish with a short plain-text list of the deals — no tables needed."""
 EXTRACT_PROMPT = """Below are research notes about flight deals from {origin} to {destination}.
 Extract every distinct deal into the structured format. Use numeric prices, and put the
 currency in the currency field as an ISO 4217 code (USD, EUR, ILS, GBP...) — never a symbol.
+PRICE RULE: when the notes state a baggage-inclusive total for a deal — in ANY phrasing
+('fare $79 + bag $25 = $104', 'estimated total ~CHF 260', 'with bag: ~€150') — the price
+field MUST be that final total, never the pre-baggage base fare. The breakdown goes in the
+notes field. Only use the quoted fare as price when no bag-inclusive total is given.
 If a field is unknown, use an empty string (or 0 for stops).
 Skip anything that is not an actual priced flight deal.
 
@@ -124,12 +128,41 @@ DIRECT_ONLY_CLAUSE = (
     "with a connection or stopover, even if it is cheaper."
 )
 
+# Low-cost "from" fares usually cover only a small personal item; the advertised
+# price is not what the trip costs. When bags are requested, the agent must
+# report bag-inclusive totals — merely flagging "bag fees may apply" is a
+# failure mode we've observed, hence the explicit format and estimate mandate.
+CABIN_BAG_CLAUSE = (
+    "\nBAGGAGE REQUIREMENT (critical): the traveller brings a 10kg cabin trolley. "
+    "Every price you report MUST be the trolley-inclusive total. When a fare covers "
+    "only a small personal item, look up that airline's cabin-bag/priority fee for "
+    "this route (search '<airline> cabin bag fee' if needed) and ADD it. If only an "
+    "estimate is possible, add your best estimate marked '~'. Never report a fare "
+    "without the trolley added. Give each deal's price as a breakdown: "
+    "'fare X + trolley Y = TOTAL Z'."
+)
+CHECKED_BAG_CLAUSE = (
+    "\nBAGGAGE REQUIREMENT (critical): the traveller checks a 20kg+ bag (both "
+    "directions on round trips). Every price you report MUST be the bag-inclusive "
+    "total. When the fare excludes it, look up that airline's checked-baggage fee "
+    "for this route (search '<airline> checked baggage fee' if needed) and ADD it. "
+    "If only an estimate is possible, add your best estimate marked '~'. Never "
+    "report a fare without the bag added. Give each deal's price as a breakdown: "
+    "'fare X + 20kg bag Y = TOTAL Z'."
+)
+
+
+def _baggage_clause(cabin_bag: bool, checked_bag: bool) -> str:
+    return (CABIN_BAG_CLAUSE if cabin_bag else "") + (CHECKED_BAG_CLAUSE if checked_bag else "")
+
 
 class AgentState(TypedDict):
     origin: str
     destination: str
     dates_hint: str
     direct_only: bool
+    cabin_bag: bool
+    checked_bag: bool
     currency: str
     research_notes: str
     deals: list[FlightDeal]
@@ -203,6 +236,7 @@ def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
         destination=state["destination"],
         dates_hint=state["dates_hint"],
         direct_clause=DIRECT_ONLY_CLAUSE if state["direct_only"] else "",
+        baggage_clause=_baggage_clause(state.get("cabin_bag", False), state.get("checked_bag", False)),
         currency=state["currency"],
     )
     if on_event is not None:
@@ -262,6 +296,9 @@ def find_deals(
     dates_hint: str,
     direct_only: bool = False,
     currency: str = "USD",
+    *,
+    cabin_bag: bool = False,
+    checked_bag: bool = False,
     on_event: OnEvent | None = None,
 ) -> list[FlightDeal]:
     """Run the agent end to end and return the structured deals."""
@@ -272,6 +309,8 @@ def find_deals(
             "destination": destination,
             "dates_hint": dates_hint,
             "direct_only": direct_only,
+            "cabin_bag": cabin_bag,
+            "checked_bag": checked_bag,
             "currency": currency,
             "research_notes": "",
             "deals": [],

@@ -23,6 +23,8 @@ export interface SearchRequest {
   destination: string;
   dates_hint: string;
   direct_only: boolean;
+  cabin_bag: boolean;
+  checked_bag: boolean;
 }
 
 export interface Job {
@@ -43,6 +45,8 @@ export interface Watch {
   max_price: number;
   currency: string;
   direct_only: boolean;
+  cabin_bag: boolean;
+  checked_bag: boolean;
   active: boolean;
   created_at: string;
   last_run_at: string | null;
@@ -55,6 +59,8 @@ export interface WatchCreate {
   dates_hint: string;
   max_price: number;
   direct_only: boolean;
+  cabin_bag: boolean;
+  checked_bag: boolean;
 }
 
 export interface HistoryPoint {

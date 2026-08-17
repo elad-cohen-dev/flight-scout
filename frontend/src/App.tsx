@@ -177,16 +177,31 @@ function DealRow({ deal }: { deal: StoredDeal }) {
 }
 
 /** Recover search parameters from a stored query string, e.g.
- *  "TLV -> Prague (October 11 week, direct only) [watch #5]". */
+ *  "TLV -> Prague (October, direct only, cabin bag, checked 20kg bag) [watch #5]".
+ *  Must stay in sync with the backend's models.search_label(). */
 function parseSearchQuery(query: string): SearchRequest | null {
   const m = query.match(/^(.+?)\s*->\s*(.+?)\s*\((.+)\)/);
   if (!m) return null;
-  const directOnly = /,\s*direct only\s*$/.test(m[3]);
+  let hint = m[3];
+  const takeFlag = (flag: string): boolean => {
+    const re = new RegExp(`,\\s*${flag}\\s*$`);
+    // flags were appended in a fixed order, so peel them off the tail
+    if (re.test(hint)) {
+      hint = hint.replace(re, "");
+      return true;
+    }
+    return false;
+  };
+  const checkedBag = takeFlag("checked 20kg bag");
+  const cabinBag = takeFlag("cabin bag");
+  const directOnly = takeFlag("direct only");
   return {
     origin: m[1].trim(),
     destination: m[2].trim(),
-    dates_hint: m[3].replace(/,\s*direct only\s*$/, "").trim(),
+    dates_hint: hint.trim(),
     direct_only: directOnly,
+    cabin_bag: cabinBag,
+    checked_bag: checkedBag,
   };
 }
 
@@ -271,7 +286,9 @@ function WatchesPanel({
           </span>
           <span className="watch-meta">
             {w.dates_hint}
-            {w.direct_only && <> · direct only</>} · alert ≤ {formatPrice(w.max_price, w.currency)}
+            {w.direct_only && <> · direct only</>}
+            {w.cabin_bag && <> · 🎒 trolley</>}
+            {w.checked_bag && <> · 🧳 20kg bag</>} · alert ≤ {formatPrice(w.max_price, w.currency)}
             {w.last_best_price != null && (
               <> · last best {formatPrice(w.last_best_price, w.currency)}</>
             )}
@@ -349,6 +366,8 @@ export default function App() {
   const [debouncedFilter, setDebouncedFilter] = useState("");
   const [directOnly, setDirectOnly] = useState(false); // results-display filter
   const [searchDirect, setSearchDirect] = useState(false); // constraint sent with searches & watches
+  const [cabinBag, setCabinBag] = useState(false); // price must include a 10kg trolley
+  const [checkedBag, setCheckedBag] = useState(false); // price must include a 20kg+ checked bag
   const [locked, setLocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -477,7 +496,14 @@ export default function App() {
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!origin || !destination) return;
-    performSearch({ origin, destination, dates_hint: datesHint, direct_only: searchDirect });
+    performSearch({
+      origin,
+      destination,
+      dates_hint: datesHint,
+      direct_only: searchDirect,
+      cabin_bag: cabinBag,
+      checked_bag: checkedBag,
+    });
   }
 
   function onRerun(group: SearchGroup) {
@@ -487,6 +513,8 @@ export default function App() {
       destination: group.deals[0]?.destination ?? "",
       dates_hint: "anytime in the next 3 months",
       direct_only: false,
+      cabin_bag: false,
+      checked_bag: false,
     };
     if (!params.origin || !params.destination) return;
     // reflect the re-run in the form so the user sees what's being searched
@@ -494,6 +522,8 @@ export default function App() {
     setDestination(params.destination);
     setDatesHint(params.dates_hint);
     setSearchDirect(params.direct_only);
+    setCabinBag(params.cabin_bag);
+    setCheckedBag(params.checked_bag);
     performSearch(params);
   }
 
@@ -543,10 +573,17 @@ export default function App() {
         dates_hint: datesHint,
         max_price: Number(maxPrice),
         direct_only: searchDirect,
+        cabin_bag: cabinBag,
+        checked_bag: checkedBag,
       });
       setWatches((prev) => [...prev, watch]);
+      const flags = [
+        watch.direct_only && "direct only",
+        watch.cabin_bag && "incl. cabin trolley",
+        watch.checked_bag && "incl. 20kg bag",
+      ].filter(Boolean).join(", ");
       setNotice(
-        `Watching ${watch.origin} → ${watch.destination}${watch.direct_only ? " (direct flights only)" : ""} for deals under ${formatPrice(watch.max_price, watch.currency)}.`
+        `Watching ${watch.origin} → ${watch.destination}${flags ? ` (${flags})` : ""} for deals under ${formatPrice(watch.max_price, watch.currency)}.`
       );
     } catch (e) {
       if (e instanceof AuthError) {
@@ -621,10 +658,20 @@ export default function App() {
         <button type="button" className="btn-watch" onClick={onAddWatch} disabled={searching}>
           + Watch route
         </button>
-        <label className="search-direct" title="Applies to this search and to new watches">
-          <input type="checkbox" checked={searchDirect} onChange={(e) => setSearchDirect(e.target.checked)} />
-          Direct flights only
-        </label>
+        <div className="search-options" title="Apply to this search and to new watches">
+          <label>
+            <input type="checkbox" checked={searchDirect} onChange={(e) => setSearchDirect(e.target.checked)} />
+            Direct flights only
+          </label>
+          <label title="Prices will include a 10kg cabin trolley (added fees where the fare excludes it)">
+            <input type="checkbox" checked={cabinBag} onChange={(e) => setCabinBag(e.target.checked)} />
+            🎒 Cabin trolley
+          </label>
+          <label title="Prices will include a 20kg+ checked bag (added fees where the fare excludes it)">
+            <input type="checkbox" checked={checkedBag} onChange={(e) => setCheckedBag(e.target.checked)} />
+            🧳 Checked bag 20kg+
+          </label>
+        </div>
       </form>
 
       {searching && <AgentConsole events={agentEvents} onStop={onStopSearch} stopping={stopping} />}

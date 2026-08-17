@@ -63,6 +63,8 @@ _SCHEMA = [
         max_price REAL NOT NULL,
         currency TEXT NOT NULL DEFAULT 'USD',
         direct_only INTEGER NOT NULL DEFAULT 0,
+        cabin_bag INTEGER NOT NULL DEFAULT 0,
+        checked_bag INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         last_run_at TEXT,
@@ -73,6 +75,8 @@ _SCHEMA = [
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
 _MIGRATIONS = [
     "ALTER TABLE watches ADD COLUMN direct_only INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE watches ADD COLUMN cabin_bag INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE watches ADD COLUMN checked_bag INTEGER NOT NULL DEFAULT 0",
 ]
 
 
@@ -392,7 +396,8 @@ def get_route_history() -> list[RouteHistory]:
 
 def _row_to_watch(row: dict) -> Watch:
     row["active"] = bool(row["active"])
-    row["direct_only"] = bool(row.get("direct_only", 0))
+    for flag in ("direct_only", "cabin_bag", "checked_bag"):
+        row[flag] = bool(row.get(flag, 0))
     return Watch(**row)
 
 
@@ -401,10 +406,12 @@ def add_watch(watch: WatchCreate) -> Watch:
 
     def op(conn) -> int:
         cur = conn.execute(
-            """INSERT INTO watches (origin, destination, dates_hint, max_price, currency, direct_only, active, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, 1, ?)""",
+            """INSERT INTO watches (origin, destination, dates_hint, max_price, currency,
+                                    direct_only, cabin_bag, checked_bag, active, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
             (watch.origin, watch.destination, watch.dates_hint,
-             watch.max_price, watch.currency, int(watch.direct_only), created_at.isoformat()),
+             watch.max_price, watch.currency, int(watch.direct_only),
+             int(watch.cabin_bag), int(watch.checked_bag), created_at.isoformat()),
         )
         conn.commit()
         return cur.lastrowid

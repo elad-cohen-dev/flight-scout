@@ -72,6 +72,8 @@ class WatchCreate(BaseModel):
     max_price: float = Field(gt=0, description="Alert when a deal is at or below this price")
     currency: str = Field(default="USD", description="Currency the threshold is expressed in (informational)")
     direct_only: bool = Field(default=False, description="Only consider direct (non-stop) flights")
+    cabin_bag: bool = Field(default=False, description="Prices must include a 10kg cabin trolley bag")
+    checked_bag: bool = Field(default=False, description="Prices must include a 20kg+ checked bag")
 
 
 class Watch(WatchCreate):
@@ -82,6 +84,22 @@ class Watch(WatchCreate):
     last_best_price: float | None = None
 
 
+def search_label(origin: str, destination: str, dates_hint: str,
+                 direct_only: bool, cabin_bag: bool, checked_bag: bool) -> str:
+    """Canonical stored label for a search run, e.g.
+    'TLV -> Prague (October, direct only, cabin bag, checked 20kg bag)'.
+    The flags live inside the parens so route parsing (split on ' (') and the
+    frontend's re-run parser stay in sync."""
+    flags = ""
+    if direct_only:
+        flags += ", direct only"
+    if cabin_bag:
+        flags += ", cabin bag"
+    if checked_bag:
+        flags += ", checked 20kg bag"
+    return f"{origin} -> {destination} ({dates_hint}{flags})"
+
+
 class SearchRequest(BaseModel):
     origin: str
     destination: str
@@ -90,3 +108,5 @@ class SearchRequest(BaseModel):
         description="Free-text date preference, e.g. 'first two weeks of October', 'a weekend in November'",
     )
     direct_only: bool = Field(default=False, description="Only consider direct (non-stop) flights")
+    cabin_bag: bool = Field(default=False, description="Prices must include a 10kg cabin trolley bag")
+    checked_bag: bool = Field(default=False, description="Prices must include a 20kg+ checked bag")

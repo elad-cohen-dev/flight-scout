@@ -45,13 +45,13 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 
 | Method           | Path                                 | Description                                                                                                                        |
 | ---------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `POST`           | `/api/search`                        | `{origin, destination, dates_hint, direct_only}` → starts a search job, returns `{job_id}` (202)                                   |
+| `POST`           | `/api/search`                        | `{origin, destination, dates_hint, direct_only, cabin_bag, checked_bag}` → starts a search job, returns `{job_id}` (202)           |
 | `GET`            | `/api/jobs/{job_id}`                 | Poll a job: `{status: running\|done\|error, deals, summary, error}`                                                                  |
 | `GET`            | `/api/jobs/{job_id}/events`          | Live progress stream (SSE): the agent's web-search calls and streamed research text                                                |
 | `POST`           | `/api/jobs/{job_id}/cancel`          | Stop a running job; it aborts at its next progress event without saving anything                                                   |
 | `GET`            | `/api/deals`                         | List stored deals, de-duplicated across runs (`dedupe=false` for raw rows). Filters: `origin`, `destination`, `max_price`, `limit` |
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
-| `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, direct_only}`                                        |
+| `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, direct_only, cabin_bag, checked_bag}`                |
 | `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches                                                                                                              |
 | `POST`           | `/api/watches/{id}/run`              | Run one watch immediately (same check + alert logic as the daily sweep), returns a job                                             |
 | `POST`           | `/api/watches/run`                   | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header)                                                   |
@@ -105,6 +105,7 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 ## Features
 
 - **Live web search** for deals on any route, in free-text dates ("a weekend in November"), optionally direct flights only — with the agent's searches and findings **streamed live** into the UI while it works
+- **Baggage-inclusive pricing** — optionally require a 🎒 cabin trolley and/or 🧳 20kg+ checked bag; the agent adds the airline's bag fees to advertised fares (or flags when it can't verify them), so comparisons reflect what the trip actually costs
 - **Price watches** — routes re-searched daily (GitHub Actions cron), push alert via ntfy/Telegram when a deal drops below your threshold, with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
 - **Price-history chart** per route, built from every search run
 - **De-duplication** of identical deals across runs ("seen 3× since Aug 10")

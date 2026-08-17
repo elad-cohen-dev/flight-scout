@@ -11,6 +11,7 @@ import logging
 
 from . import agent, storage
 from .currency import convert
+from .models import search_label
 from .notify import send_notification
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,12 @@ def run_watches(only_id: int | None = None, on_event=None) -> dict:
             emit(f"Checking {route} ({watch.dates_hint}) — alert at ≤ {watch.max_price:,.0f} {watch.currency}")
             deals = agent.find_deals(
                 watch.origin, watch.destination, watch.dates_hint,
-                watch.direct_only, watch.currency, on_event=on_event,
+                watch.direct_only, watch.currency,
+                cabin_bag=watch.cabin_bag, checked_bag=watch.checked_bag,
+                on_event=on_event,
             )
-            constraint = ", direct only" if watch.direct_only else ""
-            query = f"{watch.origin} -> {watch.destination} ({watch.dates_hint}{constraint}) [watch #{watch.id}]"
+            query = search_label(watch.origin, watch.destination, watch.dates_hint,
+                                 watch.direct_only, watch.cabin_bag, watch.checked_bag) + f" [watch #{watch.id}]"
             stored = storage.save_deals(query, deals)
 
             # Deals come back in whatever currency the source page used, so the
