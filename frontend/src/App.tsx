@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
+  cancelJob,
   clearAppPassword,
   createWatch,
   deleteWatch,
   fetchDeals,
   fetchHistory,
   fetchWatches,
-  runSearch,
-  runWatchNow,
+  followJob,
   setAppPassword,
+  startSearch,
+  startWatchRun,
 } from "./api";
 import type { AgentEvent } from "./api";
 import PriceChart from "./PriceChart";
@@ -46,7 +48,15 @@ function dealMatches(deal: StoredDeal, query: string, directOnly: boolean): bool
 /** Live "agent console": streams the agent's research prose, web-search calls
  *  and phase changes while a search runs — the LLM-chat feel instead of a
  *  frozen "searching…" label. */
-function AgentConsole({ events }: { events: AgentEvent[] }) {
+function AgentConsole({
+  events,
+  onStop,
+  stopping,
+}: {
+  events: AgentEvent[];
+  onStop: () => void;
+  stopping: boolean;
+}) {
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = bodyRef.current;
@@ -69,6 +79,9 @@ function AgentConsole({ events }: { events: AgentEvent[] }) {
     <div className="agent-console">
       <div className="agent-console-head">
         <span className="agent-dot" /> The agent is searching the live web
+        <button className="btn-stop" onClick={onStop} disabled={stopping}>
+          {stopping ? "Stopping…" : "■ Stop"}
+        </button>
       </div>
       <div className="agent-console-body" ref={bodyRef}>
         {items.length === 0 && <div className="agent-line agent-phase">Spinning up the agent…</div>}
@@ -328,6 +341,8 @@ export default function App() {
   const [maxPrice, setMaxPrice] = useState("");
   const [searching, setSearching] = useState(false);
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
+  const [stopping, setStopping] = useState(false);
+  const currentJobId = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [routeFilter, setRouteFilter] = useState("");
@@ -406,10 +421,24 @@ export default function App() {
 
   function beginAgentRun() {
     setSearching(true);
+    setStopping(false);
     setError(null);
     setNotice(null);
     setAgentEvents([]);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function endAgentRun() {
+    setSearching(false);
+    setStopping(false);
+    currentJobId.current = null;
+  }
+
+  function onStopSearch() {
+    const jobId = currentJobId.current;
+    if (!jobId) return;
+    setStopping(true);
+    cancelJob(jobId).catch(() => setStopping(false));
   }
 
   const onAgentEvent = (e: AgentEvent) => {
@@ -428,16 +457,20 @@ export default function App() {
   async function performSearch(params: SearchRequest) {
     beginAgentRun();
     try {
-      const job = await runSearch(params, onAgentEvent);
+      const started = await startSearch(params);
+      currentJobId.current = started.job_id;
+      const job = await followJob(started, onAgentEvent);
       if (job.status === "error") {
         setError(job.error ?? "Search failed");
+      } else if (job.status === "cancelled") {
+        setNotice("Search stopped — nothing was saved.");
       } else {
         setDeals((prev) => [...(job.deals ?? []), ...prev]);
       }
     } catch (e) {
       handleRunError(e);
     } finally {
-      setSearching(false);
+      endAgentRun();
     }
   }
 
@@ -468,9 +501,13 @@ export default function App() {
     if (searching) return;
     beginAgentRun();
     try {
-      const job = await runWatchNow(id, onAgentEvent);
+      const started = await startWatchRun(id);
+      currentJobId.current = started.job_id;
+      const job = await followJob(started, onAgentEvent);
       if (job.status === "error") {
         setError(job.error ?? "Watch run failed");
+      } else if (job.status === "cancelled") {
+        setNotice("Watch run stopped — nothing was saved.");
       } else {
         loadAll(); // fresh deals, watch stats (last best / checked), history point
         const results = (job.summary?.results as Record<string, unknown>[] | undefined) ?? [];
@@ -489,7 +526,7 @@ export default function App() {
     } catch (e) {
       handleRunError(e);
     } finally {
-      setSearching(false);
+      endAgentRun();
     }
   }
 
@@ -590,7 +627,7 @@ export default function App() {
         </label>
       </form>
 
-      {searching && <AgentConsole events={agentEvents} />}
+      {searching && <AgentConsole events={agentEvents} onStop={onStopSearch} stopping={stopping} />}
       {error && <div className="status error">{error}</div>}
       {notice && <div className="status notice">{notice}</div>}
 

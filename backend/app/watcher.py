@@ -95,6 +95,8 @@ def run_watches(only_id: int | None = None, on_event=None) -> dict:
                 "threshold": watch.max_price,
                 "alerted": alerted,
             })
+        except agent.SearchCancelled:
+            raise  # user aborted a manual run — stop, don't continue to other watches
         except Exception as exc:
             logger.exception("watch #%s failed", watch.id)
             results.append({"watch_id": watch.id, "route": route, "error": str(exc)})

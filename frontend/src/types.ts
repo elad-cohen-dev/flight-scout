@@ -28,7 +28,7 @@ export interface SearchRequest {
 export interface Job {
   job_id: string;
   kind: "search" | "watch_run";
-  status: "running" | "done" | "error";
+  status: "running" | "done" | "error" | "cancelled";
   query: string;
   deals: StoredDeal[] | null;
   summary: Record<string, unknown> | null;

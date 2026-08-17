@@ -48,6 +48,7 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` â
 | `POST`           | `/api/search`                        | `{origin, destination, dates_hint, direct_only}` â†’ starts a search job, returns `{job_id}` (202)                                   |
 | `GET`            | `/api/jobs/{job_id}`                 | Poll a job: `{status: running\|done\|error, deals, summary, error}`                                                                  |
 | `GET`            | `/api/jobs/{job_id}/events`          | Live progress stream (SSE): the agent's web-search calls and streamed research text                                                |
+| `POST`           | `/api/jobs/{job_id}/cancel`          | Stop a running job; it aborts at its next progress event without saving anything                                                   |
 | `GET`            | `/api/deals`                         | List stored deals, de-duplicated across runs (`dedupe=false` for raw rows). Filters: `origin`, `destination`, `max_price`, `limit` |
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
 | `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, direct_only}`                                        |

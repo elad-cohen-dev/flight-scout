@@ -35,6 +35,16 @@ logger = logging.getLogger(__name__)
 # activity to the UI; None (the watcher/CLI case) disables it entirely.
 OnEvent = Callable[[dict], None]
 
+
+class SearchCancelled(Exception):
+    """Raised BY the on_event callback to abort a run cooperatively.
+
+    Emission points double as cancellation points: streaming deltas arrive
+    every ~100ms during research, so a cancel lands almost immediately there;
+    the phase emits between nodes (and before saving) bound the worst case.
+    Everything that catches broad exceptions around agent work must let this
+    one through."""
+
 DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
     # mini-tier is plenty for search-and-extract work and far cheaper;
@@ -201,6 +211,8 @@ def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
             if notes:
                 return {"research_notes": notes}
             logger.warning("streaming returned no text, retrying without streaming")
+        except SearchCancelled:
+            raise  # a cancel must never trigger the non-streaming fallback
         except Exception:
             logger.exception("streaming research failed, falling back to invoke")
     response = llm_with_search.invoke(prompt)

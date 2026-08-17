@@ -129,6 +129,29 @@ header h1 {
   animation: agent-pulse 1.2s ease-in-out infinite;
 }
 
+.btn-stop {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.7rem;
+  white-space: nowrap;
+}
+
+.btn-stop:hover {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.btn-stop:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 @keyframes agent-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.75); }

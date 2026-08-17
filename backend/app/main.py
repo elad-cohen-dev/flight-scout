@@ -65,7 +65,7 @@ app.add_middleware(
 class Job(BaseModel):
     job_id: str
     kind: Literal["search", "watch_run"]
-    status: Literal["running", "done", "error"]
+    status: Literal["running", "done", "error", "cancelled"]
     query: str
     deals: list[StoredDeal] | None = None   # set for kind=search
     summary: dict | None = None             # set for kind=watch_run
@@ -80,12 +80,25 @@ _JOBS_LOCK = threading.Lock()
 _JOB_EVENTS: dict[str, list[dict]] = {}
 _MAX_EVENTS_PER_JOB = 5000
 
+# Jobs the user asked to stop. The job thread notices at its next progress
+# emission (sub-second during streaming research) and aborts without saving.
+_CANCEL_REQUESTED: set[str] = set()
+
 
 def _emit_event(job_id: str, event: dict) -> None:
     with _JOBS_LOCK:
         events = _JOB_EVENTS.setdefault(job_id, [])
         if len(events) < _MAX_EVENTS_PER_JOB:
             events.append(event)
+
+
+def _emit_or_cancel(job_id: str, event: dict) -> None:
+    """Progress callback for cancellable jobs: emission points double as
+    cancellation points (see agent.SearchCancelled)."""
+    with _JOBS_LOCK:
+        if job_id in _CANCEL_REQUESTED:
+            raise agent.SearchCancelled()
+    _emit_event(job_id, event)
 
 
 def _start_job(kind: Literal["search", "watch_run"], query: str, work: Callable[[str], dict]) -> Job:
@@ -97,10 +110,13 @@ def _start_job(kind: Literal["search", "watch_run"], query: str, work: Callable[
     def _run() -> None:
         try:
             update = {"status": "done", **work(job.job_id)}
+        except agent.SearchCancelled:
+            update = {"status": "cancelled"}
         except Exception as exc:
             update = {"status": "error", "error": str(exc)}
         with _JOBS_LOCK:
             _JOBS[job.job_id] = _JOBS[job.job_id].model_copy(update=update)
+            _CANCEL_REQUESTED.discard(job.job_id)
 
     threading.Thread(target=_run, daemon=True).start()
     return job
@@ -112,6 +128,21 @@ def get_job(job_id: str) -> Job:
         job = _JOBS.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Unknown job id (server may have restarted)")
+    return job
+
+
+@app.post("/api/jobs/{job_id}/cancel", response_model=Job, dependencies=[Depends(require_auth)])
+def cancel_job(job_id: str) -> Job:
+    """Request a running job to stop. Cooperative: the job aborts at its next
+    progress emission and flips to status "cancelled" without saving anything."""
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Unknown job id (server may have restarted)")
+        if job.status == "running":
+            _CANCEL_REQUESTED.add(job_id)
+    if job.status == "running":
+        _emit_event(job_id, {"kind": "phase", "text": "Stopping…"})
     return job
 
 
@@ -158,7 +189,7 @@ def start_search(req: SearchRequest) -> Job:
     def work(job_id: str) -> dict:
         deals = agent.find_deals(
             req.origin, req.destination, req.dates_hint, req.direct_only,
-            on_event=lambda event: _emit_event(job_id, event),
+            on_event=lambda event: _emit_or_cancel(job_id, event),
         )
         return {"deals": storage.save_deals(query, deals)}
 
@@ -214,7 +245,7 @@ def run_single_watch(watch_id: int) -> Job:
 
     def work(job_id: str) -> dict:
         summary = watcher.run_watches(
-            only_id=watch_id, on_event=lambda event: _emit_event(job_id, event)
+            only_id=watch_id, on_event=lambda event: _emit_or_cancel(job_id, event)
         )
         return {"summary": summary}
 

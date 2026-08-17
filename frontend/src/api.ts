@@ -83,9 +83,14 @@ export async function streamJobEvents(jobId: string, onEvent: (e: AgentEvent) =>
   }
 }
 
+/** Ask a running job to stop; it aborts at its next progress emission. */
+export async function cancelJob(jobId: string): Promise<Job> {
+  return handle(await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST", headers: authHeaders() }));
+}
+
 /** Follow a started job to completion: stream live progress (best-effort)
  *  while polling as the source of truth. */
-async function followJob(job: Job, onEvent?: (e: AgentEvent) => void): Promise<Job> {
+export async function followJob(job: Job, onEvent?: (e: AgentEvent) => void): Promise<Job> {
   if (onEvent) {
     streamJobEvents(job.job_id, onEvent).catch(() => {});
   }
@@ -96,17 +101,9 @@ async function followJob(job: Job, onEvent?: (e: AgentEvent) => void): Promise<J
   }
 }
 
-/** Start a search and poll until it finishes (or fails). */
-export async function runSearch(req: SearchRequest, onEvent?: (e: AgentEvent) => void): Promise<Job> {
-  return followJob(await startSearch(req), onEvent);
-}
-
-/** Run one watch immediately and poll until it finishes (or fails). */
-export async function runWatchNow(id: number, onEvent?: (e: AgentEvent) => void): Promise<Job> {
-  const job = await handle<Job>(
-    await fetch(`/api/watches/${id}/run`, { method: "POST", headers: authHeaders() })
-  );
-  return followJob(job, onEvent);
+/** Start a single-watch run job (does not wait for completion). */
+export async function startWatchRun(id: number): Promise<Job> {
+  return handle(await fetch(`/api/watches/${id}/run`, { method: "POST", headers: authHeaders() }));
 }
 
 export async function fetchHistory(): Promise<RouteHistory[]> {
