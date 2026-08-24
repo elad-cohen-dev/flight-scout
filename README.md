@@ -65,7 +65,7 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 Watched routes are re-searched daily by the `watch-flights` [GitHub Actions workflow](.github/workflows/watch-flights.yml) (also runnable manually from the Actions tab). When a deal is found at or below a watch's `max_price`, a push notification is sent via every configured channel:
 
 - **ntfy** (default, zero signup): set `NTFY_TOPIC` to a private topic name and subscribe to it in the [ntfy app](https://ntfy.sh/app) or at `https://ntfy.sh/<topic>`.
-- **Telegram** (optional): set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`.
+- **Telegram** (optional): set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (comma-separate several chat IDs to alert more than one person).
 
 The workflow authenticates with the `CRON_SECRET` repo secret, which must match the `CRON_SECRET` env var on the server.
 
@@ -82,7 +82,7 @@ The workflow authenticates with the `CRON_SECRET` repo secret, which must match 
 | `APP_PASSWORD`                            | — (open when unset)              | Locks the app/API behind a shared password (UI shows a lock screen)            |
 | `CRON_SECRET`                             | —                                | Shared secret for `POST /api/watches/run` (set the same value in GitHub Actions) |
 | `NTFY_TOPIC`                              | —                                | ntfy.sh topic for price-drop alerts                                            |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | —                                | Telegram bot alerts                                                            |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | —                                | Telegram bot alerts; chat ID accepts a comma-separated list of recipients      |
 
 
 
