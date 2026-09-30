@@ -31,13 +31,14 @@ function longDate(iso: string): string {
 export default function PriceCalendar({
   deals,
   route,
+  variant,
   onSearchDates,
 }: {
   deals: StoredDeal[];
   route: string;
+  variant: string | null; // fare kind, chosen by the Trends card (shared with the chart)
   onSearchDates: (req: SearchRequest, note: string) => void;
 }) {
-  const [variant, setVariant] = useState<string | null>(null);
   const [directOnly, setDirectOnly] = useState(false);
   const cal = useMemo(() => buildCalendar(deals, route, { variant, directOnly }), [deals, route, variant, directOnly]);
   const today = isoDay(new Date());
@@ -159,18 +160,6 @@ export default function PriceCalendar({
           </button>
         </div>
         <div className="pcal-filters">
-          {cal.variants.length > 1 && (
-            <label className="select-inline">
-              <span className="sr-only">Fare kind</span>
-              <select value={cal.variant?.key ?? ""} onChange={(e) => setVariant(e.target.value)}>
-                {cal.variants.map((v) => (
-                  <option key={v.key} value={v.key}>
-                    {v.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <button type="button" className={`chip${directOnly ? " chip-active" : ""}`} aria-pressed={directOnly} onClick={() => setDirectOnly((v) => !v)}>
             {directOnly && <Icon name="check" size={14} />} Direct only
           </button>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SearchParams, StoredDeal } from "../types";
-import { addDays, aroundDateRequest, buildCalendar, monthGrid, monthRequest, pickBest, routeKey, STALE_DAYS, tierOf } from "./calendar";
+import { addDays, aroundDateRequest, buildCalendar, monthGrid, monthRequest, pickBest, routeKey, routeVariants, runPoints, STALE_DAYS, tierOf } from "./calendar";
 import type { Sighting } from "./calendar";
 
 const NOW = new Date("2026-09-30T12:00:00Z");
@@ -239,5 +239,22 @@ describe("search pre-fill", () => {
     expect([month.depart_from, month.depart_to]).toEqual(["2026-09-30", "2026-09-30"]);
     const nov = monthRequest(deal(), "2026-11", NOW)!;
     expect([nov.depart_from, nov.depart_to]).toEqual(["2026-11-01", "2026-11-30"]);
+  });
+});
+
+
+describe("runPoints", () => {
+  it("charts one kind of fare so party totals never mix", () => {
+    const duo = { ...PARAMS, passengers: { adults: 2, children: 0, infants: 0 } };
+    const deals = [
+      deal({ price: 100, compare_price: 100, compare_currency: "USD", search_params: PARAMS, ago: 5 }),
+      deal({ price: 90, compare_price: 90, compare_currency: "USD", search_params: PARAMS, ago: 3 }),
+      deal({ price: 600, compare_price: 600, compare_currency: "USD", search_params: duo, ago: 1 }),
+    ];
+    const route = "TLV -> Prague";
+    const variants = routeVariants(deals, route);
+    expect(variants.map((v) => v.party)).toEqual([2, 1]); // latest first
+    expect(runPoints(deals, route, variants[1].key).points.map((p) => p.price)).toEqual([100, 90]);
+    expect(runPoints(deals, route, variants[0].key).points.map((p) => p.price)).toEqual([600]);
   });
 });

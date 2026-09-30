@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import PriceChart from "../PriceChart";
+import { routeVariants, runPoints } from "../lib/calendar";
 import { formatPrice, plural, timeAgo } from "../lib/format";
 import type { RouteHistory, SearchRequest, StoredDeal } from "../types";
 import Icon from "./Icon";
@@ -38,7 +39,19 @@ export default function TrendsTab({
     [history]
   );
   const [selected, setSelected] = useState<string | null>(null);
+  const [variantChoice, setVariantChoice] = useState<string | null>(null);
   const [view, setView] = useState<View>(loadView);
+  const keyOf = (h: RouteHistory) => h.route_key || h.route;
+  // Each route's chart/sparkline follows one kind of fare (party · cabin ·
+  // trip): prices are party totals, so runs for different parties don't mix.
+  const series = useMemo(() => {
+    const out = new Map<string, { variants: ReturnType<typeof routeVariants>; latest: ReturnType<typeof runPoints> }>();
+    for (const h of routes) {
+      const variants = routeVariants(deals, keyOf(h));
+      out.set(h.route, { variants, latest: runPoints(deals, keyOf(h), variants[0]?.key ?? null) });
+    }
+    return out;
+  }, [routes, deals]);
 
   function changeView(v: View) {
     setView(v);
@@ -69,7 +82,13 @@ export default function TrendsTab({
   }
 
   const active = routes.find((h) => h.route === selected) ?? routes[0];
-  const pts = active.points;
+  const activeSeries = series.get(active.route);
+  const variants = activeSeries?.variants ?? [];
+  const variant = variants.find((v) => v.key === variantChoice) ?? variants[0] ?? null;
+  const own = variant ? runPoints(deals, keyOf(active), variant.key) : null;
+  // Fall back to the backend's per-route history when no deals are loaded.
+  const pts = own && own.points.length ? own.points : active.points;
+  const currency = own && own.points.length ? own.currency : active.currency;
   const prices = pts.map((p) => p.price);
   const low = Math.min(...prices);
   const latest = pts[pts.length - 1];
@@ -97,20 +116,36 @@ export default function TrendsTab({
         <div className="stat-row">
           <div className="stat">
             <span className="muted small">Latest best</span>
-            <strong>{formatPrice(latest.price, active.currency)}</strong>
+            <strong>{formatPrice(latest.price, currency)}</strong>
           </div>
           <div className="stat">
             <span className="muted small">Lowest seen</span>
-            <strong className="text-good">{formatPrice(low, active.currency)}</strong>
+            <strong className="text-good">{formatPrice(low, currency)}</strong>
           </div>
           <div className="stat">
             <span className="muted small">Since first run</span>
             <strong className={change < 0 ? "text-good" : change > 0 ? "text-bad" : ""}>
-              {change === 0 ? "No change" : `${change < 0 ? "−" : "+"}${formatPrice(Math.abs(change), active.currency)}`}
+              {change === 0 ? "No change" : `${change < 0 ? "−" : "+"}${formatPrice(Math.abs(change), currency)}`}
             </strong>
           </div>
         </div>
         <div className="trend-view-toggle">
+          {variants.length > 1 && (
+            <label className="select-inline">
+              <span className="sr-only">Fare kind</span>
+              <select
+                value={variant?.key ?? ""}
+                onChange={(e) => setVariantChoice(e.target.value)}
+                title="Prices are totals for the whole party, so each kind of fare is charted separately"
+              >
+                {variants.map((v) => (
+                  <option key={v.key} value={v.key}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <Segmented<View>
             label="Trend view"
             size="sm"
@@ -124,13 +159,13 @@ export default function TrendsTab({
         </div>
         {view === "chart" ? (
           <>
-            <PriceChart points={pts} currency={active.currency} formatPrice={formatPrice} />
+            <PriceChart points={pts} currency={currency} formatPrice={formatPrice} />
             {pts.length < 2 && (
               <p className="muted small">One data point so far — the chart fills in as runs accumulate.</p>
             )}
           </>
         ) : (
-          <PriceCalendar key={active.route} deals={deals} route={active.route_key || active.route} onSearchDates={onSearchDates} />
+          <PriceCalendar key={active.route} deals={deals} route={keyOf(active)} variant={variant?.key ?? null} onSearchDates={onSearchDates} />
         )}
       </section>
 
@@ -139,8 +174,11 @@ export default function TrendsTab({
       </h3>
       <div className="route-list card" role="list">
         {routes.map((h) => {
-          const last = h.points[h.points.length - 1];
-          const prev = h.points.length > 1 ? h.points[h.points.length - 2].price : null;
+          const s = series.get(h.route)?.latest;
+          const hp = s && s.points.length ? s.points : h.points;
+          const hc = s && s.points.length ? s.currency : h.currency;
+          const last = hp[hp.length - 1];
+          const prev = hp.length > 1 ? hp[hp.length - 2].price : null;
           return (
             <button
               key={h.route}
@@ -148,20 +186,21 @@ export default function TrendsTab({
               className={`route-row${h.route === active.route ? " active" : ""}`}
               onClick={() => {
                 setSelected(h.route);
+                setVariantChoice(null);
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               aria-current={h.route === active.route}
             >
               <span className="route-name">
                 {h.route.replace("->", "→")}
-                <span className="muted small">{plural(h.points.length, "run")}</span>
+                <span className="muted small">{plural(hp.length, "run")}</span>
               </span>
               <span className="route-spark">
-                <Sparkline values={h.points.map((p) => p.price)} />
+                <Sparkline values={hp.map((p) => p.price)} />
               </span>
               <span className="route-price">
-                <strong>{formatPrice(last.price, h.currency)}</strong>
-                <PriceTrend current={last.price} previous={prev} currency={h.currency} />
+                <strong>{formatPrice(last.price, hc)}</strong>
+                <PriceTrend current={last.price} previous={prev} currency={hc} />
               </span>
             </button>
           );

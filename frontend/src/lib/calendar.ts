@@ -1,4 +1,4 @@
-import type { CabinClass, SearchRequest, StoredDeal, TripType } from "../types";
+import type { CabinClass, HistoryPoint, SearchRequest, StoredDeal, TripType } from "../types";
 import { comparable, nightsBetween } from "./format";
 import { CABIN_LABELS, dealCriteria, rerunRequest, totalPassengers } from "./search";
 
@@ -80,7 +80,7 @@ export interface Variant {
   trip: TripType;
 }
 
-function variantOf(d: StoredDeal): Variant {
+export function variantOf(d: StoredDeal): Variant {
   const c = dealCriteria(d);
   const party = c.passengers ? totalPassengers(c.passengers) : 1;
   const cabin = c.cabin_class ?? "economy";
@@ -260,4 +260,41 @@ export function aroundDateRequest(latest: StoredDeal, date: string, now = new Da
 /** "Fill this month": the whole visible month (from today if it's the current one). */
 export function monthRequest(latest: StoredDeal, ym: string, now = new Date()): SearchRequest | null {
   return windowRequest(latest, `${ym}-01`, monthEnd(ym), now);
+}
+
+
+/** Kinds of fare (party · cabin · trip type) searched on a route, latest first. */
+export function routeVariants(allDeals: StoredDeal[], route: string): Variant[] {
+  const variants: Variant[] = [];
+  const routeDeals = allDeals.filter((d) => dealRoute(d) === route).sort((a, b) => b.found_at.localeCompare(a.found_at));
+  for (const d of routeDeals) {
+    const v = variantOf(d);
+    if (!variants.some((x) => x.key === v.key)) variants.push(v);
+  }
+  return variants;
+}
+
+/** Best comparable price per search run for one kind of fare on a route —
+ *  the chart's points. Prices are party totals, so mixing a 2-traveller run
+ *  with 1-traveller runs (what the backend's per-route history does) would
+ *  make "since first run" meaningless. Runs are compared in the route's most
+ *  common comparison currency; deals in any other currency are skipped. */
+export function runPoints(allDeals: StoredDeal[], route: string, variantKey: string | null): { points: HistoryPoint[]; currency: string } {
+  const deals = allDeals.filter((d) => dealRoute(d) === route && (variantKey == null || variantOf(d).key === variantKey));
+  const counts = new Map<string, number>();
+  for (const d of deals) counts.set(comparable(d).currency, (counts.get(comparable(d).currency) ?? 0) + 1);
+  const currency = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "USD";
+  const runs = new Map<string, { price: number; deals: number }>();
+  for (const d of deals) {
+    const c = comparable(d);
+    if (c.currency !== currency) continue;
+    const run = runs.get(d.found_at) ?? { price: Infinity, deals: 0 };
+    run.price = Math.min(run.price, c.price);
+    run.deals++;
+    runs.set(d.found_at, run);
+  }
+  const points = [...runs.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([found_at, r]) => ({ found_at, price: r.price, deals: r.deals }));
+  return { points, currency };
 }

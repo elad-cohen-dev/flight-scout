@@ -37,12 +37,12 @@ function fingerprint(d: StoredDeal): string {
 }
 
 function groupKey(deal: StoredDeal): string {
-  const label = norm(deal.search_query.replace(/\s*\[watch #\d+\]/, ""));
-  const sp = deal.search_params;
-  if (!sp) return label;
-  // Criteria the label may not spell out still make it a different search.
-  const { passengers, cabin_class, trip_type, depart_from, depart_to, nights_min, nights_max, nearby_airports, max_stops } = sp;
-  return `${label}|${JSON.stringify([passengers, cabin_class, trip_type, depart_from, depart_to, nights_min, nights_max, nearby_airports, max_stops])}`;
+  // The label alone identifies a search: since 1.0 the backend's search_label
+  // spells out every non-default criterion (party, cabin, stops, date window,
+  // nights, one-way…), so an equal label means equal criteria. Keying on
+  // search_params too split identical searches into two cards the moment
+  // runs started carrying it (legacy rows don't).
+  return norm(deal.search_query.replace(/\s*\[watch #\d+\]/, ""));
 }
 
 export function groupHistory(deals: StoredDeal[]): QueryGroup[] {

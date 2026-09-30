@@ -358,7 +358,10 @@
 /* ---------- chart | calendar toggle ---------- */
 .trend-view-toggle {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.5rem;
   margin-top: 0.4rem;
 }
 
