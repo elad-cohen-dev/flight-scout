@@ -195,27 +195,39 @@ def _pax_words(p: Passengers) -> str:
     if p.children:
         parts.append(f"{p.children} child{'ren' if p.children != 1 else ''}")
     if p.infants:
-        parts.append(f"{p.infants} infant{'s' if p.infants != 1 else ''} on lap")
+        # plain "N infant(s)": adding "on lap" makes Google's ?q= parser give up
+        parts.append(f"{p.infants} infant{'s' if p.infants != 1 else ''}")
     return " ".join(parts)
 
 
 # ---------------------------------------------------------------- meta-search
 
 def _google(t: _Trip) -> BookingLink:
-    q = f"Flights from {t.origin} to {t.dest}"
+    # Google's ?q= parser is picky (verified in a real browser, 2026-09-30):
+    # it only resolves the route as "to X from Y" ("from Y to X" falls back to
+    # the home page), and it rejects queries that combine a passenger count
+    # with a cabin class. So: passengers only when not 1 adult, and cabin only
+    # when passengers were left out; whatever is dropped isn't marked prefilled.
+    q = f"Flights to {t.dest} from {t.origin}"
     if t.dated:
         q += f" on {t.out.isoformat()}"
-        q += f" through {t.back.isoformat()}" if t.back else " one way"
+        q += f" through {t.back.isoformat()}" if t.back else " oneway"
     else:
         if t.month:
             q += f" in {date(t.month[0], t.month[1], 1):%B %Y}"
         if not t.is_return:
-            q += " one way"
-    q += f" for {_pax_words(t.pax)}"
-    prefilled = t.base_prefilled() + ["passengers"]
-    if t.cabin != "economy":
-        q += f" {CABIN_WORDS[t.cabin]}"
-    prefilled.append("cabin")
+            q += " oneway"
+    prefilled = t.base_prefilled()
+    solo = t.pax.adults == 1 and not t.pax.children and not t.pax.infants
+    if not solo:
+        q += f" for {_pax_words(t.pax)}"
+        prefilled.append("passengers")
+    else:
+        prefilled.append("passengers")  # Google's default is exactly 1 adult
+        if t.cabin != "economy":
+            q += f" {CABIN_WORDS[t.cabin]}"
+    if solo or t.cabin == "economy":
+        prefilled.append("cabin")
     if t.max_stops == 0:
         q += " nonstop"
         prefilled.append("stops")

@@ -135,3 +135,17 @@ def test_migrates_old_schema(temp_db):
     # Re-running init on an already-migrated DB is harmless.
     storage.reset_state()
     assert len(storage.list_deals()) == 2
+
+
+def test_legacy_row_links_honour_label_flags():
+    from app.models import StoredDeal
+    from app.storage import _legacy_params
+
+    deal = StoredDeal(
+        id=1, search_query="TLV -> London (October, direct only, checked 20kg bag) [watch #13]",
+        found_at="2026-09-01T00:00:00", origin="TLV", destination="London", airline="Wizz Air",
+        price=200, currency="EUR", depart_date="2026-10-22", return_date="2026-10-28",
+    )
+    params = _legacy_params(deal)
+    assert params.max_stops == 0 and params.checked_bag and not params.cabin_bag
+    assert params.trip_type == "round_trip" and params.currency == "EUR"

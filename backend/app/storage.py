@@ -296,12 +296,34 @@ def _booking_links(deal: FlightDeal, params: SearchParams | None) -> list[Bookin
         return []
 
 
+def _legacy_params(deal: StoredDeal) -> SearchParams:
+    """Best-effort criteria for rows saved before search_params existed: the
+    flags search_label() appended to the query ("direct only", "cabin bag",
+    "checked 20kg bag") are all the old rows carry, so links still honour them."""
+    flags = deal.search_query.split(" (", 1)[-1].lower()
+    return SearchParams(
+        trip_type="round_trip" if deal.return_date.strip() else "one_way",
+        max_stops=0 if ", direct only" in flags else None,
+        cabin_bag=", cabin bag" in flags,
+        checked_bag=", checked 20kg bag" in flags,
+        currency=deal.currency,
+    )
+
+
 def _row_to_deal(row: dict) -> StoredDeal:
     row = dict(row)
     params = _parse_params(row.pop("search_params", None))
     row["price_confidence"] = row.get("price_confidence") or "estimated"
     deal = StoredDeal(search_params=params, **row)
-    deal.booking_links = _booking_links(deal, params)
+    # search_params stays None on legacy rows (the UI treats that as "parse the
+    # label"); the inferred criteria only feed the booking links.
+    link_params = params
+    if link_params is None:
+        try:
+            link_params = _legacy_params(deal)
+        except Exception:
+            link_params = None
+    deal.booking_links = _booking_links(deal, link_params)
     return deal
 
 

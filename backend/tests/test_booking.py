@@ -35,16 +35,24 @@ def test_google_flights_query_round_trip_family():
     u = urlparse(link.url)
     assert u.netloc == "www.google.com" and u.path == "/travel/flights"
     q = parse_qs(u.query)
-    assert q["q"] == ["Flights from TLV to PRG on 2026-10-12 through 2026-10-16 "
-                      "for 2 adults 1 child 1 infant on lap business class nonstop"]
+    # Google rejects passengers + cabin together, so a party drops the cabin.
+    assert q["q"] == ["Flights to PRG from TLV on 2026-10-12 through 2026-10-16 "
+                      "for 2 adults 1 child 1 infant nonstop"]
     assert q["curr"] == ["EUR"]
     assert "%20" in link.url  # spaces encoded as %20, not '+'
+    assert set(link.prefilled) == {"route", "dates", "passengers", "stops"}
+
+
+def test_google_flights_solo_traveller_keeps_cabin():
+    link = one(build_links(make_deal(), SearchParams(cabin_class="business", max_stops=0)), "google_flights")
+    assert parse_qs(urlparse(link.url).query)["q"] == [
+        "Flights to PRG from TLV on 2026-10-12 through 2026-10-16 business class nonstop"]
     assert set(link.prefilled) == {"route", "dates", "passengers", "cabin", "stops"}
 
 
 def test_google_flights_one_way():
     link = one(build_links(make_deal(return_date=""), SearchParams(trip_type="one_way")), "google_flights")
-    assert parse_qs(urlparse(link.url).query)["q"] == ["Flights from TLV to PRG on 2026-10-12 one way for 1 adult"]
+    assert parse_qs(urlparse(link.url).query)["q"] == ["Flights to PRG from TLV on 2026-10-12 oneway"]
 
 
 def test_skyscanner_round_trip_family():
