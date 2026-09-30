@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
   cancelJob,
@@ -14,705 +14,335 @@ import {
   startWatchRun,
 } from "./api";
 import type { AgentEvent } from "./api";
-import PriceChart from "./PriceChart";
-import type { RouteHistory, SearchGroup, SearchRequest, StoredDeal, Watch } from "./types";
+import HistoryTab from "./components/HistoryTab";
+import Icon from "./components/Icon";
+import type { IconName } from "./components/Icon";
+import LockScreen from "./components/LockScreen";
+import SearchTab from "./components/SearchTab";
+import type { LastResult, RunState } from "./components/SearchTab";
+import { ToastProvider, useToast } from "./components/Toasts";
+import TrendsTab from "./components/TrendsTab";
+import WatchesTab from "./components/WatchesTab";
+import { formatPrice } from "./lib/format";
+import { groupHistory } from "./lib/history";
+import type { QueryGroup } from "./lib/history";
+import { formToRequest, formToWatch, loadForm, requestToForm, rerunRequest, saveForm } from "./lib/search";
+import type { SearchForm } from "./lib/search";
+import { useHashTab } from "./lib/useHashTab";
+import type { Tab } from "./lib/useHashTab";
+import type { RouteHistory, SearchRequest, StoredDeal, Watch } from "./types";
 
-const CURRENCY_SYMBOLS: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", ILS: "₪" };
+const NAV: { tab: Tab; label: string; icon: IconName }[] = [
+  { tab: "search", label: "Search", icon: "search" },
+  { tab: "history", label: "History", icon: "history" },
+  { tab: "watches", label: "Watches", icon: "bell" },
+  { tab: "trends", label: "Trends", icon: "chart" },
+];
 
-function formatPrice(price: number, currency: string): string {
-  const symbol = CURRENCY_SYMBOLS[currency];
-  const amount = price.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  return symbol ? `${symbol}${amount}` : `${amount} ${currency}`;
-}
-
-function timeAgo(iso: string): string {
-  const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (seconds < 90) return "just now";
-  const minutes = seconds / 60;
-  if (minutes < 90) return `${Math.round(minutes)} min ago`;
-  const hours = minutes / 60;
-  if (hours < 36) return `${Math.round(hours)}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
-
-function dealMatches(deal: StoredDeal, query: string, directOnly: boolean): boolean {
-  if (directOnly && deal.stops !== 0) return false;
-  if (!query) return true;
-  return (
-    deal.origin.toLowerCase().includes(query) ||
-    deal.destination.toLowerCase().includes(query) ||
-    deal.airline.toLowerCase().includes(query)
-  );
-}
-
-/** Live "agent console": streams the agent's research prose, web-search calls
- *  and phase changes while a search runs — the LLM-chat feel instead of a
- *  frozen "searching…" label. */
-function AgentConsole({
-  events,
-  onStop,
-  stopping,
-}: {
-  events: AgentEvent[];
-  onStop: () => void;
-  stopping: boolean;
-}) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = bodyRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [events]);
-
-  // Merge consecutive text deltas into paragraphs; phases/searches break them.
-  const items: { type: "phase" | "search" | "text"; text: string }[] = [];
-  for (const e of events) {
-    if (e.kind === "delta") {
-      const last = items[items.length - 1];
-      if (last && last.type === "text") last.text += e.text;
-      else items.push({ type: "text", text: e.text });
-    } else if (e.kind === "phase" || e.kind === "search") {
-      items.push({ type: e.kind, text: e.text });
-    }
-  }
-
-  return (
-    <div className="agent-console">
-      <div className="agent-console-head">
-        <span className="agent-dot" /> The agent is searching the live web
-        <button className="btn-stop" onClick={onStop} disabled={stopping}>
-          {stopping ? "Stopping…" : "■ Stop"}
-        </button>
-      </div>
-      <div className="agent-console-body" ref={bodyRef}>
-        {items.length === 0 && <div className="agent-line agent-phase">Spinning up the agent…</div>}
-        {items.map((item, i) =>
-          item.type === "text" ? (
-            <p key={i} className="agent-text">
-              {item.text}
-              {i === items.length - 1 && <span className="agent-cursor">▋</span>}
-            </p>
-          ) : (
-            <div key={i} className={`agent-line agent-${item.type}`}>
-              {item.type === "search" ? "🔍 " : "→ "}
-              {item.text}
-            </div>
-          )
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Animated show/hide: collapses height + fades instead of unmounting, so
- *  filtering visibly folds results away rather than snapping them out. */
-function Collapse({ shown, children }: { shown: boolean; children: React.ReactNode }) {
-  return (
-    <div className={`collapse${shown ? "" : " collapsed"}`} aria-hidden={!shown}>
-      <div className="collapse-inner">{children}</div>
-    </div>
-  );
-}
-
-function groupDeals(deals: StoredDeal[]): SearchGroup[] {
-  const groups = new Map<string, SearchGroup>();
-  for (const deal of deals) {
-    const key = `${deal.search_query}|${deal.found_at}`;
-    let group = groups.get(key);
-    if (!group) {
-      group = { key, query: deal.search_query, foundAt: deal.found_at, deals: [], minPrice: Infinity };
-      groups.set(key, group);
-    }
-    group.deals.push(deal);
-    group.minPrice = Math.min(group.minPrice, deal.price);
-  }
-  const list = [...groups.values()];
-  list.sort((a, b) => b.foundAt.localeCompare(a.foundAt));
-  for (const g of list) g.deals.sort((a, b) => a.price - b.price);
-  return list;
-}
-
-function DealRow({ deal }: { deal: StoredDeal }) {
-  return (
-    <div className="deal-row">
-      <div className="deal-price">{formatPrice(deal.price, deal.currency)}</div>
-      <div className="deal-main">
-        <div className="deal-route">
-          {deal.origin} → {deal.destination}
-          <span className="deal-airline"> · {deal.airline}</span>
-        </div>
-        <div className="deal-meta">
-          <span>
-            {deal.depart_date}
-            {deal.return_date && ` — ${deal.return_date}`}
-          </span>
-          {deal.duration && <span>{deal.duration}</span>}
-          <span className={deal.stops === 0 ? "badge-direct" : ""}>
-            {deal.stops === 0 ? "Direct" : `${deal.stops} stop${deal.stops > 1 ? "s" : ""}`}
-          </span>
-          {deal.times_seen > 1 && deal.first_found_at && (
-            <span
-              className="badge-seen"
-              title="This exact deal keeps appearing in searches — likely a stable fare"
-            >
-              seen {deal.times_seen}× since {new Date(deal.first_found_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-            </span>
-          )}
-        </div>
-        {deal.notes && <div className="deal-notes">{deal.notes}</div>}
-      </div>
-      <div className="deal-actions">
-        {deal.booking_url && (
-          <a href={deal.booking_url} target="_blank" rel="noreferrer" className="btn-book">
-            Book
-          </a>
-        )}
-        {deal.source_url && deal.source_url !== deal.booking_url && (
-          <a href={deal.source_url} target="_blank" rel="noreferrer" className="btn-source">
-            Source
-          </a>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Recover search parameters from a stored query string, e.g.
- *  "TLV -> Prague (October, direct only, cabin bag, checked 20kg bag) [watch #5]".
- *  Must stay in sync with the backend's models.search_label(). */
-function parseSearchQuery(query: string): SearchRequest | null {
-  const m = query.match(/^(.+?)\s*->\s*(.+?)\s*\((.+)\)/);
-  if (!m) return null;
-  let hint = m[3];
-  const takeFlag = (flag: string): boolean => {
-    const re = new RegExp(`,\\s*${flag}\\s*$`);
-    // flags were appended in a fixed order, so peel them off the tail
-    if (re.test(hint)) {
-      hint = hint.replace(re, "");
-      return true;
-    }
-    return false;
-  };
-  const checkedBag = takeFlag("checked 20kg bag");
-  const cabinBag = takeFlag("cabin bag");
-  const directOnly = takeFlag("direct only");
-  return {
-    origin: m[1].trim(),
-    destination: m[2].trim(),
-    dates_hint: hint.trim(),
-    direct_only: directOnly,
-    cabin_bag: cabinBag,
-    checked_bag: checkedBag,
-  };
-}
-
-function prettyQuery(query: string, activeWatchIds: Set<number>): string {
-  const pretty = query.replace(" -> ", " → ");
-  const tag = pretty.match(/\s*\[watch #(\d+)\]/);
-  if (!tag) return pretty;
-  // Keep the "watch" marker only while that watch still exists.
-  return pretty.replace(tag[0], activeWatchIds.has(Number(tag[1])) ? " · watch" : "");
-}
-
-function SearchGroupCard({
-  group,
-  defaultOpen,
-  activeWatchIds,
-  filterQuery,
-  directOnly,
-  onRerun,
-}: {
-  group: SearchGroup;
-  defaultOpen: boolean;
-  activeWatchIds: Set<number>;
-  filterQuery: string;
-  directOnly: boolean;
-  onRerun: (group: SearchGroup) => void;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const currency = group.deals[0]?.currency ?? "USD";
-  return (
-    <section className="group-card">
-      <button className="group-header" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span className="group-chevron">{open ? "▾" : "▸"}</span>
-        <span className="group-title">{prettyQuery(group.query, activeWatchIds)}</span>
-        <span className="group-summary">
-          {group.deals.length} deal{group.deals.length !== 1 && "s"} · from{" "}
-          <strong>{formatPrice(group.minPrice, currency)}</strong> · {timeAgo(group.foundAt)}
-        </span>
-        <span
-          className="btn-rerun"
-          role="button"
-          title="Search this route again"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRerun(group);
-          }}
-        >
-          ↻
-        </span>
-      </button>
-      {open && (
-        <div className="group-body">
-          {group.deals.map((d) => (
-            <Collapse key={d.id} shown={dealMatches(d, filterQuery, directOnly)}>
-              <DealRow deal={d} />
-            </Collapse>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function WatchesPanel({
-  watches,
-  onDelete,
-  onRunNow,
-  busy,
-}: {
-  watches: Watch[];
-  onDelete: (id: number) => void;
-  onRunNow: (id: number) => void;
-  busy: boolean;
-}) {
-  if (watches.length === 0) return null;
-  return (
-    <section className="watches-panel">
-      <h2>🔔 Price watches</h2>
-      {watches.map((w) => (
-        <div className="watch-row" key={w.id}>
-          <span className="watch-route">
-            {w.origin} → {w.destination}
-          </span>
-          <span className="watch-meta">
-            {w.dates_hint}
-            {w.direct_only && <> · direct only</>}
-            {w.cabin_bag && <> · 🎒 trolley</>}
-            {w.checked_bag && <> · 🧳 20kg bag</>} · alert ≤ {formatPrice(w.max_price, w.currency)}
-            {w.last_best_price != null && (
-              <> · last best {formatPrice(w.last_best_price, w.currency)}</>
-            )}
-            {w.last_run_at && <> · checked {timeAgo(w.last_run_at)}</>}
-          </span>
-          <button
-            className="btn-run"
-            title="Re-search this route now (same check the daily run does)"
-            onClick={() => onRunNow(w.id)}
-            disabled={busy}
-          >
-            {busy ? "…" : "▶ Run now"}
-          </button>
-          <button className="btn-delete" title="Delete watch" onClick={() => onDelete(w.id)}>
-            ✕
-          </button>
-        </div>
-      ))}
-      <p className="watch-hint">Watched routes are re-checked daily; you get a push when a deal drops below your threshold.</p>
-    </section>
-  );
-}
-
-function HistoryPanel({
-  history,
-  formatPrice,
-}: {
-  history: RouteHistory[];
-  formatPrice: (price: number, currency: string) => string;
-}) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const routes = history.filter((h) => h.points.length > 0);
-  if (routes.length === 0) return null;
-
-  const active = routes.find((h) => h.route === selected) ?? routes[0];
-  return (
-    <section className="history-panel">
-      <h2>📈 Price history — {active.route.replace("->", "→")}</h2>
-      {routes.length > 1 && (
-        <div className="route-chips">
-          {routes.map((h) => (
-            <button
-              key={h.route}
-              className={`chip${h.route === active.route ? " chip-active" : ""}`}
-              onClick={() => setSelected(h.route)}
-            >
-              {h.route.replace("->", "→")}
-            </button>
-          ))}
-        </div>
-      )}
-      <PriceChart points={active.points} currency={active.currency} formatPrice={formatPrice} />
-      {active.points.length < 2 && (
-        <p className="watch-hint">One data point so far — the chart fills in as daily watch runs accumulate.</p>
-      )}
-    </section>
-  );
-}
-
-export default function App() {
+function FlightScout() {
+  const toast = useToast();
+  const [tab, go] = useHashTab();
+  const [locked, setLocked] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [deals, setDeals] = useState<StoredDeal[]>([]);
   const [watches, setWatches] = useState<Watch[]>([]);
   const [history, setHistory] = useState<RouteHistory[]>([]);
-  const [origin, setOrigin] = useState("TLV");
-  const [destination, setDestination] = useState("");
-  const [datesHint, setDatesHint] = useState("anytime in the next 3 months");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
-  const [stopping, setStopping] = useState(false);
+  const [form, setForm] = useState<SearchForm>(loadForm);
+  const [run, setRun] = useState<RunState | null>(null);
+  const [lastResult, setLastResult] = useState<LastResult | null>(null);
   const currentJobId = useRef<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [routeFilter, setRouteFilter] = useState("");
-  const [debouncedFilter, setDebouncedFilter] = useState("");
-  const [directOnly, setDirectOnly] = useState(false); // results-display filter
-  const [searchDirect, setSearchDirect] = useState(false); // constraint sent with searches & watches
-  const [cabinBag, setCabinBag] = useState(false); // price must include a 10kg trolley
-  const [checkedBag, setCheckedBag] = useState(false); // price must include a 20kg+ checked bag
-  const [locked, setLocked] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
 
-  function loadAll() {
-    fetchDeals()
-      .then((d) => {
-        setDeals(d);
-        setLocked(false);
-      })
-      .catch((e) => {
-        if (e instanceof AuthError) {
-          clearAppPassword();
-          setLocked(true);
-        } else {
-          setError(String(e));
-        }
-      });
-    fetchWatches().then(setWatches).catch(() => {});
-    fetchHistory().then(setHistory).catch(() => {});
-  }
+  const lock = useCallback(() => {
+    clearAppPassword();
+    setLocked(true);
+  }, []);
 
-  useEffect(loadAll, []);
+  const loadAll = useCallback(async () => {
+    try {
+      // deals decide auth/errors; watches and history are best-effort extras
+      const [d, w, h] = await Promise.all([
+        fetchDeals(),
+        fetchWatches().catch(() => [] as Watch[]),
+        fetchHistory().catch(() => [] as RouteHistory[]),
+      ]);
+      setDeals(d);
+      setWatches(w);
+      setHistory(h);
+      setLocked(false);
+    } catch (e) {
+      if (e instanceof AuthError) lock();
+      else toast("error", `Couldn't load your data — ${String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [lock, toast]);
 
-  function onUnlock(e: React.FormEvent) {
-    e.preventDefault();
-    if (!passwordInput) return;
-    setAppPassword(passwordInput);
-    setLoginError(null);
-    fetchDeals()
-      .then((d) => {
-        setDeals(d);
-        setLocked(false);
-        setPasswordInput("");
-        fetchWatches().then(setWatches).catch(() => {});
-        fetchHistory().then(setHistory).catch(() => {});
-      })
-      .catch((e) => {
-        if (e instanceof AuthError) {
-          clearAppPassword();
-          setLoginError("Wrong password, try again.");
-        } else {
-          setLoginError(String(e));
-        }
-      });
-  }
-
-  // deals change (new search / watch run) => history changes too
   useEffect(() => {
-    if (deals.length > 0) fetchHistory().then(setHistory).catch(() => {});
-  }, [deals.length]);
+    loadAll();
+  }, [loadAll]);
 
-  // Debounce the text filter so results animate once per pause, not per
-  // keystroke ("w", "wi", "wiz"... each triggering its own fold). The
-  // checkbox stays immediate — a click is already a settled intent.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedFilter(routeFilter), 250);
-    return () => clearTimeout(t);
-  }, [routeFilter]);
+  useEffect(() => saveForm(form), [form]);
 
-
-  // Groups are built from ALL deals; the filter only toggles visibility so
-  // hidden results can animate closed instead of unmounting.
-  const groups = useMemo(() => groupDeals(deals), [deals]);
-  const filterQuery = debouncedFilter.trim().toLowerCase();
-  const groupVisible = (g: SearchGroup) => g.deals.some((d) => dealMatches(d, filterQuery, directOnly));
-  const anyVisible = groups.some(groupVisible);
-
+  const groups = useMemo(() => groupHistory(deals), [deals]);
+  const recent = useMemo(
+    () => [...groups].sort((a, b) => b.latest.foundAt.localeCompare(a.latest.foundAt)).slice(0, 4),
+    [groups]
+  );
   const activeWatchIds = useMemo(() => new Set(watches.map((w) => w.id)), [watches]);
 
-  function beginAgentRun() {
-    setSearching(true);
-    setStopping(false);
-    setError(null);
-    setNotice(null);
-    setAgentEvents([]);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  async function unlock(password: string): Promise<string | null> {
+    setAppPassword(password);
+    try {
+      await fetchDeals();
+    } catch (e) {
+      if (e instanceof AuthError) {
+        clearAppPassword();
+        return "Wrong password, try again.";
+      }
+      return String(e);
+    }
+    setLoading(true);
+    await loadAll();
+    return null;
   }
 
-  function endAgentRun() {
-    setSearching(false);
-    setStopping(false);
-    currentJobId.current = null;
-  }
-
-  function onStopSearch() {
-    const jobId = currentJobId.current;
-    if (!jobId) return;
-    setStopping(true);
-    cancelJob(jobId).catch(() => setStopping(false));
+  function handleRunError(e: unknown) {
+    if (e instanceof AuthError) lock();
+    else toast("error", String(e));
   }
 
   const onAgentEvent = (e: AgentEvent) => {
-    if (e.kind !== "end") setAgentEvents((prev) => [...prev, e]);
+    if (e.kind !== "end") setRun((r) => (r ? { ...r, events: [...r.events, e] } : r));
   };
 
-  function handleRunError(e: unknown) {
-    if (e instanceof AuthError) {
-      clearAppPassword();
-      setLocked(true);
-    } else {
-      setError(String(e));
-    }
+  function onStop() {
+    const jobId = currentJobId.current;
+    if (!jobId) return;
+    setRun((r) => (r ? { ...r, stopping: true } : r));
+    cancelJob(jobId).catch(() => setRun((r) => (r ? { ...r, stopping: false } : r)));
   }
 
-  async function performSearch(params: SearchRequest) {
-    beginAgentRun();
+  async function performSearch(req: SearchRequest) {
+    if (run) return;
+    setRun({ title: `Searching ${req.origin} → ${req.destination}`, events: [], stopping: false });
+    setLastResult(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     try {
-      const started = await startSearch(params);
+      const started = await startSearch(req);
       currentJobId.current = started.job_id;
       const job = await followJob(started, onAgentEvent);
-      if (job.status === "error") {
-        setError(job.error ?? "Search failed");
-      } else if (job.status === "cancelled") {
-        setNotice("Search stopped — nothing was saved.");
-      } else {
-        setDeals((prev) => [...(job.deals ?? []), ...prev]);
+      if (job.status === "error") toast("error", job.error ?? "Search failed");
+      else if (job.status === "cancelled") toast("info", "Search stopped — nothing was saved.");
+      else {
+        const found = job.deals ?? [];
+        setDeals((prev) => [...found, ...prev]);
+        setLastResult({ query: job.query, deals: found, finishedAt: new Date().toISOString() });
+        fetchHistory().then(setHistory).catch(() => {});
+        toast("success", found.length ? `Found ${found.length} deal${found.length > 1 ? "s" : ""}.` : "Search finished — no deals this time.");
       }
     } catch (e) {
       handleRunError(e);
     } finally {
-      endAgentRun();
+      setRun(null);
+      currentJobId.current = null;
     }
   }
 
-  function onSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!origin || !destination) return;
-    performSearch({
-      origin,
-      destination,
-      dates_hint: datesHint,
-      direct_only: searchDirect,
-      cabin_bag: cabinBag,
-      checked_bag: checkedBag,
-    });
+  function onSearch() {
+    const req = formToRequest(form);
+    if (!req.origin || !req.destination) {
+      toast("error", "Fill in where you're flying from and to.");
+      return;
+    }
+    performSearch(req);
   }
 
-  function onRerun(group: SearchGroup) {
-    if (searching) return;
-    const params = parseSearchQuery(group.query) ?? {
-      origin: group.deals[0]?.origin ?? "",
-      destination: group.deals[0]?.destination ?? "",
-      dates_hint: "anytime in the next 3 months",
-      direct_only: false,
-      cabin_bag: false,
-      checked_bag: false,
-    };
-    if (!params.origin || !params.destination) return;
-    // reflect the re-run in the form so the user sees what's being searched
-    setOrigin(params.origin);
-    setDestination(params.destination);
-    setDatesHint(params.dates_hint);
-    setSearchDirect(params.direct_only);
-    setCabinBag(params.cabin_bag);
-    setCheckedBag(params.checked_bag);
-    performSearch(params);
+  function onRerun(group: QueryGroup) {
+    const req = rerunRequest(group.latest.deals[0]);
+    if (!req) {
+      toast("error", "Couldn't recover this search's criteria.");
+      return;
+    }
+    setForm((f) => requestToForm(req, f)); // reflect the re-run in the form
+    go("search");
+    performSearch(req);
+  }
+
+  function onPickRecent(group: QueryGroup) {
+    const req = rerunRequest(group.latest.deals[0]);
+    if (!req) return;
+    setForm((f) => requestToForm(req, f));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    toast("info", "Criteria loaded — adjust anything, then Search.");
   }
 
   async function onRunWatch(id: number) {
-    if (searching) return;
-    beginAgentRun();
+    if (run) return;
+    const w = watches.find((x) => x.id === id);
+    setRun({ title: `Checking watch ${w ? `${w.origin} → ${w.destination}` : ""}`, events: [], stopping: false });
+    setLastResult(null);
+    go("search");
     try {
       const started = await startWatchRun(id);
       currentJobId.current = started.job_id;
       const job = await followJob(started, onAgentEvent);
-      if (job.status === "error") {
-        setError(job.error ?? "Watch run failed");
-      } else if (job.status === "cancelled") {
-        setNotice("Watch run stopped — nothing was saved.");
-      } else {
+      if (job.status === "error") toast("error", job.error ?? "Watch run failed");
+      else if (job.status === "cancelled") toast("info", "Watch run stopped — nothing was saved.");
+      else {
         loadAll(); // fresh deals, watch stats (last best / checked), history point
-        const results = (job.summary?.results as Record<string, unknown>[] | undefined) ?? [];
-        const r = results[0];
-        if (r && r.error) {
-          setError(String(r.error));
-        } else if (r) {
+        if (job.deals) setLastResult({ query: job.query, deals: job.deals, finishedAt: new Date().toISOString() });
+        const r = ((job.summary?.results as Record<string, unknown>[] | undefined) ?? [])[0];
+        if (r?.error) toast("error", String(r.error));
+        else if (r) {
           const currency = String(r.currency ?? "USD");
-          setNotice(
+          toast(
+            r.alerted ? "success" : "info",
             r.best_price == null
-              ? `Checked ${r.route}: no comparable deals found this run.`
-              : `Checked ${r.route}: best ${formatPrice(Number(r.best_price), currency)} vs your ${formatPrice(Number(r.threshold), currency)} threshold — ${r.alerted ? "alert sent! 📱" : "no alert."}`
+              ? `Checked ${r.route}: no comparable deals this run.`
+              : `Checked ${r.route}: best ${formatPrice(Number(r.best_price), currency)} vs your ${formatPrice(Number(r.threshold), currency)} target — ${r.alerted ? "alert sent!" : "no alert."}`
           );
         }
       }
     } catch (e) {
       handleRunError(e);
     } finally {
-      endAgentRun();
+      setRun(null);
+      currentJobId.current = null;
     }
   }
 
-  async function onAddWatch() {
-    if (!origin || !destination || !maxPrice) {
-      setError("To add a watch, fill origin, destination and a max price.");
+  async function onWatch() {
+    const watch = formToWatch(form);
+    if (!form.origin.trim() || !form.destination.trim()) {
+      toast("error", "Fill in where you're flying from and to first.");
       return;
     }
-    setError(null);
+    if (!watch) {
+      toast("error", "Set a max total price — you'll be alerted when a deal is at or below it.");
+      priceRef.current?.focus();
+      return;
+    }
     try {
-      const watch = await createWatch({
-        origin,
-        destination,
-        dates_hint: datesHint,
-        max_price: Number(maxPrice),
-        direct_only: searchDirect,
-        cabin_bag: cabinBag,
-        checked_bag: checkedBag,
-      });
-      setWatches((prev) => [...prev, watch]);
-      const flags = [
-        watch.direct_only && "direct only",
-        watch.cabin_bag && "incl. cabin trolley",
-        watch.checked_bag && "incl. 20kg bag",
-      ].filter(Boolean).join(", ");
-      setNotice(
-        `Watching ${watch.origin} → ${watch.destination}${flags ? ` (${flags})` : ""} for deals under ${formatPrice(watch.max_price, watch.currency)}.`
-      );
+      const created = await createWatch(watch);
+      setWatches((prev) => [...prev, created]);
+      toast("success", `Watching ${created.origin} → ${created.destination} for deals ≤ ${formatPrice(created.max_price, created.currency)}.`);
     } catch (e) {
-      if (e instanceof AuthError) {
-        clearAppPassword();
-        setLocked(true);
-      } else {
-        setError(String(e));
-      }
+      handleRunError(e);
     }
   }
 
   async function onDeleteWatch(id: number) {
     const watch = watches.find((w) => w.id === id);
     const label = watch ? `${watch.origin} → ${watch.destination}` : "this route";
-    if (!window.confirm(`Delete the watch on ${label}? Daily checks and alerts for it will stop.`)) {
-      return;
-    }
+    if (!window.confirm(`Delete the watch on ${label}? Daily checks and alerts for it will stop.`)) return;
     try {
       await deleteWatch(id);
       setWatches((prev) => prev.filter((w) => w.id !== id));
+      toast("info", `Deleted the watch on ${label}.`);
     } catch (e) {
-      setError(String(e));
+      handleRunError(e);
     }
   }
 
-
-  if (locked) {
-    return (
-      <div className="container">
-        <div className="lock-card">
-          <h1>✈️ Flight Scout</h1>
-          <p className="subtitle">This app is password-protected.</p>
-          <form onSubmit={onUnlock} className="lock-form">
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="App password"
-              autoFocus
-            />
-            <button type="submit">Unlock</button>
-          </form>
-          {loginError && <div className="status error">{loginError}</div>}
-        </div>
-      </div>
-    );
+  function onCreateWatch() {
+    go("search");
+    setTimeout(() => priceRef.current?.focus(), 50);
+    toast("info", "Fill in the route and a max price, then tap “Watch this route”.");
   }
 
+  if (locked) return <LockScreen onUnlock={unlock} />;
+
+  const counts: Partial<Record<Tab, number>> = { history: groups.length, watches: watches.length };
+
   return (
-    <div className="container">
-      <header>
-        <h1>✈️ Flight Scout</h1>
-        <p className="subtitle">An agent that hunts the web for cheap flights</p>
+    <div className="app">
+      <header className="app-header">
+        <div className="app-header-inner">
+          <a className="brand" href="#search" aria-label="Flight Scout home">
+            <span className="brand-mark" aria-hidden="true">
+              <Icon name="plane" size={18} />
+            </span>
+            <span className="brand-text">
+              <strong>Flight Scout</strong>
+              <span className="muted small hide-xs">An agent that hunts the web for cheap flights</span>
+            </span>
+          </a>
+          <nav className="tabs" aria-label="Sections">
+            {NAV.map((n) => (
+              <a
+                key={n.tab}
+                href={`#${n.tab}`}
+                className={`tab${tab === n.tab ? " active" : ""}`}
+                aria-current={tab === n.tab ? "page" : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  go(n.tab);
+                }}
+              >
+                <span className="tab-icon">
+                  <Icon name={n.icon} size={20} />
+                  {n.tab === "search" && run && <span className="tab-live" aria-label="search running" />}
+                </span>
+                <span className="tab-label">{n.label}</span>
+                {!!counts[n.tab] && <span className="tab-count">{counts[n.tab]}</span>}
+              </a>
+            ))}
+          </nav>
+        </div>
       </header>
 
-      <form className="search-form" onSubmit={onSearch}>
-        <input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="From (e.g. TLV)" required />
-        <input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="To (e.g. London)" required />
-        <input className="dates-input" value={datesHint} onChange={(e) => setDatesHint(e.target.value)} placeholder="When? (free text)" />
-        <input
-          className="price-input"
-          type="number"
-          min="1"
-          value={maxPrice}
-          onChange={(e) => setMaxPrice(e.target.value)}
-          placeholder="Max $ (for watch)"
-        />
-        <button type="submit" disabled={searching}>
-          {searching ? "Searching…" : "Find deals"}
-        </button>
-        <button type="button" className="btn-watch" onClick={onAddWatch} disabled={searching}>
-          + Watch route
-        </button>
-        <div className="search-options" title="Apply to this search and to new watches">
-          <label>
-            <input type="checkbox" checked={searchDirect} onChange={(e) => setSearchDirect(e.target.checked)} />
-            Direct flights only
-          </label>
-          <label title="Prices will include a 10kg cabin trolley (added fees where the fare excludes it)">
-            <input type="checkbox" checked={cabinBag} onChange={(e) => setCabinBag(e.target.checked)} />
-            🎒 Cabin trolley
-          </label>
-          <label title="Prices will include a 20kg+ checked bag (added fees where the fare excludes it)">
-            <input type="checkbox" checked={checkedBag} onChange={(e) => setCheckedBag(e.target.checked)} />
-            🧳 Checked bag 20kg+
-          </label>
-        </div>
-      </form>
-
-      {searching && <AgentConsole events={agentEvents} onStop={onStopSearch} stopping={stopping} />}
-      {error && <div className="status error">{error}</div>}
-      {notice && <div className="status notice">{notice}</div>}
-
-      <WatchesPanel watches={watches} onDelete={onDeleteWatch} onRunNow={onRunWatch} busy={searching} />
-
-      <HistoryPanel history={history} formatPrice={formatPrice} />
-
-      <main>
-        {deals.length > 0 && (
-          <div className="filter-bar">
-            <input
-              value={routeFilter}
-              onChange={(e) => setRouteFilter(e.target.value)}
-              placeholder="Filter shown results — city / airport / airline"
-            />
-            <label title="Hides non-direct deals below; doesn't run a new search">
-              <input type="checkbox" checked={directOnly} onChange={(e) => setDirectOnly(e.target.checked)} />
-              Show direct only
-            </label>
-          </div>
+      <main className="container">
+        {run && tab !== "search" && (
+          <button className="live-banner" onClick={() => go("search")}>
+            <span className="agent-dot" aria-hidden="true" /> {run.title}… <span className="live-banner-cta">View live</span>
+          </button>
         )}
-        {deals.length === 0 && !searching && (
-          <div className="empty">No deals yet. Run a search above to get started.</div>
+        {tab === "search" && (
+          <SearchTab
+            form={form}
+            onFormChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+            onSearch={onSearch}
+            onWatch={onWatch}
+            run={run}
+            onStop={onStop}
+            lastResult={lastResult}
+            recent={recent}
+            onPickRecent={onPickRecent}
+            onOpenHistory={() => go("history")}
+            priceRef={priceRef}
+          />
         )}
-        {groups.map((group, i) => (
-          <Collapse key={group.key} shown={groupVisible(group)}>
-            <SearchGroupCard
-              group={group}
-              defaultOpen={i === 0}
-              activeWatchIds={activeWatchIds}
-              filterQuery={filterQuery}
-              directOnly={directOnly}
-              onRerun={onRerun}
-            />
-          </Collapse>
-        ))}
-        {deals.length > 0 && !anyVisible && <div className="empty">Nothing matches the filters.</div>}
+        {tab === "history" && (
+          <HistoryTab
+            groups={groups}
+            loading={loading}
+            activeWatchIds={activeWatchIds}
+            onRerun={onRerun}
+            busy={!!run}
+            onNewSearch={() => go("search")}
+          />
+        )}
+        {tab === "watches" && (
+          <WatchesTab
+            watches={watches}
+            loading={loading}
+            onRunNow={onRunWatch}
+            onDelete={onDeleteWatch}
+            onCreate={onCreateWatch}
+            busy={!!run}
+          />
+        )}
+        {tab === "trends" && <TrendsTab history={history} loading={loading} />}
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <FlightScout />
+    </ToastProvider>
   );
 }

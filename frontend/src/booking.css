@@ -1,0 +1,173 @@
+/* BookingLinks component. Colors come from the app tokens in styles.css. */
+.bl {
+  --bl-warn: #b45309;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bl {
+    --bl-warn: #fbbf24;
+  }
+}
+
+.bl-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.bl-primary,
+.bl-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.bl-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bl-primary:hover {
+  filter: brightness(1.08);
+}
+
+.bl-more {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+
+.bl-more:hover {
+  border-color: var(--accent);
+}
+
+.bl-primary:focus-visible,
+.bl-more:focus-visible,
+.bl-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bl-ext {
+  font-size: 0.8em;
+  opacity: 0.85;
+}
+
+.bl-caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.bl-caret-open {
+  transform: rotate(180deg);
+}
+
+.bl-hint,
+.bl-warn {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.bl-hint {
+  color: var(--muted);
+}
+
+.bl-check {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.bl-warn {
+  color: var(--bl-warn);
+}
+
+.bl-warn span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.15rem;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.bl-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bl-list[hidden] {
+  display: none;
+}
+
+.bl-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.bl-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.bl-chip-meta {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bl-caret {
+    transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .bl {
+    width: 100%;
+  }
+  .bl-primary {
+    flex: 1;
+    min-height: 44px;
+    font-size: 0.95rem;
+  }
+  .bl-more {
+    min-height: 44px;
+  }
+  .bl-chip {
+    min-height: 36px;
+    align-items: center;
+  }
+}

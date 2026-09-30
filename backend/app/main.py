@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from . import agent, storage, watcher
 from .models import RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, search_label
 
-app = FastAPI(title="Flight Scout", version="0.4.0")
+app = FastAPI(title="Flight Scout", version="1.0.0")
 
 
 def require_auth(
@@ -183,16 +183,17 @@ def stream_job_events(job_id: str) -> StreamingResponse:
 
 @app.post("/api/search", response_model=Job, status_code=202, dependencies=[Depends(require_auth)])
 def start_search(req: SearchRequest) -> Job:
+    params = req.params()
     query = search_label(req.origin, req.destination, req.dates_hint,
-                         req.direct_only, req.cabin_bag, req.checked_bag)
+                         req.direct_only, req.cabin_bag, req.checked_bag, params=params)
 
     def work(job_id: str) -> dict:
         deals = agent.find_deals(
-            req.origin, req.destination, req.dates_hint, req.direct_only,
-            cabin_bag=req.cabin_bag, checked_bag=req.checked_bag,
+            req.origin, req.destination, req.dates_hint,
+            params=params,
             on_event=lambda event: _emit_or_cancel(job_id, event),
         )
-        return {"deals": storage.save_deals(query, deals)}
+        return {"deals": storage.save_deals(query, deals, params)}
 
     return _start_job("search", query, work)
 
@@ -242,8 +243,7 @@ def run_single_watch(watch_id: int) -> Job:
     watch = next((w for w in storage.list_watches(active_only=True) if w.id == watch_id), None)
     if watch is None:
         raise HTTPException(status_code=404, detail="No such active watch")
-    query = search_label(watch.origin, watch.destination, watch.dates_hint,
-                         watch.direct_only, watch.cabin_bag, watch.checked_bag) + f" [watch #{watch.id}]"
+    query = watcher.watch_label(watch)
 
     def work(job_id: str) -> dict:
         summary = watcher.run_watches(

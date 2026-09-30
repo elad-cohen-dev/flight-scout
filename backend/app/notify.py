@@ -21,7 +21,7 @@ def send_notification(title: str, message: str, click_url: str = "") -> list[str
     topic = os.environ.get("NTFY_TOPIC")
     if topic:
         headers = {"Title": title, "Tags": "airplane,moneybag"}  # header values must stay ASCII
-        if click_url:
+        if click_url and click_url.isascii():  # booking URLs are normally percent-encoded
             headers["Click"] = click_url
         httpx.post(
             f"https://ntfy.sh/{topic}",

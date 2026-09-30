@@ -11,10 +11,36 @@ import logging
 
 from . import agent, storage
 from .currency import convert
-from .models import search_label
+from .models import BookingLink, SearchParams, StoredDeal, Watch, search_label
 from .notify import send_notification
 
 logger = logging.getLogger(__name__)
+
+
+def watch_params(watch: Watch) -> SearchParams:
+    """The criteria a watch searches with. Its max_price is the ALERT threshold,
+    not a search filter — filtering on it would hide the best-price-so-far the
+    UI shows when nothing is under the threshold yet."""
+    params = SearchParams(**watch.model_dump(include=set(SearchParams.model_fields)))
+    return params.model_copy(update={"max_price": None})
+
+
+def watch_label(watch: Watch) -> str:
+    return search_label(watch.origin, watch.destination, watch.dates_hint,
+                        watch.direct_only, watch.cabin_bag, watch.checked_bag,
+                        params=watch_params(watch)) + f" [watch #{watch.id}]"
+
+
+def best_link(deal: StoredDeal) -> str:
+    """Most useful URL for an alert: the booking link that pre-fills the most
+    criteria (an airline link wins ties), else the deal's own URLs."""
+    def score(link: BookingLink) -> tuple:
+        return (len(link.prefilled), link.kind == "airline")
+
+    links = [link for link in deal.booking_links if link.url]
+    if links:
+        return max(links, key=score).url  # max keeps the first of equal scores
+    return deal.booking_url or deal.source_url
 
 
 def run_watches(only_id: int | None = None, on_event=None) -> dict:
@@ -34,15 +60,12 @@ def run_watches(only_id: int | None = None, on_event=None) -> dict:
         route = f"{watch.origin} → {watch.destination}"
         try:
             emit(f"Checking {route} ({watch.dates_hint}) — alert at ≤ {watch.max_price:,.0f} {watch.currency}")
+            params = watch_params(watch)
             deals = agent.find_deals(
                 watch.origin, watch.destination, watch.dates_hint,
-                watch.direct_only, watch.currency,
-                cabin_bag=watch.cabin_bag, checked_bag=watch.checked_bag,
-                on_event=on_event,
+                params=params, on_event=on_event,
             )
-            query = search_label(watch.origin, watch.destination, watch.dates_hint,
-                                 watch.direct_only, watch.cabin_bag, watch.checked_bag) + f" [watch #{watch.id}]"
-            stored = storage.save_deals(query, deals)
+            stored = storage.save_deals(watch_label(watch), deals, params)
 
             # Deals come back in whatever currency the source page used, so the
             # threshold comparison happens in the watch's currency — ₪1,009 is
@@ -62,9 +85,16 @@ def run_watches(only_id: int | None = None, on_event=None) -> dict:
                 price_str = f"{best.price:,.0f} {best.currency}"
                 if best.currency != watch.currency:
                     price_str += f" (~{best_price:,.0f} {watch.currency})"
+                party = watch.passengers.total
+                if party > 1 and best.price_per_person:
+                    price_str += f" for {party} travellers ({best.price_per_person:,.0f} pp)"
+                airports = (f" ({best.origin_airport}→{best.destination_airport})"
+                            if best.origin_airport and best.destination_airport else "")
+                times = f" {best.depart_time}" if best.depart_time else ""
+                flights = f", {best.flight_numbers}" if best.flight_numbers else ""
                 message = (
-                    f"{route}: {price_str} on {best.airline}\n"
-                    f"{best.depart_date}{' — ' + best.return_date if best.return_date else ''}"
+                    f"{route}{airports}: {price_str} on {best.airline}{flights}\n"
+                    f"{best.depart_date}{times}{' — ' + best.return_date if best.return_date else ''}"
                     f"{', ' + best.duration if best.duration else ''}"
                     f" ({'direct' if best.stops == 0 else str(best.stops) + ' stop(s)'})\n"
                     f"Your threshold: {watch.max_price:,.0f} {watch.currency}"
@@ -72,7 +102,7 @@ def run_watches(only_id: int | None = None, on_event=None) -> dict:
                 channels = send_notification(
                     "Flight deal below your threshold!",
                     message,
-                    best.booking_url or best.source_url,
+                    best_link(best),
                 )
                 alerted = bool(channels)
                 if alerted:

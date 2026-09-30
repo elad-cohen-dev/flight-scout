@@ -26,12 +26,15 @@ _ALIASES = {
     "€": "EUR",
     "£": "GBP",
     "₪": "ILS", "NIS": "ILS",
+    "¥": "JPY", "₹": "INR", "฿": "THB", "CA$": "CAD", "A$": "AUD", "KČ": "CZK", "ZŁ": "PLN",
 }
 
 # Approximate rates per 1 USD (ECB, 2026-08) — fallback only.
 _FALLBACK_PER_USD = {
     "USD": 1.0, "EUR": 0.87, "GBP": 0.74, "ILS": 3.0,
     "CHF": 0.81, "CZK": 21.0, "PLN": 3.7, "HUF": 315.0, "RON": 4.4,
+    "SEK": 9.6, "NOK": 10.2, "DKK": 6.5, "TRY": 41.0, "AED": 3.67,
+    "CAD": 1.38, "AUD": 1.53, "JPY": 147.0, "INR": 87.0, "THB": 32.5,
 }
 
 _RATES_URL = "https://api.frankfurter.dev/v1/latest?base=USD"
@@ -45,7 +48,7 @@ _rates_fetched_at = 0.0
 def normalize(code: str) -> str:
     """'₪' -> 'ILS', 'usd ' -> 'USD'; unknown strings pass through uppercased."""
     code = (code or "").strip()
-    return _ALIASES.get(code, code.upper())
+    return _ALIASES.get(code, _ALIASES.get(code.upper(), code.upper()))
 
 
 def _fetch_rates() -> dict[str, float] | None:

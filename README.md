@@ -45,17 +45,38 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 
 | Method           | Path                                 | Description                                                                                                                        |
 | ---------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `POST`           | `/api/search`                        | `{origin, destination, dates_hint, direct_only, cabin_bag, checked_bag}` → starts a search job, returns `{job_id}` (202)           |
+| `POST`           | `/api/search`                        | `{origin, destination, dates_hint, ...search params}` (see below) → starts a search job, returns `{job_id}` (202)                 |
 | `GET`            | `/api/jobs/{job_id}`                 | Poll a job: `{status: running\|done\|error, deals, summary, error}`                                                                  |
 | `GET`            | `/api/jobs/{job_id}/events`          | Live progress stream (SSE): the agent's web-search calls and streamed research text                                                |
 | `POST`           | `/api/jobs/{job_id}/cancel`          | Stop a running job; it aborts at its next progress event without saving anything                                                   |
 | `GET`            | `/api/deals`                         | List stored deals, de-duplicated across runs (`dedupe=false` for raw rows). Filters: `origin`, `destination`, `max_price`, `limit` |
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
-| `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, direct_only, cabin_bag, checked_bag}`                |
+| `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, ...search params}` — `max_price` is the alert threshold |
 | `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches                                                                                                              |
 | `POST`           | `/api/watches/{id}/run`              | Run one watch immediately (same check + alert logic as the daily sweep), returns a job                                             |
 | `POST`           | `/api/watches/run`                   | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header)                                                   |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
+
+### Search params
+
+Searches and watches accept the same criteria. All are optional; the defaults reproduce a plain 1-adult economy round trip.
+
+| Field | Default | Meaning |
+| ----- | ------- | ------- |
+| `origin` / `destination` | — | City, IATA code or comma list; the destination may also be a country/region (`Greece`) or `anywhere` |
+| `dates_hint` | `anytime in the next 3 months` | Free-text date preference |
+| `trip_type` | `round_trip` | `round_trip` or `one_way` |
+| `passengers` | `{adults: 1, children: 0, infants: 0}` | Party size; prices are the **total for the whole party** (`price_per_person` is also returned) |
+| `cabin_class` | `economy` | `economy`, `premium_economy`, `business`, `first` |
+| `max_stops` | `null` (any) | `0` = direct only (legacy `direct_only: true` still works), `1`, `2`... |
+| `depart_from` / `depart_to` | — | Departure window (ISO dates), enforced on results |
+| `nights_min` / `nights_max` | — | Trip length for round trips, enforced on results |
+| `max_price` | — | Price ceiling for the whole party in `currency` (converted before comparing) |
+| `currency` | `USD` | Preferred quote currency |
+| `cabin_bag` / `checked_bag` | `false` | Prices must include a 10kg cabin trolley / a 20kg+ checked bag per traveller |
+| `nearby_airports` | `false` | Also consider alternate airports near origin and destination |
+
+Each returned deal carries IATA airports, local times, flight numbers, airline code, `price_confidence` (`verified` = exact dated fare seen, `estimated`, `from_price` = "from X" teaser), `booking_links` pre-filled with the search, and the `search_params` of the run that found it.
 
 
 
@@ -76,7 +97,7 @@ The workflow authenticates with the `CRON_SECRET` repo secret, which must match 
 | ----------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------ |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`    | — (one required)                 | LLM API access; provider auto-detected from the key                            |
 | `FLIGHT_SCOUT_PROVIDER`                   | auto                             | Force `anthropic` or `openai` when both keys are set                           |
-| `FLIGHT_SCOUT_MODEL`                      | `claude-opus-5` / `gpt-5.4-mini` | Model powering the agent (per provider)                                        |
+| `FLIGHT_SCOUT_MODEL`                      | `claude-opus-5` / `gpt-5.4-mini` | Model powering the agent (per provider); production runs `gpt-5.5` for accuracy |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | —                                | Hosted DB ([Turso](https://turso.tech)); falls back to local SQLite when unset |
 | `STATIC_DIR`                              | `frontend/dist`                  | Directory of built frontend for FastAPI to serve                               |
 | `APP_PASSWORD`                            | — (open when unset)              | Locks the app/API behind a shared password (UI shows a lock screen)            |
@@ -104,10 +125,14 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 
 ## Features
 
-- **Live web search** for deals on any route, in free-text dates ("a weekend in November"), optionally direct flights only — with the agent's searches and findings **streamed live** into the UI while it works
+- **Live web search** for deals on any route — or an explore-style search to a country, region or "anywhere" — with the agent's searches and findings **streamed live** into the UI while it works
+- **Search-engine criteria**: one-way or round trip, party size (adults/children/infants, prices are party totals), cabin class, max stops, a departure window and trip length, a price ceiling, preferred currency, and nearby airports. The agent prefers exact dated fares from Google Flights/Skyscanner/Kayak/airline sites (opening pages to confirm them), and every result is re-checked in code against the criteria (stops, budget, dates, trip length, no past departures), de-duplicated and sorted by price
+- **Price confidence** on every deal: verified dated fare vs. estimate vs. "from" teaser
+- **One-click, pre-filled booking** — airline deep links (Ryanair, Wizz Air, easyJet) and Google Flights / Skyscanner / Kayak / Momondo links with the route, exact dates, passengers, cabin and (where supported) stops and bags already set; the card shows what's pre-filled and what's left to set at checkout
 - **Baggage-inclusive pricing** — optionally require a 🎒 cabin trolley and/or 🧳 20kg+ checked bag; the agent adds the airline's bag fees to advertised fares (or flags when it can't verify them), so comparisons reflect what the trip actually costs
 - **Price watches** — routes re-searched daily (GitHub Actions cron), push alert via ntfy/Telegram when a deal drops below your threshold, with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
 - **Price-history chart** per route, built from every search run
 - **De-duplication** of identical deals across runs ("seen 3× since Aug 10")
 - **Access control** — optional shared password (`APP_PASSWORD`) with a lock screen
-- **Mobile-friendly** responsive UI
+- **Tabbed app** — Search / History / Watches / Trends; history folds repeated runs of a search into one card with its price trend, grouped by date or route, with filter, sort and paging
+- **Mobile-friendly** responsive UI with a bottom tab bar, and dark mode

@@ -8,16 +8,34 @@ export class AuthError extends Error {
   }
 }
 
+// In-memory copy so auth still works when storage is unavailable (private mode).
+let memoryPassword: string | null = null;
+
 export function setAppPassword(password: string): void {
-  localStorage.setItem(PASSWORD_KEY, password);
+  memoryPassword = password;
+  try {
+    localStorage.setItem(PASSWORD_KEY, password);
+  } catch {
+    // keep the in-memory copy only
+  }
 }
 
 export function clearAppPassword(): void {
-  localStorage.removeItem(PASSWORD_KEY);
+  memoryPassword = null;
+  try {
+    localStorage.removeItem(PASSWORD_KEY);
+  } catch {
+    // nothing stored
+  }
 }
 
 function authHeaders(): Record<string, string> {
-  const password = localStorage.getItem(PASSWORD_KEY);
+  let password = memoryPassword;
+  try {
+    password ??= localStorage.getItem(PASSWORD_KEY);
+  } catch {
+    // storage unavailable
+  }
   return password ? { Authorization: `Bearer ${password}` } : {};
 }
 
@@ -33,8 +51,10 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Every stored deal, one row per sighting (no dedupe), so each search run keeps
+ *  its full result set — the History tab folds runs and counts repeats itself. */
 export async function fetchDeals(): Promise<StoredDeal[]> {
-  return handle(await fetch("/api/deals", { headers: authHeaders() }));
+  return handle(await fetch("/api/deals?dedupe=false&limit=2000", { headers: authHeaders() }));
 }
 
 export async function startSearch(req: SearchRequest): Promise<Job> {

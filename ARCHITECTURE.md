@@ -23,34 +23,37 @@ START ──▶ research ──▶ extract ──▶ END
 State flowing through the graph (`AgentState`):
 
 ```python
-origin: str            # "TLV"
-destination: str       # "Prague"
+origin: str            # "TLV" (or a comma list)
+destination: str       # "Prague", a country/region ("Greece"), a comma list, or "anywhere"
 dates_hint: str        # free text: "October 11 week", "a weekend in November"
-direct_only: bool      # constrain to non-stop flights
-currency: str          # preferred quote currency (the watch's currency; "USD" default)
+params: SearchParams   # structured criteria: trip type, passengers, cabin class, max stops,
+                       # date window + trip length, bags, max price, currency, nearby airports
 research_notes: str    # output of node 1, input of node 2
 deals: list[FlightDeal]  # final output
 ```
+
+`SearchParams` (in `models.py`) is the one contract shared by the agent, storage, booking links and the UI. It is persisted with every stored deal, so re-runs and booking links reproduce the exact party and criteria.
 
 ### Node 1 — `research`
 
 One LLM call with the provider's **server-side web search tool** bound. The searching loop (issue queries, fetch pages, read results) runs entirely on the provider's infrastructure and the node gets back a single prose answer — no client-side tool loop, no scraper, no flight-API keys:
 
-- **Anthropic**: `{"type": "web_search_20260209", "name": "web_search", "max_uses": 8}`
+- **Anthropic**: `web_search_20260209` (10 uses, 14 for flexible/region searches) plus `web_fetch_20260209` (5 uses) to open result and airline pages and confirm exact dated fares. A long server-side tool loop that pauses (`stop_reason: pause_turn`) is continued up to twice.
 - **OpenAI**: `{"type": "web_search"}` — requires the Responses API (`ChatOpenAI(use_responses_api=True)`)
 
-The prompt asks for concrete deals (price + currency, airline, dates, duration, stops, booking/source URLs, caveats) from Google Flights result pages, airline deal pages, and fare aggregators. Two conditional clauses are injected from state: a hard "only DIRECT (non-stop) flights" instruction when `direct_only` is set, and a preferred quote currency.
+The prompt is built from every `SearchParams` field plus today's date. It asks for exact dated fares from Google Flights, Skyscanner, Kayak, Momondo and airline sites over "from" teasers, and a fixed report format per deal: IATA airports, times, flight numbers, fare for the whole party with the per-person breakdown, and bag fees added when bags are required. Region/"anywhere" destinations become an explore search across several airports.
 
 ### Node 2 — `extract`
 
 A second, cheaper LLM pass over the research notes using LangChain's `with_structured_output(FlightDealList)` — the model is forced to emit the Pydantic schema, so the output is validated data, not parsed prose. Two safety nets sit on top of the model:
 
-- **Direct-only is enforced in code**: when `direct_only` is set, deals with `stops != 0` are filtered out after extraction. The prompt asks; the filter guarantees.
+- **Criteria are enforced in code** (`postprocess()`): max stops, max price (after currency conversion), departure window, trip length, one-way vs round trip, no past dates, no non-positive prices. On a round-trip search, a fare that is clearly one-way is doubled and marked `estimated`, before the budget check. Within-run duplicates are merged (best `price_confidence`, then cheapest) and results are sorted by price in the preferred currency. The prompt asks; the code guarantees. Deals that can't be checked (free-text dates, unknown currency) are kept.
+- **Honest confidence**: every deal carries `price_confidence` — `verified` (exact fare seen for these dates), `estimated` (computed, e.g. fare + bag fee), or `from_price` (a "from X" teaser).
 - **Currency codes are normalized by a Pydantic validator** on `FlightDeal` (`"₪"` → `ILS`, `"$"` → `USD`, ...). The same model validates rows read back from the DB, so old mis-coded rows heal on read.
 
 ### Why two passes?
 
-A single call can't reliably do both jobs: web search needs a free-form response the model can reason in, while storage needs strict schema. Splitting them also means the second pass can run on the same cheap model with no tools bound. A full search costs **two model calls** (~$0.01–0.03 on `gpt-5.4-mini`).
+A single call can't reliably do both jobs: web search needs a free-form response the model can reason in, while storage needs strict schema. Splitting them also means the second pass can run on the same cheap model with no tools bound. A full search costs **two model calls**; cost depends mostly on the model (`FLIGHT_SCOUT_MODEL`, production runs `gpt-5.5`).
 
 ### Provider selection
 
@@ -60,7 +63,7 @@ A single call can't reliably do both jobs: web search needs a free-form response
 
 A live web search takes 1–2 minutes, far beyond sane HTTP timeouts (and Render's proxy limits), so searches run as **background jobs**:
 
-1. The UI sends `POST /api/search {origin, destination, dates_hint, direct_only}`.
+1. The UI sends `POST /api/search {origin, destination, dates_hint, ...SearchParams}`.
 2. FastAPI spawns a daemon thread and immediately returns `202 {job_id, status: running}`.
 3. The thread runs the agent: *research* (server-side web search → prose findings), then *extract* (structured output → `FlightDeal` list), then inserts the deals into the DB.
 4. Meanwhile the UI polls `GET /api/jobs/{job_id}` every 3 seconds until the status flips to `done` (response carries the saved deals) or `error`.
@@ -90,13 +93,26 @@ Read-time shaping (the DB stays raw; views are computed):
 - **De-duplication**: identical deals re-found across runs (same route/airline/dates/price) collapse into one row carrying `times_seen` and `first_found_at`. A *changed* price is deliberately a new entry — repricing is information.
 - **Price history**: deals group by the *requested* route parsed from the search query (extracted deals name airports LTN/LHR/London inconsistently), each run contributes its minimum price, and every price is **converted to the route's dominant currency** first — runs quote whatever currency the source pages used.
 
+## Booking links (`backend/app/booking.py`)
+
+`build_links(deal, params)` turns a deal plus its stored `SearchParams` into ranked, pre-filled purchase links. It is pure (no network), never raises, and runs at read time, so legacy rows get links too (assumed 1 adult, economy).
+
+- **Airline deep links** where the carrier's site accepts URL parameters (Ryanair, Wizz Air, easyJet): route, exact dates, adults/children/infants. Other carriers (El Al, Israir, Arkia, Aegean, Lufthansa group, Turkish, …) get their booking home page.
+- **Meta-search**: Google Flights (`?q=` natural-language query incl. passengers, cabin, nonstop), Skyscanner, Kayak and Momondo. Kayak/Momondo also take bag filters, so their prices include bag fees.
+- **Ranking**: pre-filled airline link → Google Flights → the agent's own specific booking URL → other meta-search → airline home pages. Each link lists what it actually pre-fills; the UI shows that and warns about anything left to set on the site ("Add 20kg bag at checkout").
+- Dated links need exact dates; month text falls back to month views. Metro codes (LON, PAR…) work on meta-search only; airline engines need a real airport.
+
+## Web app (`frontend/`)
+
+React + Vite, four hash-routed tabs so refresh/back work: **Search** (full criteria form + live agent console + this run's results), **History** (repeated runs of the same search folded into one card with price trend, grouped by date or route, filter/sort/paging), **Watches**, and **Trends** (price chart per route). Top tabs on desktop, a bottom bar on phones, dark mode via `prefers-color-scheme`. History fetches raw sightings (`/api/deals?dedupe=false`) so run-to-run price changes are exact.
+
 ## Watches, cron, and notifications
 
 Every morning (05:00 UTC), the GitHub Actions workflow:
 
 1. **Wakes the app** — a retry loop on `GET /api/health`, because the free Render instance sleeps after ~15 idle minutes.
 2. **Triggers the sweep** — `POST /api/watches/run` with the `X-Cron-Secret` header; the API returns `202 {job_id}` and runs the watcher in a background thread.
-3. For **each active watch**, the watcher re-runs the agent (`find_deals(origin, destination, dates_hint, direct_only, currency)`), saves the results, converts every deal price into the watch's currency, and — if the best converted price is at or below `max_price` — pushes an alert like *"1,009 ILS (~336 USD) on Israir…"*.
+3. For **each active watch**, the watcher re-runs the agent with the watch's stored `SearchParams`, saves the results, converts every deal price into the watch's currency, and — if the best converted price is at or below `max_price` — pushes an alert like *"1,009 ILS (~336 USD) on Israir…"* linking to the most pre-filled booking link.
 4. **Polls the job** every 30 seconds until done (which conveniently also keeps the instance awake for the duration).
 
 - The **threshold comparison is currency-aware** (`app/currency.py`): deal prices convert into the watch's currency using ECB rates from frankfurter.dev (keyless, cached in-process for 12h) with a static fallback table. Raw-number comparison was the original design and it failed both ways: ₪1,009 vs a $300 threshold never alerted; £95 vs a $100 threshold would have alerted wrongly.
@@ -117,4 +133,4 @@ Every morning (05:00 UTC), the GitHub Actions workflow:
 | Render free disk is ephemeral | Turso for persistence; in-memory jobs are acceptable losses |
 | Turso round trips are ~200ms from Render | pooled connection, once-per-process DDL, 60s read cache |
 | Single instance, no queue | background jobs are daemon threads + an in-memory dict |
-| LLM spend per search | mini-tier model, two calls per search, watches run sequentially once a day |
+| LLM spend per search | two model calls per search, capped web-search/fetch uses, watches run sequentially once a day |

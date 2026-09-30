@@ -159,13 +159,64 @@ class Watch(WatchCreate):
     last_best_price: float | None = None
 
 
+def _criteria_flags(p: SearchParams) -> list[str]:
+    """Human-readable non-default criteria, in label order. Each flag is one
+    comma-free token so labels stay splittable on ', '."""
+    flags: list[str] = []
+    if p.depart_from and p.depart_to:
+        flags.append(f"depart {p.depart_from.isoformat()} to {p.depart_to.isoformat()}")
+    elif p.depart_from:
+        flags.append(f"depart from {p.depart_from.isoformat()}")
+    elif p.depart_to:
+        flags.append(f"depart by {p.depart_to.isoformat()}")
+    if p.trip_type == "round_trip" and (p.nights_min is not None or p.nights_max is not None):
+        lo, hi = p.nights_min, p.nights_max
+        if lo is not None and hi is not None:
+            flags.append(f"{lo} nights" if lo == hi else f"{lo}-{hi} nights")
+        elif lo is not None:
+            flags.append(f"{lo}+ nights")
+        else:
+            flags.append(f"up to {hi} nights")
+    if p.trip_type == "one_way":
+        flags.append("one-way")
+    pax = p.passengers
+    if (pax.adults, pax.children, pax.infants) != (1, 0, 0):
+        party = [f"{pax.adults} adult{'s' if pax.adults != 1 else ''}"]
+        if pax.children:
+            party.append(f"{pax.children} child{'ren' if pax.children != 1 else ''}")
+        if pax.infants:
+            party.append(f"{pax.infants} infant{'s' if pax.infants != 1 else ''}")
+        flags.append(" + ".join(party))
+    if p.cabin_class != "economy":
+        flags.append(p.cabin_class.replace("_", " "))
+    if p.max_stops is not None and p.max_stops > 0:
+        flags.append(f"max {p.max_stops} stop{'s' if p.max_stops != 1 else ''}")
+    if p.nearby_airports:
+        flags.append("nearby airports")
+    if p.max_price is not None:
+        flags.append(f"up to {p.max_price:.0f} {p.currency}")
+    return flags
+
+
 def search_label(origin: str, destination: str, dates_hint: str,
-                 direct_only: bool, cabin_bag: bool, checked_bag: bool) -> str:
+                 direct_only: bool, cabin_bag: bool, checked_bag: bool,
+                 params: SearchParams | None = None) -> str:
     """Canonical stored label for a search run, e.g.
-    'TLV -> Prague (October, direct only, cabin bag, checked 20kg bag)'.
+    'TLV -> Prague (October, direct only, cabin bag, checked 20kg bag)', or with
+    params: 'TLV -> Prague (October, one-way, 2 adults + 1 child, business,
+    max 1 stop, cabin bag)'.
+
     The flags live inside the parens so route parsing (split on ' (') and the
-    frontend's re-run parser stay in sync."""
+    frontend's re-run parser stay in sync. The legacy flags (direct only, cabin
+    bag, checked 20kg bag) always come last and in that order, so old parsers
+    that peel them off the tail keep working; newer criteria sit between the
+    dates text and those. `params`, when given, supersedes the three flags."""
     flags = ""
+    if params is not None:
+        direct_only = params.max_stops == 0
+        cabin_bag, checked_bag = params.cabin_bag, params.checked_bag
+        for flag in _criteria_flags(params):
+            flags += f", {flag}"
     if direct_only:
         flags += ", direct only"
     if cabin_bag:

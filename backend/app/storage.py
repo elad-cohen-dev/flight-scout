@@ -17,6 +17,8 @@ in-process cache that every write clears.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import sqlite3
 import threading
@@ -30,9 +32,13 @@ from collections import Counter, defaultdict
 
 from .currency import convert as _convert_currency
 from .currency import normalize as _normalize_currency
-from .models import FlightDeal, HistoryPoint, RouteHistory, StoredDeal, Watch, WatchCreate
+from .models import (
+    BookingLink, FlightDeal, HistoryPoint, RouteHistory, SearchParams, StoredDeal, Watch, WatchCreate,
+)
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).resolve().parent.parent / "flight_scout.db"
 
@@ -52,7 +58,17 @@ _SCHEMA = [
         booking_url TEXT NOT NULL DEFAULT '',
         source_url TEXT NOT NULL DEFAULT '',
         notes TEXT NOT NULL DEFAULT '',
-        found_at TEXT NOT NULL
+        found_at TEXT NOT NULL,
+        origin_airport TEXT NOT NULL DEFAULT '',
+        destination_airport TEXT NOT NULL DEFAULT '',
+        depart_time TEXT NOT NULL DEFAULT '',
+        arrive_time TEXT NOT NULL DEFAULT '',
+        return_depart_time TEXT NOT NULL DEFAULT '',
+        flight_numbers TEXT NOT NULL DEFAULT '',
+        airline_code TEXT NOT NULL DEFAULT '',
+        price_per_person REAL,
+        price_confidence TEXT NOT NULL DEFAULT 'estimated',
+        search_params TEXT
     )""",
     "CREATE INDEX IF NOT EXISTS idx_deals_route ON deals (origin, destination)",
     """CREATE TABLE IF NOT EXISTS watches (
@@ -68,7 +84,8 @@ _SCHEMA = [
         active INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         last_run_at TEXT,
-        last_best_price REAL
+        last_best_price REAL,
+        search_params TEXT
     )""",
 ]
 
@@ -77,6 +94,27 @@ _MIGRATIONS = [
     "ALTER TABLE watches ADD COLUMN direct_only INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE watches ADD COLUMN cabin_bag INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE watches ADD COLUMN checked_bag INTEGER NOT NULL DEFAULT 0",
+    # v1.0: full search criteria (JSON-encoded SearchParams) + richer deal fields.
+    "ALTER TABLE watches ADD COLUMN search_params TEXT",
+    "ALTER TABLE deals ADD COLUMN origin_airport TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN destination_airport TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN depart_time TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN arrive_time TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN return_depart_time TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN flight_numbers TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN airline_code TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN price_per_person REAL",
+    "ALTER TABLE deals ADD COLUMN price_confidence TEXT NOT NULL DEFAULT 'estimated'",
+    "ALTER TABLE deals ADD COLUMN search_params TEXT",
+]
+
+# Deal columns written by save_deals, beyond search_query/found_at/search_params.
+_DEAL_COLUMNS = [
+    "origin", "destination", "airline", "price", "currency", "depart_date",
+    "return_date", "duration", "stops", "booking_url", "source_url", "notes",
+    "origin_airport", "destination_airport", "depart_time", "arrive_time",
+    "return_depart_time", "flight_numbers", "airline_code", "price_per_person",
+    "price_confidence",
 ]
 
 
@@ -236,33 +274,59 @@ def _rows_as_dicts(cursor) -> list[dict]:
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
-def save_deals(search_query: str, deals: list[FlightDeal]) -> list[StoredDeal]:
+def _parse_params(raw) -> SearchParams | None:
+    """Decode a stored search_params JSON column; None for legacy/garbled rows."""
+    if not raw:
+        return None
+    try:
+        return SearchParams.model_validate_json(raw)
+    except Exception:
+        logger.warning("ignoring unreadable search_params: %.80s", raw)
+        return None
+
+
+def _booking_links(deal: FlightDeal, params: SearchParams | None) -> list[BookingLink]:
+    """Links for a deal; a booking bug must never break saving or listing."""
+    try:
+        from .booking import build_links
+
+        return build_links(deal, params)
+    except Exception:
+        logger.exception("build_links failed for %s -> %s", deal.origin, deal.destination)
+        return []
+
+
+def _row_to_deal(row: dict) -> StoredDeal:
+    row = dict(row)
+    params = _parse_params(row.pop("search_params", None))
+    row["price_confidence"] = row.get("price_confidence") or "estimated"
+    deal = StoredDeal(search_params=params, **row)
+    deal.booking_links = _booking_links(deal, params)
+    return deal
+
+
+def save_deals(search_query: str, deals: list[FlightDeal],
+               params: SearchParams | None = None) -> list[StoredDeal]:
     found_at = datetime.now(timezone.utc)
+    params_json = params.model_dump_json() if params is not None else None
+    columns = ["search_query", *_DEAL_COLUMNS, "found_at", "search_params"]
+    sql = (f"INSERT INTO deals ({', '.join(columns)}) "
+           f"VALUES ({', '.join('?' for _ in columns)})")
 
     def op(conn) -> list[StoredDeal]:
         stored: list[StoredDeal] = []
         for deal in deals:
-            cur = conn.execute(
-                """INSERT INTO deals
-                   (search_query, origin, destination, airline, price, currency,
-                    depart_date, return_date, duration, stops, booking_url,
-                    source_url, notes, found_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    search_query, deal.origin, deal.destination, deal.airline,
-                    deal.price, deal.currency, deal.depart_date, deal.return_date,
-                    deal.duration, deal.stops, deal.booking_url, deal.source_url,
-                    deal.notes, found_at.isoformat(),
-                ),
+            values = [getattr(deal, col) for col in _DEAL_COLUMNS]
+            cur = conn.execute(sql, (search_query, *values, found_at.isoformat(), params_json))
+            item = StoredDeal(
+                id=cur.lastrowid,
+                search_query=search_query,
+                found_at=found_at,
+                search_params=params,
+                **deal.model_dump(exclude={"booking_links"}),
             )
-            stored.append(
-                StoredDeal(
-                    id=cur.lastrowid,
-                    search_query=search_query,
-                    found_at=found_at,
-                    **deal.model_dump(),
-                )
-            )
+            item.booking_links = _booking_links(item, params)
+            stored.append(item)
         conn.commit()
         return stored
 
@@ -273,9 +337,17 @@ def save_deals(search_query: str, deals: list[FlightDeal]) -> list[StoredDeal]:
         _invalidate_cache()
 
 
+def _party_of(raw) -> tuple:
+    """(adults, children, infants, cabin, trip type) of a row; legacy rows were 1 adult economy."""
+    params = _parse_params(raw) or SearchParams()
+    pax = params.passengers
+    return (pax.adults, pax.children, pax.infants, params.cabin_class, params.trip_type)
+
+
 def _fingerprint(row: dict) -> tuple:
     """Identity of a deal across search runs. A changed price is a *different*
-    entry on purpose — repricing is information, not duplication."""
+    entry on purpose — repricing is information, not duplication. The party and
+    cabin are part of it: the same total for 1 vs 3 travellers isn't the same deal."""
     return (
         row["origin"].strip().lower(),
         row["destination"].strip().lower(),
@@ -284,6 +356,8 @@ def _fingerprint(row: dict) -> tuple:
         row["return_date"].strip().lower(),
         _normalize_currency(row["currency"]),  # "₪" and "ILS" are the same deal
         round(row["price"], 2),
+        (row.get("flight_numbers") or "").replace(" ", "").lower(),
+        _party_of(row.get("search_params")),
     )
 
 
@@ -318,7 +392,7 @@ def list_deals(
     rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(query, params)))
 
     if not dedupe:
-        deals = [StoredDeal(**row) for row in rows]
+        deals = [_row_to_deal(row) for row in rows]
         _cache_store(cache_key, deals, generation)
         return deals
 
@@ -333,7 +407,7 @@ def list_deals(
         else:
             row["times_seen"] = 1
             kept[key] = row
-    deals = [StoredDeal(**row) for row in list(kept.values())[:limit]]
+    deals = [_row_to_deal(row) for row in list(kept.values())[:limit]]
     _cache_store(cache_key, deals, generation)
     return deals
 
@@ -394,24 +468,44 @@ def get_route_history() -> list[RouteHistory]:
     return histories
 
 
+# Watch fields that have their own (legacy) columns; everything else in
+# SearchParams travels in the search_params JSON column.
+_WATCH_COLUMNS = {"origin", "destination", "dates_hint", "max_price", "currency",
+                  "direct_only", "cabin_bag", "checked_bag"}
+
+
 def _row_to_watch(row: dict) -> Watch:
+    row = dict(row)
+    raw = row.pop("search_params", None)
+    extra: dict = {}
+    if raw:
+        try:
+            extra = {k: v for k, v in json.loads(raw).items() if k not in _WATCH_COLUMNS}
+        except Exception:
+            logger.warning("watch #%s: ignoring unreadable search_params", row.get("id"))
     row["active"] = bool(row["active"])
     for flag in ("direct_only", "cabin_bag", "checked_bag"):
         row[flag] = bool(row.get(flag, 0))
-    return Watch(**row)
+    return Watch(**extra, **row)
 
 
 def add_watch(watch: WatchCreate) -> Watch:
     created_at = datetime.now(timezone.utc)
+    params_json = json.dumps({
+        k: v for k, v in watch.model_dump(mode="json", include=set(SearchParams.model_fields)).items()
+        if k not in _WATCH_COLUMNS
+    })
 
     def op(conn) -> int:
         cur = conn.execute(
             """INSERT INTO watches (origin, destination, dates_hint, max_price, currency,
-                                    direct_only, cabin_bag, checked_bag, active, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+                                    direct_only, cabin_bag, checked_bag, active, created_at,
+                                    search_params)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)""",
             (watch.origin, watch.destination, watch.dates_hint,
              watch.max_price, watch.currency, int(watch.direct_only),
-             int(watch.cabin_bag), int(watch.checked_bag), created_at.isoformat()),
+             int(watch.cabin_bag), int(watch.checked_bag), created_at.isoformat(),
+             params_json),
         )
         conn.commit()
         return cur.lastrowid
