@@ -64,6 +64,7 @@ export interface StoredDeal {
   search_params: SearchParams | null; // null for legacy rows
   compare_price: number | null; // price in compare_currency, for ranking across source currencies
   compare_currency: string; // the run's preferred currency (USD for legacy rows)
+  route_key: string; // canonical route id, e.g. "TLV>PRG" (same for "Prague" / "PRG" / "Prague [PRG]")
 }
 
 export interface SearchRequest extends Partial<SearchParams> {
@@ -109,6 +110,15 @@ export interface WatchCreate extends Partial<SearchParams> {
   checked_bag: boolean;
 }
 
+/** PATCH /api/watches/{id} body: any subset. The route can't be edited;
+ *  `active: false` pauses the watch, `true` resumes it. */
+export interface WatchUpdate extends Partial<Omit<SearchParams, "max_price">> {
+  dates_hint?: string;
+  max_price?: number;
+  direct_only?: boolean;
+  active?: boolean;
+}
+
 export interface HistoryPoint {
   found_at: string;
   price: number;
@@ -117,6 +127,7 @@ export interface HistoryPoint {
 
 export interface RouteHistory {
   route: string;
+  route_key: string;
   currency: string;
   points: HistoryPoint[];
 }

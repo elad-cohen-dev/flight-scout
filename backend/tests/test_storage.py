@@ -170,3 +170,14 @@ def test_compare_price_ranks_across_currencies(monkeypatch):
     legacy = deal(100, "EUR", None)
     storage._set_compare_price(legacy)
     assert legacy.compare_currency == "USD" and legacy.compare_price == 116
+
+
+def test_route_key_merges_spellings_of_one_route():
+    from app.storage import _route_of, route_key
+
+    assert route_key("TLV -> Prague (October, direct only)") == "TLV>PRG"
+    assert route_key("Tel Aviv [TLV] -> Prague [PRG] (October)") == "TLV>PRG"
+    assert route_key("TLV -> PRG (anytime) [watch #3]") == "TLV>PRG"
+    assert route_key("TLV -> Istanbul [IST/SAW] (May)") == "TLV>IST"
+    assert route_key("TLV -> Greece or Cyprus (September)") == "TLV>greece or cyprus"
+    assert _route_of("Tel Aviv [TLV] -> Prague [PRG] (October)") == "Tel Aviv -> Prague"

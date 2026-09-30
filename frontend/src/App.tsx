@@ -12,6 +12,7 @@ import {
   setAppPassword,
   startSearch,
   startWatchRun,
+  updateWatch,
 } from "./api";
 import type { AgentEvent } from "./api";
 import HistoryTab from "./components/HistoryTab";
@@ -30,7 +31,7 @@ import { formToRequest, formToWatch, loadForm, requestToForm, rerunRequest, save
 import type { SearchForm } from "./lib/search";
 import { useHashTab } from "./lib/useHashTab";
 import type { Tab } from "./lib/useHashTab";
-import type { RouteHistory, SearchRequest, StoredDeal, Watch } from "./types";
+import type { RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate } from "./types";
 
 const NAV: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: "search", label: "Search", icon: "search" },
@@ -89,7 +90,6 @@ function FlightScout() {
     () => [...groups].sort((a, b) => b.latest.foundAt.localeCompare(a.latest.foundAt)).slice(0, 4),
     [groups]
   );
-  const activeWatchIds = useMemo(() => new Set(watches.map((w) => w.id)), [watches]);
 
   async function unlock(password: string): Promise<string | null> {
     setAppPassword(password);
@@ -232,6 +232,40 @@ function FlightScout() {
     }
   }
 
+  /** Create a watch from a History card; true on success. */
+  async function onCreateWatchFrom(watch: WatchCreate): Promise<boolean> {
+    try {
+      const created = await createWatch(watch);
+      setWatches((prev) => [...prev, created]);
+      toast("success", `Watching ${created.origin} → ${created.destination} — you'll be alerted at ≤ ${formatPrice(created.max_price, created.currency)}.`);
+      return true;
+    } catch (e) {
+      handleRunError(e);
+      return false;
+    }
+  }
+
+  /** Edit or pause/resume a watch; true on success. */
+  async function onUpdateWatch(id: number, patch: WatchUpdate): Promise<boolean> {
+    try {
+      const updated = await updateWatch(id, patch);
+      setWatches((prev) => prev.map((w) => (w.id === id ? updated : w)));
+      const route = `${updated.origin} → ${updated.destination}`;
+      if (Object.keys(patch).length === 1 && "active" in patch) {
+        toast("info", updated.active ? `Resumed the watch on ${route}.` : `Paused the watch on ${route} — the daily run will skip it.`);
+      } else toast("success", `Saved the watch on ${route}.`);
+      return true;
+    } catch (e) {
+      handleRunError(e);
+      return false;
+    }
+  }
+
+  function onEditWatch(id: number) {
+    window.location.hash = `watches/${id}`; // the Watches tab opens that watch's editor
+    window.scrollTo({ top: 0 });
+  }
+
   async function onDeleteWatch(id: number) {
     const watch = watches.find((w) => w.id === id);
     const label = watch ? `${watch.origin} → ${watch.destination}` : "this route";
@@ -317,8 +351,10 @@ function FlightScout() {
           <HistoryTab
             groups={groups}
             loading={loading}
-            activeWatchIds={activeWatchIds}
+            watches={watches}
             onRerun={onRerun}
+            onCreateWatch={onCreateWatchFrom}
+            onEditWatch={onEditWatch}
             busy={!!run}
             onNewSearch={() => go("search")}
           />
@@ -329,11 +365,25 @@ function FlightScout() {
             loading={loading}
             onRunNow={onRunWatch}
             onDelete={onDeleteWatch}
+            onUpdate={onUpdateWatch}
             onCreate={onCreateWatch}
             busy={!!run}
           />
         )}
-        {tab === "trends" && <TrendsTab history={history} loading={loading} />}
+        {tab === "trends" && (
+          <TrendsTab
+            history={history}
+            loading={loading}
+            deals={deals}
+            onSearchDates={(req, note) => {
+              // Pre-fill only: each search costs money, so the user presses Search.
+              setForm((f) => requestToForm(req, f));
+              go("search");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              toast("info", note);
+            }}
+          />
+        )}
       </main>
     </div>
   );

@@ -1,0 +1,415 @@
+/* Price calendar (Trends tab). Uses the shared tokens from styles.css. */
+.pcal {
+  --cal-low-bg: #d9f2e6;
+  --cal-low-fg: #065f46;
+  --cal-mid-bg: #fbe7b5;
+  --cal-mid-fg: #7a4a00;
+  --cal-high-bg: #f8c9c4;
+  --cal-high-fg: #8f1d14;
+  --cal-hatch: rgba(143, 29, 20, 0.16);
+  --cal-cell-h: 58px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pcal {
+    --cal-low-bg: #0f3b2c;
+    --cal-low-fg: #6ee7b7;
+    --cal-mid-bg: #4a3508;
+    --cal-mid-fg: #fcd34d;
+    --cal-high-bg: #561c1c;
+    --cal-high-fg: #fca5a5;
+    --cal-hatch: rgba(252, 165, 165, 0.14);
+  }
+}
+
+.pcal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.pcal-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pcal-month {
+  margin: 0;
+  min-width: 9.5rem;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.pcal-flip {
+  transform: rotate(180deg);
+}
+
+.pcal-filters,
+.pcal-jump {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pcal-jump-n {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.74rem;
+}
+
+.chip-active .pcal-jump-n {
+  color: inherit;
+}
+
+/* ---------- grid ---------- */
+.pcal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pcal-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.pcal-wd {
+  padding: 0.15rem 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pcal-cell {
+  display: flex;
+  min-width: 0;
+}
+
+.pcal-day {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 0;
+  height: var(--cal-cell-h);
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.pcal-day:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.pcal-day:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-color: var(--accent);
+}
+
+.pcal-num {
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.pcal-price {
+  align-self: stretch;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.pcal-day.is-empty {
+  background: transparent;
+  border-style: dotted;
+  cursor: default;
+}
+
+.pcal-day.is-empty .pcal-num {
+  opacity: 0.8;
+}
+
+.pcal-day.is-past {
+  background: transparent;
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.pcal-day.is-past .pcal-num {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.pcal-day.is-today .pcal-num {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Price tiers: hue plus a lightness ramp, and the dearest third is hatched,
+   so the scale still reads without colour vision (the legend repeats both). */
+.tier-low {
+  background: var(--cal-low-bg);
+  border-color: transparent;
+  color: var(--cal-low-fg);
+}
+
+.tier-mid {
+  background: var(--cal-mid-bg);
+  border-color: transparent;
+  color: var(--cal-mid-fg);
+}
+
+.tier-high {
+  background: repeating-linear-gradient(135deg, var(--cal-hatch) 0 3px, transparent 3px 7px), var(--cal-high-bg);
+  border-color: transparent;
+  color: var(--cal-high-fg);
+}
+
+.pcal-day[class*="tier-"] .pcal-num {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.pcal-day.is-stale {
+  opacity: 0.5;
+  border: 1px dashed currentColor;
+}
+
+.pcal-day.is-stale .pcal-price {
+  font-weight: 600;
+}
+
+.pcal-day.is-cheapest {
+  box-shadow: inset 0 0 0 2px var(--cal-low-fg);
+}
+
+.pcal-star {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: inline-flex;
+  color: var(--cal-low-fg);
+}
+
+.pcal-day.is-selected {
+  box-shadow: 0 0 0 2px var(--accent);
+  z-index: 1;
+}
+
+.pcal-day.is-selected.is-cheapest {
+  box-shadow: inset 0 0 0 2px var(--cal-low-fg), 0 0 0 2px var(--accent);
+}
+
+/* ---------- legend + notes ---------- */
+.pcal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.pcal-legend:empty {
+  display: none;
+}
+
+.pcal-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.pcal-swatch {
+  width: 16px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.pcal-swatch.is-stale {
+  border: 1px dashed var(--muted);
+  opacity: 0.8;
+}
+
+.pcal-swatch-star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 14px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px var(--cal-low-fg);
+  background: var(--cal-low-bg);
+  color: var(--cal-low-fg);
+}
+
+.pcal-note {
+  margin: 0;
+}
+
+/* ---------- day detail ---------- */
+.pcal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.pcal-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pcal-detail-head h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.pcal-detail-head h4:focus {
+  outline: none;
+}
+
+.pcal-detail-head p {
+  margin: 0.2rem 0 0;
+}
+
+.pcal-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.85rem;
+}
+
+.pcal-callout .icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.pcal-callout-info {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.pcal-fares {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pcal-fare-stale {
+  opacity: 0.6;
+}
+
+.pcal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.8rem;
+}
+
+.pcal-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pcal-month-actions {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- chart | calendar toggle ---------- */
+.trend-view-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.4rem;
+}
+
+/* ---------- phones ---------- */
+@media (max-width: 520px) {
+  .pcal {
+    --cal-cell-h: 48px;
+  }
+
+  .pcal-row,
+  .pcal-grid {
+    gap: 3px;
+  }
+
+  .pcal-wd-long {
+    display: none;
+  }
+
+  .pcal-day {
+    padding: 0.22rem 0.2rem;
+    border-radius: 6px;
+    align-items: center;
+  }
+
+  .pcal-num {
+    font-size: 0.68rem;
+  }
+
+  .pcal-price {
+    font-size: 0.74rem;
+    text-align: center;
+    letter-spacing: -0.02em;
+  }
+
+  .pcal-star {
+    top: 2px;
+    right: 2px;
+  }
+
+  .pcal-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pcal-nav {
+    justify-content: space-between;
+  }
+
+  .pcal-month-actions .btn,
+  .pcal-detail .pcal-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

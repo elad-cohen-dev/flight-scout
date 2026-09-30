@@ -3,6 +3,7 @@ import { CURRENCIES, currencySymbol } from "../lib/format";
 import { CABIN_LABELS, DEFAULT_DATES_HINT } from "../lib/search";
 import type { SearchForm as Form } from "../lib/search";
 import type { CabinClass } from "../types";
+import AirportInput from "./AirportInput";
 import Icon from "./Icon";
 import PassengersPicker from "./PassengersPicker";
 import Segmented from "./Segmented";
@@ -71,16 +72,13 @@ export default function SearchForm({
       </div>
 
       <div className="sf-route">
-        <label className="field">
-          <span className="field-label">From</span>
-          <input
-            value={form.origin}
-            onChange={(e) => onChange({ origin: e.target.value })}
-            placeholder="City or airport, e.g. TLV"
-            autoComplete="off"
-            required
-          />
-        </label>
+        <AirportInput
+          label="From"
+          value={form.origin}
+          onChange={(origin) => onChange({ origin })}
+          placeholder="City or airport, e.g. TLV"
+          required
+        />
         <button
           type="button"
           className="icon-btn round swap-btn"
@@ -90,16 +88,13 @@ export default function SearchForm({
         >
           <Icon name="swap" size={16} />
         </button>
-        <label className="field">
-          <span className="field-label">To</span>
-          <input
-            value={form.destination}
-            onChange={(e) => onChange({ destination: e.target.value })}
-            placeholder="City, country, region or “anywhere”"
-            autoComplete="off"
-            required
-          />
-        </label>
+        <AirportInput
+          label="To"
+          value={form.destination}
+          onChange={(destination) => onChange({ destination })}
+          placeholder="City, country, region or “anywhere”"
+          required
+        />
       </div>
 
       <div className="sf-dates">

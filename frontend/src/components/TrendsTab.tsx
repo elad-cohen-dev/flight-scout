@@ -1,12 +1,35 @@
 import { useMemo, useState } from "react";
 import PriceChart from "../PriceChart";
 import { formatPrice, plural, timeAgo } from "../lib/format";
-import type { RouteHistory } from "../types";
+import type { RouteHistory, SearchRequest, StoredDeal } from "../types";
 import Icon from "./Icon";
+import PriceCalendar from "./PriceCalendar";
 import PriceTrend from "./PriceTrend";
+import Segmented from "./Segmented";
 import Sparkline from "./Sparkline";
 
-export default function TrendsTab({ history, loading }: { history: RouteHistory[]; loading: boolean }) {
+type View = "chart" | "calendar";
+const VIEW_KEY = "fs_trends_view";
+
+function loadView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "calendar" ? "calendar" : "chart";
+  } catch {
+    return "chart";
+  }
+}
+
+export default function TrendsTab({
+  history,
+  loading,
+  deals,
+  onSearchDates,
+}: {
+  history: RouteHistory[];
+  loading: boolean;
+  deals: StoredDeal[];
+  onSearchDates: (req: SearchRequest, note: string) => void;
+}) {
   const routes = useMemo(
     () =>
       history
@@ -15,6 +38,16 @@ export default function TrendsTab({ history, loading }: { history: RouteHistory[
     [history]
   );
   const [selected, setSelected] = useState<string | null>(null);
+  const [view, setView] = useState<View>(loadView);
+
+  function changeView(v: View) {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // remembering the view is best-effort
+    }
+  }
 
   if (loading) {
     return (
@@ -48,7 +81,9 @@ export default function TrendsTab({ history, loading }: { history: RouteHistory[
       <div className="page-head">
         <div>
           <h2>Price trends</h2>
-          <p className="muted small">Best price per search run, per route.</p>
+          <p className="muted small">
+            {view === "chart" ? "Best price per search run, per route." : "Best fare found for each departure date, per route."}
+          </p>
         </div>
       </div>
 
@@ -75,9 +110,27 @@ export default function TrendsTab({ history, loading }: { history: RouteHistory[
             </strong>
           </div>
         </div>
-        <PriceChart points={pts} currency={active.currency} formatPrice={formatPrice} />
-        {pts.length < 2 && (
-          <p className="muted small">One data point so far — the chart fills in as runs accumulate.</p>
+        <div className="trend-view-toggle">
+          <Segmented<View>
+            label="Trend view"
+            size="sm"
+            options={[
+              { value: "chart", label: "Chart" },
+              { value: "calendar", label: "Calendar" },
+            ]}
+            value={view}
+            onChange={changeView}
+          />
+        </div>
+        {view === "chart" ? (
+          <>
+            <PriceChart points={pts} currency={active.currency} formatPrice={formatPrice} />
+            {pts.length < 2 && (
+              <p className="muted small">One data point so far — the chart fills in as runs accumulate.</p>
+            )}
+          </>
+        ) : (
+          <PriceCalendar key={active.route} deals={deals} route={active.route_key || active.route} onSearchDates={onSearchDates} />
         )}
       </section>
 

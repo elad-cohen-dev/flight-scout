@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -325,6 +326,7 @@ def _row_to_deal(row: dict) -> StoredDeal:
             link_params = None
     deal.booking_links = _booking_links(deal, link_params)
     _set_compare_price(deal)
+    deal.route_key = route_key(deal.search_query)
     return deal
 
 
@@ -363,6 +365,7 @@ def save_deals(search_query: str, deals: list[FlightDeal],
             )
             item.booking_links = _booking_links(item, params)
             _set_compare_price(item)
+            item.route_key = route_key(item.search_query)
             stored.append(item)
         conn.commit()
         return stored
@@ -455,7 +458,26 @@ def _route_of(search_query: str) -> str:
     Grouping by the *requested* route keeps history stable even though extracted
     deals name specific airports (LTN/LHR/...) inconsistently across runs.
     """
-    return search_query.split(" (")[0].strip()
+    return re.sub(r"\s*\[[^\]]*\]", "", search_query.split(" (")[0]).strip()
+
+
+def route_key(search_query: str) -> str:
+    """Canonical route id: each side resolved to an IATA code where possible
+    ('Prague', 'PRG' and the autocomplete's 'Prague [PRG]' are one route),
+    else its lowercased text. 'TLV -> Prague (October)' -> 'TLV>PRG'."""
+    from .booking import _airport
+
+    sides = search_query.split(" (")[0].split(" -> ")
+    if len(sides) != 2:
+        return _route_of(search_query).lower()
+    keys = []
+    for side in sides:
+        try:
+            code = _airport("", side.strip())
+        except Exception:
+            code = ""
+        keys.append(code or re.sub(r"\s*\[[^\]]*\]", "", side).strip().lower())
+    return ">".join(keys)
 
 
 def get_route_history() -> list[RouteHistory]:
@@ -483,10 +505,12 @@ def get_route_history() -> list[RouteHistory]:
     by_route: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
         row["currency"] = _normalize_currency(row["currency"])
-        by_route[_route_of(row["search_query"])].append(row)
+        by_route[route_key(row["search_query"])].append(row)
 
     histories: list[RouteHistory] = []
-    for route, route_rows in by_route.items():
+    for key, route_rows in by_route.items():
+        # Display the most recent spelling of the route ("TLV -> Prague").
+        route = _route_of(max(route_rows, key=lambda r: r["found_at"])["search_query"])
         currency = Counter(r["currency"] for r in route_rows).most_common(1)[0][0]
         runs: dict[str, list[float]] = defaultdict(list)
         for r in route_rows:
@@ -498,7 +522,7 @@ def get_route_history() -> list[RouteHistory]:
             for found_at, prices in sorted(runs.items())
         ]
         if points:
-            histories.append(RouteHistory(route=route, currency=currency, points=points))
+            histories.append(RouteHistory(route=route, route_key=key, currency=currency, points=points))
 
     histories.sort(key=lambda h: len(h.points), reverse=True)
     _cache_store(cache_key, histories, generation)
@@ -526,12 +550,16 @@ def _row_to_watch(row: dict) -> Watch:
     return Watch(**extra, **row)
 
 
-def add_watch(watch: WatchCreate) -> Watch:
-    created_at = datetime.now(timezone.utc)
-    params_json = json.dumps({
+def _watch_params_json(watch: WatchCreate) -> str:
+    return json.dumps({
         k: v for k, v in watch.model_dump(mode="json", include=set(SearchParams.model_fields)).items()
         if k not in _WATCH_COLUMNS
     })
+
+
+def add_watch(watch: WatchCreate) -> Watch:
+    created_at = datetime.now(timezone.utc)
+    params_json = _watch_params_json(watch)
 
     def op(conn) -> int:
         cur = conn.execute(
@@ -552,6 +580,46 @@ def add_watch(watch: WatchCreate) -> Watch:
     finally:
         _invalidate_cache()
     return Watch(id=watch_id, created_at=created_at, **watch.model_dump())
+
+
+def get_watch(watch_id: int) -> Watch | None:
+    return next((w for w in list_watches() if w.id == watch_id), None)
+
+
+def update_watch(watch_id: int, watch: WatchCreate, active: bool) -> Watch | None:
+    """Replace a watch's criteria/threshold and active flag; None if it doesn't exist.
+
+    The route stays put, so its "[watch #N]" history keeps accruing under the
+    same id. When the search itself changes (anything beyond the threshold or
+    pausing), last_run_at/last_best_price are cleared: they described results
+    for the old criteria (or another currency) and would mislead until the next run."""
+    current = get_watch(watch_id)
+    if current is None:
+        return None
+    same_search = current.model_dump(exclude={"max_price"}, include=set(WatchCreate.model_fields)) == \
+        watch.model_dump(exclude={"max_price"}, include=set(WatchCreate.model_fields))
+    last_run_at = current.last_run_at.isoformat() if same_search and current.last_run_at else None
+    last_best_price = current.last_best_price if same_search else None
+
+    def op(conn) -> int:
+        cur = conn.execute(
+            """UPDATE watches SET dates_hint = ?, max_price = ?, currency = ?, direct_only = ?,
+                                  cabin_bag = ?, checked_bag = ?, active = ?, search_params = ?,
+                                  last_run_at = ?, last_best_price = ?
+               WHERE id = ?""",
+            (watch.dates_hint, watch.max_price, watch.currency, int(watch.direct_only),
+             int(watch.cabin_bag), int(watch.checked_bag), int(active), _watch_params_json(watch),
+             last_run_at, last_best_price, watch_id),
+        )
+        conn.commit()
+        return cur.rowcount
+
+    try:
+        if not _with_conn(op):
+            return None
+    finally:
+        _invalidate_cache()
+    return get_watch(watch_id)
 
 
 def list_watches(active_only: bool = False) -> list[Watch]:

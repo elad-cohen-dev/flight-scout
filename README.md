@@ -53,6 +53,7 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
 | `POST`           | `/api/watches`                       | Create a price watch: `{origin, destination, dates_hint, max_price, currency, ...search params}` — `max_price` is the alert threshold |
 | `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches                                                                                                              |
+| `PATCH`          | `/api/watches/{id}`                  | Edit a watch: any subset of `dates_hint`, `max_price`, `currency`, the search criteria, and `active` (`false` pauses, `true` resumes). The route can't change; changing criteria resets `last_best_price` |
 | `POST`           | `/api/watches/{id}/run`              | Run one watch immediately (same check + alert logic as the daily sweep), returns a job                                             |
 | `POST`           | `/api/watches/run`                   | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header)                                                   |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
@@ -130,7 +131,9 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 - **Price confidence** on every deal: verified dated fare vs. estimate vs. "from" teaser
 - **One-click, pre-filled booking** — airline deep links (Ryanair, Wizz Air, easyJet) and Google Flights / Skyscanner / Kayak / Momondo links with the route, exact dates, passengers, cabin and (where supported) stops and bags already set; the card shows what's pre-filled and what's left to set at checkout
 - **Baggage-inclusive pricing** — optionally require a 🎒 cabin trolley and/or 🧳 20kg+ checked bag; the agent adds the airline's bag fees to advertised fares (or flags when it can't verify them), so comparisons reflect what the trip actually costs
-- **Price watches** — routes re-searched daily (GitHub Actions cron), push alert via ntfy/Telegram when a deal drops below your threshold, with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
+- **City & airport autocomplete** — ~550 airports, metro areas ("London — all airports"), countries and regions, accent-insensitive with Hebrew names; free text like "Greece or Cyprus" still works
+- **Price calendar** — best fare per departure date for each route (compared in one currency, stale sightings faded); tap a day to see its fares or pre-fill a search around it
+- **Price watches** — create one from any History card, edit or pause it anytime; routes re-searched daily (GitHub Actions cron), push alert via ntfy/Telegram when a deal drops below your threshold, with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
 - **Price-history chart** per route, built from every search run
 - **De-duplication** of identical deals across runs ("seen 3× since Aug 10")
 - **Access control** — optional shared password (`APP_PASSWORD`) with a lock screen

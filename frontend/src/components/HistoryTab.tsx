@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { formatPrice, plural, shortDate, timeAgo } from "../lib/format";
 import { sectionize } from "../lib/history";
 import type { QueryGroup } from "../lib/history";
+import { watchForGroup } from "../lib/watches";
+import type { WatchMatch } from "../lib/watches";
+import type { Watch, WatchCreate } from "../types";
 import DealList from "./DealList";
 import Icon from "./Icon";
 import PriceTrend from "./PriceTrend";
 import Segmented from "./Segmented";
 import Sparkline from "./Sparkline";
+import WatchPopover from "./WatchPopover";
 
 type Sort = "newest" | "cheapest" | "runs";
 type GroupBy = "recent" | "route";
@@ -23,25 +27,32 @@ function loadPrefs(): { sort: Sort; groupBy: GroupBy } {
 
 function QueryCard({
   group,
-  activeWatchIds,
+  match,
   directOnly,
   onRerun,
+  onCreateWatch,
+  onEditWatch,
   busy,
 }: {
   group: QueryGroup;
-  activeWatchIds: Set<number>;
+  match: WatchMatch | null;
   directOnly: boolean;
   onRerun: (g: QueryGroup) => void;
+  onCreateWatch: (w: WatchCreate) => Promise<boolean>;
+  onEditWatch: (id: number) => void;
   busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [watchOpen, setWatchOpen] = useState(false);
   const [runIndex, setRunIndex] = useState(0);
   const { latest, previous } = group;
   const run = group.runs[Math.min(runIndex, group.runs.length - 1)];
   const deals = directOnly ? run.deals.filter((d) => d.stops === 0) : run.deals;
   const sameCurrency = previous && previous.currency === latest.currency;
   const bodyId = `qc-${group.key.replace(/[^a-z0-9]/gi, "").slice(0, 40)}-${group.runs.length}`;
-  const watched = group.watchId != null && activeWatchIds.has(group.watchId);
+  // the badge is for a watch running exactly this search; the bell edits any watch on the route
+  const watched = match?.exact ? match.watch : null;
+  const popId = `${bodyId}-watch`;
 
   return (
     <article className={`query-card card${open ? " open" : ""}`}>
@@ -51,11 +62,16 @@ function QueryCard({
           <span className="query-main">
             <span className="query-route">
               {group.route}
-              {watched && (
-                <span className="badge badge-accent" title="A price watch re-checks this route daily">
-                  <Icon name="bell" size={11} /> Watched
-                </span>
-              )}
+              {watched &&
+                (watched.active ? (
+                  <span className="badge badge-accent" title="A price watch re-checks this search daily">
+                    <Icon name="bell" size={11} /> Watched
+                  </span>
+                ) : (
+                  <span className="badge" title="The watch on this search is paused">
+                    <Icon name="pause" size={11} /> Watch paused
+                  </span>
+                ))}
             </span>
             <span className="query-sub muted small">
               {group.datesHint}
@@ -88,7 +104,34 @@ function QueryCard({
         >
           <Icon name="refresh" size={17} />
         </button>
+        {match ? (
+          <button
+            className="icon-btn query-watch watching"
+            onClick={() => onEditWatch(match.watch.id)}
+            title={match.exact ? "Edit watch" : "Edit the watch on this route"}
+            aria-label={`Edit watch ${group.route}`}
+          >
+            <Icon name="bell" size={17} />
+          </button>
+        ) : (
+          <button
+            className="icon-btn query-watch"
+            onClick={() => setWatchOpen(!watchOpen)}
+            disabled={!group.request}
+            aria-expanded={watchOpen}
+            aria-controls={watchOpen ? popId : undefined}
+            title="Watch this search — get an alert when the price drops"
+            aria-label={`Watch ${group.route}`}
+          >
+            <Icon name="bell" size={17} />
+          </button>
+        )}
       </div>
+      {watchOpen && !match && (
+        <div id={popId}>
+          <WatchPopover group={group} onCreate={onCreateWatch} onClose={() => setWatchOpen(false)} />
+        </div>
+      )}
       {open && (
         <div className="query-body" id={bodyId}>
           {group.runs.length > 1 && (
@@ -124,15 +167,19 @@ function QueryCard({
 export default function HistoryTab({
   groups,
   loading,
-  activeWatchIds,
+  watches,
   onRerun,
+  onCreateWatch,
+  onEditWatch,
   busy,
   onNewSearch,
 }: {
   groups: QueryGroup[];
   loading: boolean;
-  activeWatchIds: Set<number>;
+  watches: Watch[];
   onRerun: (g: QueryGroup) => void;
+  onCreateWatch: (w: WatchCreate) => Promise<boolean>;
+  onEditWatch: (id: number) => void;
   busy: boolean;
   onNewSearch: () => void;
 }) {
@@ -157,6 +204,9 @@ export default function HistoryTab({
   }, [prefs]);
   useEffect(() => setLimit(PAGE), [query, directOnly, withBags, watchedOnly, prefs]);
 
+  const matches = useMemo(() => new Map(groups.map((g) => [g.key, watchForGroup(g, watches)])), [groups, watches]);
+  const isWatched = (g: QueryGroup) => !!matches.get(g.key)?.exact;
+
   const filtered = useMemo(() => {
     const words = query.split(/\s+/).filter(Boolean);
     const list = groups.filter(
@@ -164,18 +214,18 @@ export default function HistoryTab({
         words.every((w) => g.haystack.includes(w)) &&
         (!directOnly || g.hasDirect) &&
         (!withBags || g.withBags) &&
-        (!watchedOnly || (g.watchId != null && activeWatchIds.has(g.watchId)))
+        (!watchedOnly || isWatched(g))
     );
     const byNewest = (a: QueryGroup, b: QueryGroup) => b.latest.foundAt.localeCompare(a.latest.foundAt);
     if (prefs.sort === "newest") list.sort(byNewest);
     if (prefs.sort === "cheapest") list.sort((a, b) => a.latest.minPrice - b.latest.minPrice || byNewest(a, b));
     if (prefs.sort === "runs") list.sort((a, b) => b.runs.length - a.runs.length || byNewest(a, b));
     return list;
-  }, [groups, query, directOnly, withBags, watchedOnly, prefs.sort, activeWatchIds]);
+  }, [groups, query, directOnly, withBags, watchedOnly, prefs.sort, matches]);
 
   const sections = useMemo(() => sectionize(filtered.slice(0, limit), prefs.groupBy), [filtered, limit, prefs.groupBy]);
   const totalRuns = groups.reduce((n, g) => n + g.runs.length, 0);
-  const anyWatched = groups.some((g) => g.watchId != null && activeWatchIds.has(g.watchId));
+  const anyWatched = groups.some(isWatched);
   const filtersOn = !!query || directOnly || withBags || watchedOnly;
 
   if (loading) {
@@ -289,7 +339,16 @@ export default function HistoryTab({
             </h3>
             <div className="query-list">
               {s.groups.map((g) => (
-                <QueryCard key={g.key} group={g} activeWatchIds={activeWatchIds} directOnly={directOnly} onRerun={onRerun} busy={busy} />
+                <QueryCard
+                  key={g.key}
+                  group={g}
+                  match={matches.get(g.key) ?? null}
+                  directOnly={directOnly}
+                  onRerun={onRerun}
+                  onCreateWatch={onCreateWatch}
+                  onEditWatch={onEditWatch}
+                  busy={busy}
+                />
               ))}
             </div>
           </section>

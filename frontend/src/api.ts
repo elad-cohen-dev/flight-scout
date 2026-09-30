@@ -1,4 +1,4 @@
-import type { Job, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate } from "./types";
+import type { Job, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate } from "./types";
 
 const PASSWORD_KEY = "fs_app_password";
 
@@ -140,6 +140,17 @@ export async function createWatch(watch: WatchCreate): Promise<Watch> {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(watch),
+    })
+  );
+}
+
+/** Partial update: edit criteria / threshold, or pause/resume via `active`. */
+export async function updateWatch(id: number, patch: WatchUpdate): Promise<Watch> {
+  return handle(
+    await fetch(`/api/watches/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(patch),
     })
   );
 }

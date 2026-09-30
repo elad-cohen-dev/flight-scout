@@ -1,72 +1,128 @@
+import { useEffect, useState } from "react";
 import { formatPrice, timeAgo } from "../lib/format";
 import { criteriaChips } from "../lib/search";
-import type { Watch } from "../types";
+import { describeWatch } from "../lib/watches";
+import type { Watch, WatchUpdate } from "../types";
 import Icon from "./Icon";
+import WatchEditor from "./WatchEditor";
+import "./watches.css";
+
+/** "#watches/12" deep-links to watch 12's editor (History's "Edit watch" uses it). */
+function editIdFromHash(): number | null {
+  const m = window.location.hash.match(/^#\/?watches\/(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+function setEditHash(id: number | null) {
+  // replaceState: opening/closing an editor shouldn't pile up back-button entries
+  history.replaceState(null, "", id == null ? "#watches" : `#watches/${id}`);
+}
 
 function WatchCard({
   watch: w,
+  editing,
+  onEdit,
+  onCloseEditor,
+  onSave,
+  onToggle,
   onRunNow,
   onDelete,
   busy,
 }: {
   watch: Watch;
+  editing: boolean;
+  onEdit: () => void;
+  onCloseEditor: () => void;
+  onSave: (patch: WatchUpdate) => Promise<boolean>;
+  onToggle: () => void;
   onRunNow: (id: number) => void;
   onDelete: (id: number) => void;
   busy: boolean;
 }) {
   const chips = criteriaChips(w);
-  const hit = w.last_best_price != null && w.last_best_price <= w.max_price;
+  const words = describeWatch(w);
+  const hit = w.active && w.last_best_price != null && w.last_best_price <= w.max_price;
   // how far the last best price sits above the target, capped for the meter
   const ratio = w.last_best_price != null ? Math.min(1, w.max_price / w.last_best_price) : 0;
+  const route = `${w.origin} to ${w.destination}`;
   return (
-    <article className={`watch-card card${hit ? " watch-hit" : ""}`}>
+    <article className={`watch-card card${hit ? " watch-hit" : ""}${w.active ? "" : " watch-paused"}${editing ? " editing" : ""}`} id={`watch-${w.id}`}>
       <div className="watch-head">
-        <div>
+        <div className="watch-dim">
           <h3 className="watch-route">
             {w.origin} → {w.destination}
           </h3>
           <p className="muted small">{w.dates_hint}</p>
         </div>
-        <span className={`badge ${w.active ? "badge-good" : ""}`}>{w.active ? "Active" : "Paused"}</span>
+        {w.active ? (
+          <span className="badge badge-good">Active</span>
+        ) : (
+          <span className="badge badge-paused" title="Skipped by the daily run until you resume it">
+            <Icon name="pause" size={11} /> Paused
+          </span>
+        )}
       </div>
-      {chips.length > 0 && (
-        <div className="chip-row">
-          {chips.map((c) => (
-            <span key={c} className="badge">
-              {c}
-            </span>
-          ))}
-        </div>
+      {editing ? (
+        <WatchEditor watch={w} onSave={onSave} onCancel={onCloseEditor} />
+      ) : (
+        <>
+          <p className="watch-words small watch-dim">
+            {words.search} {w.active ? <strong>{words.alert}</strong> : <strong>Paused — not checked daily until you resume it.</strong>}
+          </p>
+          {chips.length > 0 && (
+            <div className="chip-row watch-dim">
+              {chips.map((c) => (
+                <span key={c} className="badge">
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="watch-stats watch-dim">
+            <div>
+              <span className="muted small">Alert at</span>
+              <strong>≤ {formatPrice(w.max_price, w.currency)}</strong>
+            </div>
+            <div>
+              <span className="muted small">Last best</span>
+              <strong className={hit ? "text-good" : ""}>{w.last_best_price != null ? formatPrice(w.last_best_price, w.currency) : "—"}</strong>
+            </div>
+            <div>
+              <span className="muted small">Checked</span>
+              <strong>{w.last_run_at ? timeAgo(w.last_run_at) : "Not yet"}</strong>
+            </div>
+          </div>
+          {w.last_best_price != null && (
+            <div className="meter watch-dim" title={hit ? "Last run found a price under your target" : "How close the last best price is to your target"}>
+              <span style={{ width: `${Math.round(ratio * 100)}%` }} />
+            </div>
+          )}
+          <div className="watch-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => onRunNow(w.id)}
+              disabled={busy || !w.active}
+              title={w.active ? "Re-search this route now (same check the daily run does)" : "Resume the watch to run it"}
+            >
+              <Icon name="play" size={14} /> Run now
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={onEdit} aria-label={`Edit watch ${route}`}>
+              <Icon name="edit" size={14} /> Edit
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={onToggle}
+              aria-label={`${w.active ? "Pause" : "Resume"} watch ${route}`}
+              title={w.active ? "Stop the daily check (and alerts) without losing the watch" : "Include this watch in the daily check again"}
+            >
+              <Icon name={w.active ? "pause" : "play"} size={14} /> {w.active ? "Pause" : "Resume"}
+            </button>
+            <button className="btn btn-ghost btn-sm btn-danger push" onClick={() => onDelete(w.id)} aria-label={`Delete watch ${route}`}>
+              <Icon name="trash" size={14} /> Delete
+            </button>
+          </div>
+        </>
       )}
-      <div className="watch-stats">
-        <div>
-          <span className="muted small">Alert at</span>
-          <strong>≤ {formatPrice(w.max_price, w.currency)}</strong>
-        </div>
-        <div>
-          <span className="muted small">Last best</span>
-          <strong className={hit ? "text-good" : ""}>
-            {w.last_best_price != null ? formatPrice(w.last_best_price, w.currency) : "—"}
-          </strong>
-        </div>
-        <div>
-          <span className="muted small">Checked</span>
-          <strong>{w.last_run_at ? timeAgo(w.last_run_at) : "Not yet"}</strong>
-        </div>
-      </div>
-      {w.last_best_price != null && (
-        <div className="meter" title={hit ? "Last run found a price under your target" : "How close the last best price is to your target"}>
-          <span style={{ width: `${Math.round(ratio * 100)}%` }} />
-        </div>
-      )}
-      <div className="watch-actions">
-        <button className="btn btn-secondary btn-sm" onClick={() => onRunNow(w.id)} disabled={busy} title="Re-search this route now (same check the daily run does)">
-          <Icon name="play" size={14} /> Run now
-        </button>
-        <button className="btn btn-ghost btn-sm btn-danger" onClick={() => onDelete(w.id)} aria-label={`Delete watch ${w.origin} to ${w.destination}`}>
-          <Icon name="trash" size={14} /> Delete
-        </button>
-      </div>
     </article>
   );
 }
@@ -76,6 +132,7 @@ export default function WatchesTab({
   loading,
   onRunNow,
   onDelete,
+  onUpdate,
   onCreate,
   busy,
 }: {
@@ -83,15 +140,35 @@ export default function WatchesTab({
   loading: boolean;
   onRunNow: (id: number) => void;
   onDelete: (id: number) => void;
+  onUpdate: (id: number, patch: WatchUpdate) => Promise<boolean>;
   onCreate: () => void;
   busy: boolean;
 }) {
+  const [editingId, setEditingId] = useState<number | null>(editIdFromHash);
+
+  useEffect(() => {
+    const onHash = () => setEditingId(editIdFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  function edit(id: number | null) {
+    setEditingId(id);
+    setEditHash(id);
+  }
+
+  const active = watches.filter((w) => w.active).length;
+  const paused = watches.length - active;
+
   return (
     <div className="tab-watches">
       <div className="page-head">
         <div>
           <h2>Price watches</h2>
-          <p className="muted small">Watched routes are re-checked daily; you get a Telegram alert when a deal drops to your target.</p>
+          <p className="muted small">
+            Active watches are re-checked daily; you get an alert when a deal drops to your target.
+            {paused > 0 && ` ${active} active · ${paused} paused.`}
+          </p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={onCreate}>
           <Icon name="plus" size={15} /> New watch
@@ -107,7 +184,7 @@ export default function WatchesTab({
         <div className="empty card">
           <Icon name="bell" size={32} />
           <strong>No price watches</strong>
-          <span className="muted">Set up a search with a max price, then tap “Watch this route” — the agent will keep checking for you.</span>
+          <span className="muted">Set up a search with a max price, then tap “Watch this route” — or tap the bell on any History card. The agent will keep checking for you.</span>
           <button className="btn btn-primary" onClick={onCreate}>
             <Icon name="plus" size={16} /> Create a watch
           </button>
@@ -115,7 +192,22 @@ export default function WatchesTab({
       ) : (
         <div className="watch-grid">
           {watches.map((w) => (
-            <WatchCard key={w.id} watch={w} onRunNow={onRunNow} onDelete={onDelete} busy={busy} />
+            <WatchCard
+              key={w.id}
+              watch={w}
+              editing={editingId === w.id}
+              onEdit={() => edit(w.id)}
+              onCloseEditor={() => edit(null)}
+              onSave={async (patch) => {
+                const ok = await onUpdate(w.id, patch);
+                if (ok) edit(null);
+                return ok;
+              }}
+              onToggle={() => onUpdate(w.id, { active: !w.active })}
+              onRunNow={onRunNow}
+              onDelete={onDelete}
+              busy={busy}
+            />
           ))}
         </div>
       )}

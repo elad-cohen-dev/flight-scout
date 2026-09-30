@@ -20,13 +20,14 @@ from pathlib import Path
 from typing import Callable, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from . import agent, storage, watcher
-from .models import RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, search_label
+from .models import RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate, search_label
 
 app = FastAPI(title="Flight Scout", version="1.0.0")
 
@@ -226,7 +227,26 @@ def create_watch(watch: WatchCreate) -> Watch:
 
 @app.get("/api/watches", response_model=list[Watch], dependencies=[Depends(require_auth)])
 def get_watches() -> list[Watch]:
+    """Every watch, paused ones included (active=false). The daily run and
+    "Run now" only ever touch active watches."""
     return storage.list_watches()
+
+
+@app.patch("/api/watches/{watch_id}", response_model=Watch, dependencies=[Depends(require_auth)])
+def patch_watch(watch_id: int, patch: WatchUpdate) -> Watch:
+    """Partial update: edit criteria/threshold, or pause/resume with {"active": false|true}."""
+    current = storage.get_watch(watch_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail="No such watch")
+    try:
+        fields, active = patch.apply_to(current)
+    except ValidationError as exc:
+        # Same 422 shape as a bad request body, for errors only visible once merged.
+        raise RequestValidationError(exc.errors(include_url=False)) from exc
+    updated = storage.update_watch(watch_id, fields, active)
+    if updated is None:  # deleted in between
+        raise HTTPException(status_code=404, detail="No such watch")
+    return updated
 
 
 @app.delete("/api/watches/{watch_id}", status_code=204, dependencies=[Depends(require_auth)])

@@ -1,4 +1,4 @@
-import type { StoredDeal } from "../types";
+import type { SearchRequest, StoredDeal } from "../types";
 import { comparable } from "./format";
 import { criteriaChips, exactWindowLabel, parseSearchQuery, rerunRequest } from "./search";
 
@@ -22,6 +22,7 @@ export interface QueryGroup {
   previous: Run | null;
   bestEver: number;
   watchId: number | null;
+  request: SearchRequest | null; // the latest run's criteria, for re-running or watching it
   hasDirect: boolean;
   withBags: boolean;
   haystack: string; // lowercased text the filter box matches against
@@ -108,6 +109,7 @@ export function groupHistory(deals: StoredDeal[]): QueryGroup[] {
       previous: list[1] ?? null,
       bestEver: Math.min(...list.map((r) => r.minPrice)),
       watchId: watchRun ?? null,
+      request: req,
       hasDirect: latest.deals.some((d) => d.stops === 0),
       withBags: !!req && (req.cabin_bag || req.checked_bag),
       haystack: norm(

@@ -1,0 +1,145 @@
+/* Watch management: editor, paused cards, History's "Watch" popover.
+   Uses the design tokens from styles.css (light + dark). */
+
+/* ---------- watch cards ---------- */
+.watch-card.editing {
+  grid-column: 1 / -1;
+  box-shadow: var(--shadow);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.watch-paused {
+  background: color-mix(in srgb, var(--surface-2) 60%, var(--card));
+  border-style: dashed;
+}
+
+.watch-paused .watch-dim {
+  opacity: 0.55;
+}
+
+.badge-paused {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: transparent;
+}
+
+.watch-words {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.watch-words strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.watch-actions {
+  flex-wrap: wrap;
+}
+
+.watch-actions .push {
+  margin-left: auto;
+}
+
+/* ---------- editor ---------- */
+.watch-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.we-exact {
+  max-width: 640px;
+}
+
+.we-options {
+  padding-top: 0.9rem;
+}
+
+.we-error {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--bad);
+}
+
+.we-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ---------- History: Watch action + inline popover ---------- */
+.query-watch.watching {
+  color: var(--accent);
+}
+
+.query-watch[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.watch-pop {
+  margin: 0 0.75rem 0.75rem;
+  padding: 0.8rem 0.9rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--card));
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: pop 0.12s ease-out;
+}
+
+.watch-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.watch-pop-head h4 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+}
+
+.watch-pop-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem 0.75rem;
+}
+
+.watch-pop-row .price-input {
+  background: var(--card);
+}
+
+.watch-pop-hint {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .watch-pop {
+    margin: 0 0.5rem 0.6rem;
+  }
+  .watch-pop-row .sf-option {
+    flex: 1 1 100%;
+  }
+  .watch-pop-row .price-input {
+    width: 100%;
+  }
+  .watch-pop-row .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .we-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+}

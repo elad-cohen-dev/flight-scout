@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .currency import normalize as _normalize_currency
 
@@ -122,6 +122,7 @@ class StoredDeal(FlightDeal):
         description="price converted into compare_currency, for sorting/'cheapest' across source currencies; None if unconvertible",
     )
     compare_currency: str = Field(default="USD", description="The run's preferred currency (USD for legacy rows)")
+    route_key: str = Field(default="", description="Canonical route id, e.g. 'TLV>PRG' — groups 'Prague', 'PRG' and 'Prague [PRG]'")
 
 
 class HistoryPoint(BaseModel):
@@ -134,6 +135,7 @@ class HistoryPoint(BaseModel):
 
 class RouteHistory(BaseModel):
     route: str = Field(description="Requested route, e.g. 'TLV -> London'")
+    route_key: str = Field(default="", description="Canonical route id matching StoredDeal.route_key")
     currency: str
     points: list[HistoryPoint] = Field(description="Chronological, oldest first")
 
@@ -162,6 +164,63 @@ class Watch(WatchCreate):
     created_at: datetime
     last_run_at: datetime | None = None
     last_best_price: float | None = None
+
+
+# WatchUpdate fields where an explicit null means something ("any stops", "no
+# date window"); for every other field null is rejected rather than ignored.
+_NULLABLE_UPDATE_FIELDS = {"max_stops", "depart_from", "depart_to", "nights_min", "nights_max"}
+
+
+class WatchUpdate(BaseModel):
+    """Partial update for PATCH /api/watches/{id}: only the fields sent change.
+
+    The route (origin/destination) is the watch's identity and can't be edited —
+    delete and re-create instead. Types are checked here; ranges and currency
+    normalization are enforced by re-validating the merged result as a
+    WatchCreate (see apply_to)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dates_hint: str | None = None
+    max_price: float | None = None
+    currency: str | None = None
+    direct_only: bool | None = Field(default=None, description="Legacy alias: true = max_stops 0, false clears a direct-only filter")
+    active: bool | None = Field(default=None, description="false pauses the watch (skipped by the daily run), true resumes it")
+    trip_type: TripType | None = None
+    passengers: Passengers | None = None
+    cabin_class: CabinClass | None = None
+    max_stops: int | None = None
+    cabin_bag: bool | None = None
+    checked_bag: bool | None = None
+    depart_from: date | None = None
+    depart_to: date | None = None
+    nights_min: int | None = None
+    nights_max: int | None = None
+    nearby_airports: bool | None = None
+
+    @model_validator(mode="after")
+    def _no_null_for_required(self):
+        nulled = sorted(f for f in self.model_fields_set - _NULLABLE_UPDATE_FIELDS if getattr(self, f) is None)
+        if nulled:
+            raise ValueError(f"cannot be null: {', '.join(nulled)}")
+        return self
+
+    def apply_to(self, watch: Watch) -> tuple[WatchCreate, bool]:
+        """The watch's criteria with this patch applied, re-validated, plus its active flag.
+        Raises pydantic.ValidationError when the merged watch is invalid."""
+        patch = self.model_dump(exclude_unset=True)
+        active = patch.pop("active", watch.active)
+        merged = watch.model_dump(include=set(WatchCreate.model_fields))
+        merged.update(patch)
+        if "max_stops" not in patch and "direct_only" in patch:
+            if patch["direct_only"]:
+                merged["max_stops"] = 0
+            elif merged["max_stops"] == 0:
+                merged["max_stops"] = None
+        # Recompute the alias from max_stops, else a stale direct_only=True would
+        # force max_stops back to 0 when the patch widens it to "any".
+        merged["direct_only"] = merged["max_stops"] == 0
+        return WatchCreate.model_validate(merged), active
 
 
 def _criteria_flags(p: SearchParams) -> list[str]:

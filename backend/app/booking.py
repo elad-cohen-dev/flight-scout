@@ -144,8 +144,8 @@ def _airport(code_field: str, name_field: str) -> str:
             continue
         if re.fullmatch(r"[A-Za-z]{3}", s):
             return s.upper()
-        m = re.search(r"\(([A-Z]{3})\)", s)  # "Tel Aviv (TLV)"
-        if m:
+        m = re.search(r"\(([A-Z]{3})\)", s) or re.search(r"\[([A-Z]{3})\b", s)
+        if m:  # "Tel Aviv (TLV)", or the autocomplete's "Prague [PRG]" / "Istanbul [IST/SAW]"
             return m.group(1)
         key = re.sub(r"\s+", " ", s.lower().split(",")[0]).strip()
         if key in CITY_CODES:

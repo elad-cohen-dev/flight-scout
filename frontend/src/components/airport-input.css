@@ -1,0 +1,129 @@
+/* City / airport combobox (AirportInput). Uses the tokens from styles.css. */
+.ai-wrap {
+  position: relative;
+}
+
+.ai-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  max-height: min(24rem, 55vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.ai-list[hidden] {
+  display: none;
+}
+
+.ai-head {
+  padding: 0.45rem 0.6rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ai-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  border-radius: calc(var(--radius-sm) - 3px);
+  cursor: pointer;
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ai-opt.is-active {
+  background: var(--accent-soft);
+}
+
+.ai-child {
+  min-height: 38px;
+  padding-left: 2.15rem;
+}
+
+.ai-child .ai-glyph {
+  width: 15px;
+  height: 15px;
+}
+
+.ai-glyph {
+  flex: none;
+  color: var(--muted);
+}
+
+.ai-opt.is-active .ai-glyph {
+  color: var(--accent);
+}
+
+.ai-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+
+.ai-main {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-child .ai-main {
+  font-weight: 500;
+  font-size: 0.93rem;
+}
+
+.ai-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-code {
+  flex: none;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ai-opt.is-active .ai-code {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent-strong);
+  background: var(--card);
+}
+
+@media (max-width: 640px) {
+  .ai-list {
+    max-height: min(22rem, 45vh);
+  }
+  .ai-opt {
+    min-height: 52px;
+  }
+  .ai-child {
+    min-height: 46px;
+  }
+}

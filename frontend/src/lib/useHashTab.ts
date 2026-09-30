@@ -4,7 +4,8 @@ export const TABS = ["search", "history", "watches", "trends"] as const;
 export type Tab = (typeof TABS)[number];
 
 function fromHash(): Tab {
-  const h = window.location.hash.replace(/^#\/?/, "");
+  // "#watches/12" is the Watches tab with a sub-path the tab itself reads
+  const h = window.location.hash.replace(/^#\/?/, "").split("/")[0];
   return (TABS as readonly string[]).includes(h) ? (h as Tab) : "search";
 }
 
