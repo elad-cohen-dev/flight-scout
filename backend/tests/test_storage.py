@@ -149,3 +149,24 @@ def test_legacy_row_links_honour_label_flags():
     params = _legacy_params(deal)
     assert params.max_stops == 0 and params.checked_bag and not params.cabin_bag
     assert params.trip_type == "round_trip" and params.currency == "EUR"
+
+
+def test_compare_price_ranks_across_currencies(monkeypatch):
+    from app import storage
+    from app.models import SearchParams, StoredDeal
+
+    monkeypatch.setattr(storage, "_convert_currency",
+                        lambda amount, src, dst: amount if src == dst else {"ILS": amount / 3.7, "EUR": amount * 1.16}.get(src))
+    def deal(price, ccy, params):
+        return StoredDeal(id=1, search_query="TLV -> Prague (October)", found_at="2026-09-30T00:00:00",
+                          origin="TLV", destination="PRG", airline="x", price=price, currency=ccy,
+                          depart_date="2026-10-12", search_params=params)
+    usd = SearchParams(currency="USD")
+    deals = [deal(600, "USD", usd), deal(2123, "ILS", usd), deal(681, "EUR", usd), deal(10, "XXX", usd)]
+    for d in deals:
+        storage._set_compare_price(d)
+    assert [d.compare_price for d in deals] == [600, 573.78, 789.96, None]
+    assert all(d.compare_currency == "USD" for d in deals)
+    legacy = deal(100, "EUR", None)
+    storage._set_compare_price(legacy)
+    assert legacy.compare_currency == "USD" and legacy.compare_price == 116

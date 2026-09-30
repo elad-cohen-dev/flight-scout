@@ -1,5 +1,5 @@
 import BookingLinks from "../BookingLinks";
-import { formatPrice, formatTripDate, nightsBetween, shortDate, stopsLabel, timeAgo } from "../lib/format";
+import { comparable, formatPrice, formatTripDate, nightsBetween, shortDate, stopsLabel, timeAgo } from "../lib/format";
 import { dealCriteria, totalPassengers } from "../lib/search";
 import type { PriceConfidence, StoredDeal } from "../types";
 import Icon from "./Icon";
@@ -102,6 +102,11 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
         </div>
         <div className="deal-price-block">
           <div className="deal-price">{formatPrice(deal.price, deal.currency)}</div>
+          {comparable(deal).currency !== deal.currency && (
+            <div className="deal-price-converted small" title="Converted at today's rate, for comparing deals quoted in different currencies">
+              ≈ {formatPrice(comparable(deal).price, comparable(deal).currency)}
+            </div>
+          )}
           {pax > 1 && deal.price_per_person != null ? (
             <div className="muted small" title={`Total for ${pax} travellers`}>
               {formatPrice(deal.price_per_person, deal.currency)} per person

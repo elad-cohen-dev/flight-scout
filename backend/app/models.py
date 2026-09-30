@@ -117,6 +117,11 @@ class StoredDeal(FlightDeal):
     times_seen: int = Field(default=1, description="How many search runs found this exact deal")
     first_found_at: datetime | None = Field(default=None, description="When this deal was first seen (set when times_seen > 1)")
     search_params: SearchParams | None = Field(default=None, description="Criteria of the run that found it (None for legacy rows)")
+    compare_price: float | None = Field(
+        default=None,
+        description="price converted into compare_currency, for sorting/'cheapest' across source currencies; None if unconvertible",
+    )
+    compare_currency: str = Field(default="USD", description="The run's preferred currency (USD for legacy rows)")
 
 
 class HistoryPoint(BaseModel):

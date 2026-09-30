@@ -1,4 +1,5 @@
 import type { StoredDeal } from "../types";
+import { comparable } from "./format";
 import { criteriaChips, exactWindowLabel, parseSearchQuery, rerunRequest } from "./search";
 
 /** One search run: all deals stored with the same label + timestamp. */
@@ -53,15 +54,16 @@ export function groupHistory(deals: StoredDeal[]): QueryGroup[] {
       runs.set(key, run);
     }
     run.deals.push(deal);
-    if (deal.price < run.minPrice) {
-      run.minPrice = deal.price;
-      run.currency = deal.currency;
+    const c = comparable(deal);
+    if (c.price < run.minPrice) {
+      run.minPrice = c.price;
+      run.currency = c.currency;
     }
   }
 
   const byQuery = new Map<string, Run[]>();
   for (const run of runs.values()) {
-    run.deals.sort((a, b) => a.price - b.price);
+    run.deals.sort((a, b) => comparable(a).price - comparable(b).price);
     const list = byQuery.get(run.gkey) ?? [];
     list.push(run);
     byQuery.set(run.gkey, list);

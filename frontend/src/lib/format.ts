@@ -11,6 +11,18 @@ export function formatPrice(price: number, currency: string): string {
   return symbol ? `${symbol}${amount}` : `${amount} ${currency}`;
 }
 
+/** A deal's price for ranking: sources quote their own currency ($600 vs
+ *  ₪2,123), so compare in the run's preferred currency when the backend
+ *  could convert it, else fall back to the raw figure. */
+export function comparable(d: { price: number; currency: string; compare_price?: number | null; compare_currency?: string }): {
+  price: number;
+  currency: string;
+} {
+  return d.compare_price != null && d.compare_currency
+    ? { price: d.compare_price, currency: d.compare_currency }
+    : { price: d.price, currency: d.currency };
+}
+
 export function timeAgo(iso: string): string {
   const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
   if (seconds < 90) return "just now";

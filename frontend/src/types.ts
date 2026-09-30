@@ -62,6 +62,8 @@ export interface StoredDeal {
   price_confidence: PriceConfidence;
   booking_links: BookingLink[];
   search_params: SearchParams | null; // null for legacy rows
+  compare_price: number | null; // price in compare_currency, for ranking across source currencies
+  compare_currency: string; // the run's preferred currency (USD for legacy rows)
 }
 
 export interface SearchRequest extends Partial<SearchParams> {

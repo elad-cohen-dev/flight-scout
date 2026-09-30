@@ -2226,3 +2226,9 @@ input::placeholder {
     grid-template-columns: 1fr;
   }
 }
+
+.deal-price-converted {
+  color: var(--muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

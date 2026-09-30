@@ -324,7 +324,21 @@ def _row_to_deal(row: dict) -> StoredDeal:
         except Exception:
             link_params = None
     deal.booking_links = _booking_links(deal, link_params)
+    _set_compare_price(deal)
     return deal
+
+
+def _set_compare_price(deal: StoredDeal) -> None:
+    """Sources quote whatever currency their page uses, so $600 vs ₪2,123 can't
+    be ranked by raw number. Every deal also carries its price in the run's
+    preferred currency; the UI sorts and picks "cheapest" by that."""
+    target = deal.search_params.currency if deal.search_params else "USD"
+    deal.compare_currency = target
+    try:
+        converted = _convert_currency(deal.price, deal.currency, target)
+    except Exception:
+        converted = None
+    deal.compare_price = round(converted, 2) if converted is not None else None
 
 
 def save_deals(search_query: str, deals: list[FlightDeal],
@@ -348,6 +362,7 @@ def save_deals(search_query: str, deals: list[FlightDeal],
                 **deal.model_dump(exclude={"booking_links"}),
             )
             item.booking_links = _booking_links(item, params)
+            _set_compare_price(item)
             stored.append(item)
         conn.commit()
         return stored
