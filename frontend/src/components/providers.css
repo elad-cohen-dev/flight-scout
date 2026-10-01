@@ -91,6 +91,11 @@
   color: var(--warn);
 }
 
+.usage-meter-warning {
+  margin: 0 0 8px;
+  color: var(--warn);
+}
+
 @media (max-width: 520px) {
   .usage-track {
     flex-basis: 80px;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchUsage } from "../api";
-import { usageMeter } from "../lib/providers";
+import { usageMeter, usageWarning } from "../lib/providers";
 import type { UsageReport } from "../types";
 import "./providers.css";
 
@@ -20,12 +20,20 @@ export default function UsageMeter({ refreshKey }: { refreshKey?: string }) {
   const meter = usageMeter(report);
   if (!meter) return null;
   const pct = meter.budget ? Math.min(100, (meter.used / meter.budget) * 100) : 0;
+  const warning = usageWarning(report);
   return (
+    <>
     <div className={`usage-meter${meter.low ? " usage-low" : ""}`} title="Live Google Flights searches (SerpApi) used this calendar month. Cached fares and repeats within an hour are free.">
       <span>{meter.text}</span>
       <span className="usage-track" role="meter" aria-valuemin={0} aria-valuemax={meter.budget} aria-valuenow={meter.used} aria-label="Live searches used">
         <span className="usage-fill" style={{ width: `${pct}%` }} />
       </span>
     </div>
+    {warning && (
+      <p className="usage-meter-warning small" role="status">
+        {warning}
+      </p>
+    )}
+    </>
   );
 }

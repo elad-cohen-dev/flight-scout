@@ -32,7 +32,7 @@ import { formatPrice } from "./lib/format";
 import { groupHistory } from "./lib/history";
 import type { QueryGroup } from "./lib/history";
 import { forgetJob, loadActiveJob, rememberJob, rerunTarget, waitForServer } from "./lib/jobs";
-import { formToRequest, formToWatch, loadForm, requestToForm, rerunRequest, saveForm } from "./lib/search";
+import { checkLiveRequest, formToRequest, formToWatch, loadForm, requestToForm, rerunRequest, saveForm } from "./lib/search";
 import type { SearchForm } from "./lib/search";
 import { useHashTab } from "./lib/useHashTab";
 import type { Tab } from "./lib/useHashTab";
@@ -267,6 +267,17 @@ function FlightScout() {
     performSearch(req);
   }
 
+  /** An estimate's "Check this date live": the same search, for its exact date pair. */
+  function onCheckLive(deal: StoredDeal) {
+    const req = checkLiveRequest(deal);
+    if (!req) {
+      toast("error", "Couldn't recover this fare's dates to check them live.");
+      return;
+    }
+    setForm((f) => requestToForm(req, f));
+    performSearch(req);
+  }
+
   function onPickRecent(group: QueryGroup) {
     const req = rerunRequest(group.latest.deals[0]);
     if (!req) return;
@@ -430,6 +441,7 @@ function FlightScout() {
             interrupted={interrupted}
             onRunAgain={interruptedRerun ? onRunAgain : undefined}
             onDismissInterrupted={() => setInterrupted(null)}
+            onCheckLive={run ? undefined : onCheckLive}
           />
         )}
         {tab === "history" && (

@@ -192,6 +192,9 @@ def test_london_window_explores_two_months_then_confirms_one(http, web):
     texts = [e["text"] for e in events]
     assert "Finding the cheapest dates on Google…" in texts
     assert "Google Explore: TLV → LON, Nov 2026" in texts
+    # fare-API calls are tagged, so the console counts "3 Google searches", not web searches
+    assert [e.get("source") for e in events if e["kind"] == "search"] == ["google", "google", "google"]
+    assert all("source" not in e for e in events if e["kind"] == "phase")
 
 
 def test_one_month_window_spends_two(http, web):

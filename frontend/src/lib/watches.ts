@@ -90,7 +90,8 @@ function partyWords(p: SearchParams["passengers"]): string {
 
 /** What a watch checks, in plain words, e.g. "Every day, looks for a round trip
  *  from TLV to Greece (a long weekend in November) for 2 adults in economy,
- *  direct flights only, with a cabin trolley included in the price." */
+ *  direct flights only, needs a cabin trolley." — a requirement: Google's fares
+ *  don't include a checked bag, so the wording mustn't promise the price does. */
 export function describeWatch(w: Criteria & { max_price?: number | null }): { search: string; alert: string } {
   const trip = w.trip_type === "one_way" ? "a one-way flight" : "a round trip";
   const window = exactWindowLabel({
@@ -107,7 +108,7 @@ export function describeWatch(w: Criteria & { max_price?: number | null }): { se
   if (stops === 0) bits.push("direct flights only");
   else if (stops != null) bits.push(`at most ${stops} stop${stops === 1 ? "" : "s"}`);
   const bags = [w.cabin_bag && "a cabin trolley", w.checked_bag && "a 20kg checked bag"].filter(Boolean);
-  if (bags.length) bits.push(`with ${bags.join(" and ")} included in the price`);
+  if (bags.length) bits.push(`needs ${bags.join(" and ")}`);
   if (w.nearby_airports) bits.push("also trying nearby airports");
   const search = `Every day, looks for ${trip} from ${w.origin} to ${w.destination} ${when} ${bits.join(", ")}.`;
   const who = totalPassengers(pax) > 1 ? "the total for everyone" : "a fare";

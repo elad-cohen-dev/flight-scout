@@ -1101,6 +1101,24 @@ input::placeholder {
   gap: 0.5rem;
 }
 
+/* Unconfirmed estimates (Google Explore / Aviasales) after the confirmed fares */
+.deal-group-head {
+  margin: 0.75rem 0 0;
+}
+
+.deal-group-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.deal-group-head p {
+  margin: 0.15rem 0 0;
+}
+
+.deal-check-live {
+  margin-bottom: 0.6rem;
+}
+
 .deal {
   position: relative;
   display: flex;
