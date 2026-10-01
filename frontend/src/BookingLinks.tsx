@@ -82,6 +82,7 @@ function hostOf(url: string) {
 export interface DirectLink {
   label: string;
   url: string;
+  bagsNote?: string | null; // exact bag fees at this seller; replaces the generic "add bags" step
 }
 
 export default function BookingLinks({ deal, direct }: { deal: StoredDeal; direct?: DirectLink }) {
@@ -101,7 +102,11 @@ export default function BookingLinks({ deal, direct }: { deal: StoredDeal; direc
   const [primary, ...others] = links;
   const c: Criteria = deal.search_params ?? DEFAULTS;
   const hint = prefilledHint(primary, c);
-  const steps = todo(primary, c, others);
+  const generic = todo(primary, c, others);
+  const bags = bagsLabel(c);
+  const steps = direct?.bagsNote
+    ? [...generic.filter((s) => !(bags && s.startsWith(`Add ${bags} at checkout`))), direct.bagsNote]
+    : generic;
   const verb = direct ? "Book with" : primary.kind === "airline" ? "Book on" : primary.kind === "other" ? "Open" : "Search on";
 
   return (

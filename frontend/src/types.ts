@@ -254,6 +254,7 @@ export interface DetailsLeg {
 export interface BagFee {
   text: string; // Google's wording; "" = not stated
   fee: number | null; // exact per traveller (0 = free); null = unknown or a range
+  max_fee: number | null; // upper bound per traveller (a range's top); null = unknown
 }
 
 export interface SellerLink {
@@ -273,6 +274,7 @@ export interface Seller {
   checked: BagFee;
   bag_notes: string[];
   price_incl_bags: number | null;
+  price_incl_bags_max: number | null; // upper bound when a bag fee is a range
   bags_verified: boolean;
   separate_tickets: boolean;
   phone: string;

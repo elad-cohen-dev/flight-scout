@@ -77,6 +77,27 @@ def test_parse_bag_wordings():
     assert details.parse_bag(["1st checked bag: 1,035.50"], "checked").fee == 1035.5
     assert details.parse_bag(["No carry-on bag included"], "carry_on").fee is None
     assert details.parse_bag([], "checked").text == ""
+    assert checked.max_fee == 187 and details.parse_bag(["1st checked bag: 35"], "checked").max_fee == 35
+
+
+def _ranked(options: list[dict], **params) -> list[str]:
+    deal = storage.StoredDeal(id=1, search_query="q", found_at="2026-10-01T00:00:00Z", origin="TLV",
+                              destination="LTN", airline="Wizz Air", price=324, currency="USD",
+                              depart_date="2026-11-12", search_params=SearchParams(**params))
+    payload = {"options": [{"parts": [{"part": "together", **o}]} for o in options]}
+    return [s.book_with for s in details._from_payload(deal, payload).sellers]
+
+
+def test_sellers_rank_by_price_incl_requested_bags():
+    wizz = {"book_with": "Wizz Air", "airline": True, "price": 324, "baggage_prices": ["1st checked bag: 42"]}
+    kiwi = {"book_with": "Kiwi.com", "price": 311, "baggage_prices": ["1st checked bag: 38-55"]}
+    mystery = {"book_with": "Budget OTA", "price": 290, "baggage_prices": []}
+    # A range counts at its top (311+55 = 366); on a tie the exact total (324+42) wins.
+    assert _ranked([kiwi, mystery, wizz], checked_bag=True) == ["Wizz Air", "Kiwi.com", "Budget OTA"]
+    cheap_kiwi = {**kiwi, "price": 300}  # up to 355 < 366
+    assert _ranked([wizz, cheap_kiwi], checked_bag=True) == ["Kiwi.com", "Wizz Air"]
+    # No bags asked for: plain fare order.
+    assert _ranked([wizz, kiwi, mystery]) == ["Budget OTA", "Kiwi.com", "Wizz Air"]
 
 
 def test_map_booking_options_together_and_separate_tickets():
@@ -141,11 +162,13 @@ def test_round_trip_fetch_spends_two_then_caches(temp_db, keys, http):
         ("10:25", "15:20", "QS 1286")
     assert got.outbound.flight_numbers == "QS 1285"
 
-    # Cheapest first; Smartwings sells direct with an exact 35 checked-bag fee, x2 travellers.
+    # Cheapest incl. the checked bag (x2 travellers): Smartwings 486+70, the split
+    # tickets 505+80, then Kiwi, whose 42-60 range counts at its top: 471+120.
     names = [(s.book_with, s.price, s.airline) for s in got.sellers]
-    assert names == [("Kiwi.com", 471, False), ("Smartwings", 486, True), ("Smartwings", 505, True)]
-    kiwi, smart, split = got.sellers
+    assert names == [("Smartwings", 486, True), ("Smartwings", 505, True), ("Kiwi.com", 471, False)]
+    smart, split, kiwi = got.sellers
     assert kiwi.checked.text == "1st checked bag: 42-60" and not kiwi.bags_verified
+    assert kiwi.price_incl_bags is None and kiwi.price_incl_bags_max == 471 + 2 * 60
     assert smart.checked.fee == 35 and smart.carry_on.fee == 0
     assert smart.bags_verified and smart.price_incl_bags == 486 + 2 * 35
     assert split.separate_tickets and split.checked.fee == 40 and [l.part for l in split.links] == \
@@ -262,7 +285,7 @@ def _fetched_round_trip(http) -> tuple[storage.StoredDeal, details.DealDetails]:
 
 def test_book_endpoint_serves_an_auto_submitting_form(temp_db, keys, http):
     deal, got = _fetched_round_trip(http)
-    smart = got.sellers[1]
+    smart = got.sellers[0]
     res = TestClient(main.app).get(smart.links[0].url)
     assert res.status_code == 200 and res.headers["content-type"].startswith("text/html")
     assert 'action="https://www.google.com/travel/clk/f"' in res.text and 'method="post"' in res.text
@@ -271,7 +294,7 @@ def test_book_endpoint_serves_an_auto_submitting_form(temp_db, keys, http):
     assert f'<script nonce="{nonce}">' in res.text and "form-action" not in res.headers["content-security-policy"]
     assert res.headers["cache-control"] == "no-store"
     # Separate tickets: each ticket has its own request.
-    returning = got.sellers[2].links[1].url
+    returning = got.sellers[1].links[1].url
     assert 'value="UkVUVVJOSU5H"' in TestClient(main.app).get(returning).text
 
 
@@ -295,7 +318,7 @@ def test_endpoints_require_the_app_password(temp_db, keys, http, monkeypatch):
     got = client.get(f"/api/deals/{deal.id}/details", headers=auth).json()
     assert got["status"] == "ready" and "post_data" not in json.dumps(got)
 
-    link = got["sellers"][1]["links"][0]["url"]
+    link = got["sellers"][0]["links"][0]["url"]  # Smartwings, option 1
     q = {k: v[0] for k, v in parse_qs(urlsplit(link).query).items()}
     assert q["sig"] and q["part"] == "together"
     assert client.get(link).status_code == 200  # signed: works as a plain browser link

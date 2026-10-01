@@ -56,8 +56,10 @@ function SellerRow({ s, currency, bagsRequested }: { s: Seller; currency: string
             <span className="db-ok">
               <Icon name="check" size={12} /> {formatPrice(s.price_incl_bags, currency)} incl. your bags
             </span>
+          ) : s.price_incl_bags_max != null ? (
+            <span className="db-warn">Up to {formatPrice(s.price_incl_bags_max, currency)} incl. your bags — bag fee not exact</span>
           ) : (
-            <span className="db-warn">Bag fee not exact — check at checkout</span>
+            <span className="db-warn">Bag fee not stated — check at checkout</span>
           )}
         </div>
       )}
@@ -155,11 +157,7 @@ export default function DirectBooking({
       <button type="button" className="db-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <span>
           {details.sellers.length} seller{details.sellers.length === 1 ? "" : "s"}
-          {details.verified_incl_bags && details.price_incl_bags != null && (
-            <span className="db-tag db-tag-ok">
-              <Icon name="check" size={11} /> Verified incl. bags · {formatPrice(details.price_incl_bags, currency)}
-            </span>
-          )}
+          {bagsRequested && <span className="muted small">· ranked by price incl. your bags</span>}
         </span>
         <span className="muted small">
           {details.fetched_at && `checked ${timeAgo(details.fetched_at)}`}

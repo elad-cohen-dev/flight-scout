@@ -93,6 +93,7 @@ class Leg(BaseModel):
 class BagFee(BaseModel):
     text: str = Field(default="", description="Google's wording, e.g. '1st checked bag: 35'; '' = not stated")
     fee: float | None = Field(default=None, description="Exact fee per traveller (0 = free); None = unknown or a range")
+    max_fee: float | None = Field(default=None, description="Upper bound per traveller: the fee, or a range's top; None = unknown")
 
 
 class SellerLink(BaseModel):
@@ -112,6 +113,8 @@ class Seller(BaseModel):
     checked: BagFee = Field(default_factory=BagFee)
     bag_notes: list[str] = Field(default_factory=list, description="All of Google's baggage lines for this seller")
     price_incl_bags: float | None = Field(default=None, description="price + the requested bags' fees, when all are known")
+    price_incl_bags_max: float | None = Field(
+        default=None, description="Upper bound of price + requested bags (a range's top); None = a fee is unknown")
     bags_verified: bool = Field(default=False, description="Every requested bag's fee is known exactly")
     separate_tickets: bool = False
     phone: str = ""
@@ -153,13 +156,15 @@ def parse_bag(lines: list[str], kind: Literal["carry_on", "checked"]) -> BagFee:
         if not pattern.search(line):
             continue
         if re.search(r"\bfree\b|\bincluded\b", line, re.IGNORECASE) and not _NOT_INCLUDED.search(line):
-            return BagFee(text=line, fee=0.0)
+            return BagFee(text=line, fee=0.0, max_fee=0.0)
         if _NOT_INCLUDED.search(line):
             return BagFee(text=line)
         tail = line.split(":", 1)[1] if ":" in line else ""
         m = _AMOUNT.search(tail)
-        if m and not m.group(2):
-            return BagFee(text=line, fee=float(m.group(1).replace(",", "")))
+        if m:
+            low = float(m.group(1).replace(",", ""))
+            high = float(m.group(2).replace(",", "")) if m.group(2) else low
+            return BagFee(text=line, fee=None if m.group(2) else low, max_fee=high)
         return BagFee(text=line)
     return BagFee()
 
@@ -169,9 +174,10 @@ def _combine(fees: list[BagFee]) -> BagFee:
     if len(fees) == 1:
         return fees[0]
     text = " / ".join(f.text for f in fees if f.text)
+    top = None if any(f.max_fee is None for f in fees) else sum(f.max_fee for f in fees)
     if any(f.fee is None for f in fees):
-        return BagFee(text=text)
-    return BagFee(text=text, fee=sum(f.fee for f in fees))
+        return BagFee(text=text, max_fee=top)
+    return BagFee(text=text, fee=sum(f.fee for f in fees), max_fee=top)
 
 
 def _requested_bags(deal: StoredDeal) -> list[str]:
@@ -338,6 +344,9 @@ def _seller(deal: StoredDeal, index: int, option: dict, bags: list[str]) -> Sell
     fees = {"carry_on": carry.fee, "checked": checked.fee}
     known = price is not None and all(fees[b] is not None for b in bags)
     incl = round(price + sum(fees[b] for b in bags) * _seats(deal), 2) if known else None
+    tops = {"carry_on": carry.max_fee, "checked": checked.max_fee}
+    bounded = price is not None and all(tops[b] is not None for b in bags)
+    top = round(price + sum(tops[b] for b in bags) * _seats(deal), 2) if bounded else None
     names = [p.get("book_with") or "" for p in parts]
     return Seller(
         index=index,
@@ -350,6 +359,7 @@ def _seller(deal: StoredDeal, index: int, option: dict, bags: list[str]) -> Sell
         checked=checked,
         bag_notes=list(dict.fromkeys(b for l in lines for b in l)),
         price_incl_bags=incl,
+        price_incl_bags_max=top,
         bags_verified=bool(bags) and known,
         separate_tickets=bool(option.get("separate_tickets")),
         phone=next((p.get("phone") for p in parts if p.get("phone")), ""),
@@ -357,6 +367,15 @@ def _seller(deal: StoredDeal, index: int, option: dict, bags: list[str]) -> Sell
                           url=book_path(deal.id, index, p["part"]) if p.get("url") else "")
                for p in parts if p.get("part") in ("together", "departing", "returning")],
     )
+
+
+def seller_rank(s: Seller) -> tuple:
+    """Cheapest first by the price incl. the requested bags, a range counted at
+    its top (it could be that high); exact totals beat inexact ones on ties,
+    then airlines (book direct). A seller whose bag fee is unknown goes last."""
+    total = s.price_incl_bags if s.price_incl_bags is not None else s.price_incl_bags_max
+    exact = s.price_incl_bags is not None
+    return (total is None, total or 0, not exact, not s.airline, s.price is None, s.price or 0)
 
 
 def _usage(out: DealDetails) -> DealDetails:
@@ -378,8 +397,7 @@ def _from_payload(deal: StoredDeal, payload: dict, spent: int = 0) -> DealDetail
         bags_requested=bags,
     )
     out.sellers = [_seller(deal, i, o, bags) for i, o in enumerate(payload.get("options") or [])]
-    # Cheapest first; airlines (book direct) win ties.
-    out.sellers.sort(key=lambda s: (s.price is None, s.price or 0, not s.airline))
+    out.sellers.sort(key=seller_rank)
     verified = [s.price_incl_bags for s in out.sellers if s.bags_verified]
     if verified:
         out.verified_incl_bags, out.price_incl_bags = True, min(verified)

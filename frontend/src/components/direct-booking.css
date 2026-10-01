@@ -291,3 +291,25 @@
     justify-content: center;
   }
 }
+
+/* DealCard bits driven by the details (kept here with the feature). */
+.deal-price-bags {
+  color: var(--green);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.badge-bag-excl {
+  background: var(--warn-soft);
+  border-color: transparent;
+  color: var(--warn);
+}
+
+.leg-plus {
+  margin-left: 0.1rem;
+  font-size: 0.6em;
+  font-weight: 600;
+  color: var(--warn);
+  vertical-align: super;
+  line-height: 0;
+}

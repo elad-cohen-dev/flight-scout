@@ -1,6 +1,6 @@
 import { useState } from "react";
 import BookingLinks from "../BookingLinks";
-import { directSeller } from "../lib/dealDetails";
+import { bagBadges, bagCheckoutNote, bagTotal, bagWords, directSeller } from "../lib/dealDetails";
 import { comparable, formatPrice, formatTripDate, nightsBetween, shortDate, stopsLabel, timeAgo } from "../lib/format";
 import { dealCriteria, totalPassengers } from "../lib/search";
 import type { DealDetails, PriceConfidence, StoredDeal } from "../types";
@@ -45,6 +45,7 @@ function Leg({
   to,
   duration,
   stops,
+  nextDay,
 }: {
   label: string;
   date: string;
@@ -54,6 +55,7 @@ function Leg({
   to: string;
   duration?: string;
   stops?: number;
+  nextDay?: boolean; // arrives the day after it departs
 }) {
   return (
     <div className={`leg${label === "Back" ? " leg-return" : ""}`}>
@@ -74,7 +76,14 @@ function Leg({
           {stops != null && <span className={`leg-line-meta${stops === 0 ? " text-good" : ""}`}>{stopsLabel(stops)}</span>}
         </div>
         <div className="leg-end leg-end-arr">
-          {arr ? <span className="leg-time">{arr}</span> : <span className="leg-time leg-time-na">{to}</span>}
+          {arr ? (
+            <span className="leg-time">
+              {arr}
+              {nextDay && <sup className="leg-plus" title="Arrives the next day">+1</sup>}
+            </span>
+          ) : (
+            <span className="leg-time leg-time-na">{to}</span>
+          )}
           {arr && <span className="leg-iata">{to}</span>}
         </div>
       </div>
@@ -94,6 +103,14 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
   const ready = details?.status === "ready" ? details : null;
   const back = ready?.return_leg ?? (details?.status === "expired" ? details.return_leg : null);
   const direct = directSeller(ready);
+  // The headline stays the fare that ranks and sorts every deal; an exact
+  // bag-inclusive total from the selected seller is shown under it.
+  const withBags = bagTotal(ready);
+  const bagBadgeList = bagBadges(deal.source, criteria, ready);
+  const bagsNote = direct && ready ? bagCheckoutNote(direct.seller, ready.bags_requested, ready.currency || deal.currency) : null;
+  const out = ready?.outbound;
+  const nextDay = (leg?: { depart_date: string; arrive_date: string } | null) =>
+    !!leg?.arrive_date && !!leg.depart_date && leg.arrive_date !== leg.depart_date;
 
   return (
     <article className={`deal card${highlight ? " deal-best" : ""}`}>
@@ -122,6 +139,11 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
           ) : (
             <div className="muted small">{deal.return_date ? "round trip" : "one way"}{pax > 1 ? ` · ${pax} travellers` : ""}</div>
           )}
+          {withBags != null && ready && (
+            <div className="deal-price-bags small" title={`Exact total incl. your ${bagWords(ready.bags_requested)}, from the seller's bag fees`}>
+              {formatPrice(withBags, ready.currency || deal.currency)} with your {bagWords(ready.bags_requested)}
+            </div>
+          )}
         </div>
       </div>
 
@@ -136,6 +158,7 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
             to={to}
             duration={deal.duration}
             stops={deal.stops}
+            nextDay={nextDay(out)}
           />
           {deal.return_date && (
             <Leg
@@ -147,6 +170,7 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
               to={from}
               duration={back?.duration}
               stops={back?.stops}
+              nextDay={nextDay(back)}
             />
           )}
         </div>
@@ -162,11 +186,11 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
       )}
 
       <div className="deal-tags">
-        {!ready?.verified_incl_bags && <ConfidenceBadge value={deal.price_confidence} />}
-        {ready?.verified_incl_bags && ready.price_incl_bags != null && (
-          <span className="badge badge-conf-verified" title="A seller's exact fare plus the exact fees for the bags you asked for">
+        {withBags == null && <ConfidenceBadge value={deal.price_confidence} />}
+        {withBags != null && (
+          <span className="badge badge-conf-verified" title="The seller's exact fare plus the exact fees for the bags you asked for">
             <Icon name="check" size={12} />
-            Verified incl. bags · {formatPrice(ready.price_incl_bags, ready.currency || deal.currency)}
+            Verified incl. bags
           </span>
         )}
         <SourceBadge deal={deal} />
@@ -174,16 +198,11 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
           <span className={`badge${deal.stops === 0 ? " badge-good" : ""}`}>{stopsLabel(deal.stops)}</span>
         )}
         {nights != null && <span className="badge">{nights} night{nights > 1 ? "s" : ""}</span>}
-        {criteria.cabin_bag && (
-          <span className="badge" title="Price includes a 10kg cabin trolley">
-            <Icon name="bag" size={12} /> Trolley incl.
+        {bagBadgeList.map((b) => (
+          <span key={b.bag} className={`badge${b.included ? "" : " badge-bag-excl"}`} title={b.tip}>
+            <Icon name={b.bag === "carry_on" ? "bag" : "luggage"} size={12} /> {b.label}
           </span>
-        )}
-        {criteria.checked_bag && (
-          <span className="badge" title="Price includes a 20kg+ checked bag">
-            <Icon name="luggage" size={12} /> 20kg bag incl.
-          </span>
-        )}
+        ))}
         {deal.times_seen > 1 && deal.first_found_at && (
           <span className="badge badge-seen" title="This exact fare keeps appearing across runs — likely a stable price">
             Seen {deal.times_seen}× since {shortDate(deal.first_found_at)}
@@ -194,7 +213,7 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
       <div className="deal-foot">
         <BookingLinks
           deal={deal}
-          direct={direct ? { label: direct.seller.book_with, url: direct.link.url } : undefined}
+          direct={direct ? { label: direct.seller.book_with, url: direct.link.url, bagsNote } : undefined}
         />
         {(deal.notes || showSource) && (
           <details className="deal-details">
