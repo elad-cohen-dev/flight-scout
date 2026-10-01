@@ -106,6 +106,16 @@ def resolve_end(text: str) -> _End | None:
     regions, countries and unknown names (those go to the LLM)."""
     if agent.is_flexible(text):
         return None
+    # The autocomplete writes "City [CODE]" ("London [LON]", "Istanbul [IST/SAW]").
+    # The bracket is the user's explicit pick — resolve that, not the city text:
+    # "London [LON]" used to resolve to London City alone, so a direct TLV→London
+    # search found nothing on Google Flights and fell back to the web agent.
+    picked = re.search(r"\[([A-Z]{3}(?:/[A-Z]{3})*)\]\s*$", text or "")
+    if picked:
+        codes = picked.group(1).split("/")
+        if len(codes) > 1:  # a multi-airport city without a metro code
+            return _End(codes[0], ",".join(codes), codes[0])
+        text = codes[0]
     place = airports.resolve(text)
     if place is None:
         return None

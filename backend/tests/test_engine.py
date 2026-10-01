@@ -316,3 +316,14 @@ def test_watch_without_keys_runs_the_agent_and_reports_prescreen(temp_db, web, m
     summary = watcher.run_watches(only_id=w.id, notify=False)
     [row] = summary["results"]
     assert len(web) == 1 and row["sources"] == ["web"] and row["prescreen"].startswith("no pre-screen")
+
+
+def test_resolve_end_honours_the_autocomplete_bracket_code():
+    from app.engine import resolve_end
+
+    london = resolve_end("London [LON]")
+    assert london.serp == "LHR,LGW,STN,LTN,LCY,SEN" and london.label == "LON"
+    assert resolve_end("London Luton [LTN]").serp == "LTN"
+    assert resolve_end("Istanbul [IST/SAW]").serp == "IST,SAW"
+    assert resolve_end("Budapest [BUD]").serp == "BUD"
+    assert resolve_end("London").serp == "LHR,LGW,STN,LTN,LCY,SEN"
