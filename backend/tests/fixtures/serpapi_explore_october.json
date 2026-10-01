@@ -1,0 +1,39 @@
+{
+  "search_metadata": {
+    "id": "explore-10",
+    "status": "Success",
+    "google_travel_explore_url": "https://www.google.com/travel/explore?hl=en&curr=USD&tfs=CBwQAxoJagcIARIDVExW",
+    "created_at": "2026-10-01 05:00:00 UTC",
+    "total_time_taken": 2.1
+  },
+  "search_parameters": {
+    "engine": "google_travel_explore",
+    "hl": "en",
+    "departure_id": "TLV",
+    "arrival_id": "/m/04jpl",
+    "currency": "USD",
+    "month": "10"
+  },
+  "start_date": "2026-10-06",
+  "end_date": "2026-10-13",
+  "flights": [
+    {
+      "departure_airport": {
+        "name": "Ben Gurion Airport",
+        "id": "TLV"
+      },
+      "arrival_airport": {
+        "name": "London Stansted Airport",
+        "id": "STN"
+      },
+      "duration": 335,
+      "price": 299,
+      "number_of_stops": 0,
+      "airline": "Ryanair",
+      "airline_code": "FR",
+      "cheapest_flight": true
+    }
+  ],
+  "google_flights_link": "https://www.google.com/travel/flights?hl=en&curr=USD&tfs=explore-10",
+  "google_flights_serpapi_link": "https://serpapi.com/search.json?arrival_id=%2Fm%2F04jpl&currency=USD&departure_id=TLV&engine=google_flights&hl=en"
+}

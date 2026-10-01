@@ -1,6 +1,8 @@
-"""SerpApi Google Flights (engine=google_flights): exact, live, dated fares.
+"""SerpApi Google Flights (engine=google_flights): exact, live, dated fares —
+and Google Travel Explore (engine=google_travel_explore): the cheapest dates.
 
-Docs: https://serpapi.com/google-flights-api (+ /google-flights-booking-options).
+Docs: https://serpapi.com/google-flights-api (+ /google-flights-booking-options),
+https://serpapi.com/google-travel-explore-api.
 
 - Prices are what Google Flights shows for the requested party: the TOTAL for
   every passenger passed in (adults/children/infants), in `currency`. On a round
@@ -14,6 +16,14 @@ Docs: https://serpapi.com/google-flights-api (+ /google-flights-booking-options)
   provider_usage and stop at SERPAPI_MONTHLY_BUDGET (default 230, headroom for
   probes/manual use). SerpApi itself serves an identical query within 1h from
   its cache for free; our own 1h response cache makes that explicit.
+- Travel Explore (see `explore`) answers "when is it cheapest?" for flexible
+  dates: with an arrival_id it returns ONE date pair — the cheapest Google sees
+  for the `month` (1-12, next 6 months only; 0 = any of them) and
+  `travel_duration` (1 weekend, 2 one week, 3 two weeks) — plus a few flights
+  for it. Those prices are Google's own but not a bookable itinerary (no
+  tokens, no price insights), so they come back as source google_explore,
+  price_confidence "estimated"; app/engine.py confirms the pair on Google
+  Flights. One call = one search of the same quota.
 """
 
 from __future__ import annotations
@@ -34,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 PROVIDER = "serpapi"
 SOURCE = "google_flights"
+EXPLORE_SOURCE = "google_explore"
 URL = "https://serpapi.com/search"
 CACHE_TTL_SECONDS = 3600
 DEFAULT_MONTHLY_BUDGET = 230
@@ -126,7 +137,7 @@ def _trim(data: dict) -> dict:
     }
 
 
-def fetch(params: dict) -> tuple[dict, bool]:
+def fetch(params: dict, trim=_trim) -> tuple[dict, bool]:
     """(trimmed response, from_cache) for SerpApi `params`. Raises
     BudgetExhausted / ProviderError. A "no results" answer is a valid, cached,
     empty response."""
@@ -138,7 +149,7 @@ def fetch(params: dict) -> tuple[dict, bool]:
     error = str(data.get("error") or "")
     if error and not _NO_RESULTS.search(error):
         raise ProviderError(f"serpapi: {error[:200]}")
-    trimmed = _trim(data)
+    trimmed = trim(data)
     store(PROVIDER, {**params, "api_key": ""}, trimmed, CACHE_TTL_SECONDS)
     return trimmed, False
 
@@ -416,3 +427,163 @@ def map_booking_options(data: dict) -> list[dict]:
             out.append({"separate_tickets": bool(option.get("separate_tickets")) or len(parts) > 1,
                         "parts": parts})
     return out
+
+
+# --- Google Travel Explore: the cheapest dates -------------------------------------
+
+EXPLORE_ENGINE = "google_travel_explore"
+WEEKEND, ONE_WEEK, TWO_WEEKS = 1, 2, 3  # travel_duration
+# Explore takes an airport code or a city kgmid (Freebase id). A metro is asked
+# for by its kgmid, so every airport of the city counts (London = LHR, LGW, STN,
+# LTN, LCY, SEN); a metro missing here goes as its comma list of airports, which
+# the docs only promise for departure_id. Results are filtered to the metro's
+# airports either way.
+CITY_KGMIDS = {
+    "LON": "/m/04jpl", "PAR": "/m/05qtj", "NYC": "/m/02_286", "MIL": "/m/0947l",
+    "ROM": "/m/06c62", "TYO": "/m/07dfk", "CHI": "/m/01_d4", "MOW": "/m/04swd", "STO": "/m/06mxs",
+}
+
+
+def explore_place(label: str, airports: str) -> str:
+    """Explore's departure_id/arrival_id for a place: the city kgmid of a known
+    metro, else its airport code (or comma list)."""
+    return CITY_KGMIDS.get(label, airports)
+
+
+def explore_request_params(origin: str, destination: str, params: SearchParams, month: int,
+                           duration: int = ONE_WEEK) -> dict:
+    """Explore query parameters (without api_key): the cheapest `duration` trip
+    in `month` (0 = the next six months) for the party, cabin, stops and carry-on bags."""
+    pax = params.passengers
+    round_trip = params.trip_type == "round_trip"
+    out = {
+        "engine": EXPLORE_ENGINE,
+        "departure_id": origin,
+        "arrival_id": destination,
+        "type": "1" if round_trip else "2",
+        "month": month,
+        "travel_class": TRAVEL_CLASS[params.cabin_class],
+        "adults": pax.adults,
+        "currency": params.currency,
+        "hl": "en",
+        "stops": _stops_param(params.max_stops),
+    }
+    if round_trip:
+        out["travel_duration"] = duration
+    if pax.children:
+        out["children"] = pax.children
+    if pax.infants:
+        out["infants_on_lap"] = pax.infants
+    if params.cabin_bag:
+        out["bags"] = pax.adults + pax.children
+    return out
+
+
+_DESTINATION_KEYS = ("name", "destination_id", "destination_airport", "start_date", "end_date",
+                     "flight_price", "flight_duration", "number_of_stops", "airline", "airline_code", "link")
+
+
+def _trim_explore(data: dict) -> dict:
+    """What we keep of an Explore response: the date pair and flights (with an
+    arrival_id), or the destinations list (without one), and the links."""
+    meta = data.get("search_metadata") or {}
+    return {
+        "search_metadata": {k: meta.get(k) for k in ("id", "status", "google_travel_explore_url", "created_at")},
+        "start_date": data.get("start_date") or "",
+        "end_date": data.get("end_date") or "",
+        "flights": data.get("flights") or [],
+        "google_flights_link": data.get("google_flights_link") or "",
+        "destinations": [{k: d.get(k) for k in _DESTINATION_KEYS if k in d}
+                         for d in data.get("destinations") or [] if isinstance(d, dict)],
+        "error": data.get("error", ""),
+    }
+
+
+_ISO_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _explore_deal(*, origin: str, destination: str, price, start: str, end: str, airline: str,
+                  code: str, minutes, stops, url: str, params: SearchParams, seen_at: str) -> FlightDeal | None:
+    round_trip = params.trip_type == "round_trip"
+    if not isinstance(price, (int, float)) or price <= 0 or not _ISO_DAY.fullmatch(start or ""):
+        return None
+    if round_trip and not _ISO_DAY.fullmatch(end or ""):
+        return None
+    party = paying(params)
+    notes = ["Google Travel Explore price — the cheapest Google saw for these dates, "
+             "not a confirmed itinerary; check it on Google Flights"]
+    if params.cabin_bag:
+        notes.append("Includes carry-on bag fees (Google bags filter)")
+    if params.checked_bag:
+        notes.append("Checked 20kg bag NOT included — add the airline's bag fee")
+    return FlightDeal(
+        origin=origin,
+        destination=destination,
+        origin_airport=origin if re.fullmatch(r"[A-Z]{3}", origin or "") else "",
+        destination_airport=destination if re.fullmatch(r"[A-Z]{3}", destination or "") else "",
+        airline=airline or "",
+        airline_code=code if re.fullmatch(r"[A-Z0-9]{2}", code or "") else "",
+        price=float(price),
+        price_per_person=round(float(price) / party, 2),
+        currency=params.currency,
+        depart_date=start,
+        return_date=end if round_trip else "",
+        duration=fmt_minutes(minutes),
+        stops=stops if isinstance(stops, int) and stops >= 0 else 0,
+        booking_url=url,
+        source_url=url,
+        notes=". ".join(notes) + ".",
+        price_confidence="estimated",
+        source=EXPLORE_SOURCE,
+        seen_at=seen_at,
+    )
+
+
+def map_explore(data: dict, origin: str, params: SearchParams, members: tuple[str, ...] = (),
+                seen_at: str | None = None) -> list[FlightDeal]:
+    """Explore response -> candidate deals for the route, cheapest first.
+    `members`: the destination's airports; flights/destinations elsewhere are
+    dropped (empty = keep all)."""
+    seen_at = seen_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    wanted = {m.upper() for m in members}
+    explore_url = (data.get("search_metadata") or {}).get("google_travel_explore_url") or ""
+    deals: list[FlightDeal] = []
+    start, end = data.get("start_date") or "", data.get("end_date") or ""
+    url = data.get("google_flights_link") or explore_url
+    for f in data.get("flights") or []:
+        dest = str((f.get("arrival_airport") or {}).get("id") or "")
+        if wanted and dest.upper() not in wanted:
+            continue
+        deal = _explore_deal(origin=str((f.get("departure_airport") or {}).get("id") or origin), destination=dest,
+                             price=f.get("price"), start=start, end=end, airline=str(f.get("airline") or ""),
+                             code=str(f.get("airline_code") or ""), minutes=f.get("duration"),
+                             stops=f.get("number_of_stops"), url=url, params=params, seen_at=seen_at)
+        if deal:
+            deals.append(deal)
+    for d in data.get("destinations") or []:
+        dest = str((d.get("destination_airport") or {}).get("code") or "")
+        if wanted and dest.upper() not in wanted:
+            continue
+        deal = _explore_deal(origin=origin, destination=dest, price=d.get("flight_price"),
+                             start=str(d.get("start_date") or ""), end=str(d.get("end_date") or ""),
+                             airline=str(d.get("airline") or ""), code=str(d.get("airline_code") or ""),
+                             minutes=d.get("flight_duration"), stops=d.get("number_of_stops"),
+                             url=str(d.get("link") or explore_url), params=params, seen_at=seen_at)
+        if deal:
+            deals.append(deal)
+    deals.sort(key=lambda x: x.price)
+    return deals[:MAX_ITINERARIES]
+
+
+def explore(origin: str, destination: str, params: SearchParams, month: int, duration: int = ONE_WEEK,
+            members: tuple[str, ...] = ()) -> ProviderResult:
+    """The cheapest date pair Google Travel Explore sees for the route in
+    `month` (one search unless cached), as estimated google_explore deals.
+    `origin`/`destination` as explore_place returns them; `members` filters the
+    arrival airports."""
+    data, cached = fetch(explore_request_params(origin, destination, params, month, duration), _trim_explore)
+    created = (data.get("search_metadata") or {}).get("created_at") or ""
+    seen_at = _created_iso(created) if cached else None
+    first_origin = origin.split(",")[0]
+    return ProviderResult(deals=map_explore(data, first_origin, params, members, seen_at),
+                          paid_calls=0 if cached else 1, cached=cached)

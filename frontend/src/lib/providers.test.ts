@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactAge, insightsLine, priceLevelTone, sourceBadge, usageMeter } from "./providers";
+import { compactAge, insightsLine, priceLevelTone, sourceBadge, usageMeter, usageWarning } from "./providers";
 import type { PriceInsights } from "../types";
 
 const NOW = Date.parse("2026-10-01T12:00:00Z");
@@ -16,6 +16,17 @@ describe("source badge", () => {
     expect(sourceBadge(deal("aviasales", "2026-09-29T12:00:00Z"), NOW)?.label).toBe("Aviasales · cached 2d");
     expect(sourceBadge(deal("aviasales", "2026-10-01T07:00:00Z"), NOW)?.label).toBe("Aviasales · cached 5h");
     expect(sourceBadge(deal("aviasales"), NOW)).toMatchObject({ label: "Aviasales · cached", tone: "cached" });
+  });
+
+  it("marks Google Explore prices as estimates", () => {
+    expect(sourceBadge(deal("google_explore"), NOW)).toMatchObject({ label: "Google Explore · estimate", tone: "cached" });
+    expect(sourceBadge(deal("google_explore", "2026-10-01T07:00:00Z"), NOW)?.label).toBe("Google Explore · 5h");
+  });
+
+  it("passes the watch budget warning through", () => {
+    expect(usageWarning({ month: "2026-10", providers: [], warning: "Over budget" })).toBe("Over budget");
+    expect(usageWarning({ month: "2026-10", providers: [] })).toBeNull();
+    expect(usageWarning(null)).toBeNull();
   });
 
   it("marks web finds and leaves legacy rows unbadged", () => {

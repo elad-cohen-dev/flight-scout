@@ -1,0 +1,84 @@
+{
+  "search_metadata": {
+    "id": "explore-11",
+    "status": "Success",
+    "google_travel_explore_url": "https://www.google.com/travel/explore?hl=en&curr=USD&tfs=CBwQAxoJagcIARIDVExW",
+    "created_at": "2026-10-01 05:00:00 UTC",
+    "total_time_taken": 2.1
+  },
+  "search_parameters": {
+    "engine": "google_travel_explore",
+    "hl": "en",
+    "departure_id": "TLV",
+    "arrival_id": "/m/04jpl",
+    "currency": "USD",
+    "month": "11"
+  },
+  "start_date": "2026-11-17",
+  "end_date": "2026-11-24",
+  "flights": [
+    {
+      "departure_airport": {
+        "name": "Ben Gurion Airport",
+        "id": "TLV"
+      },
+      "arrival_airport": {
+        "name": "London Luton Airport",
+        "id": "LTN"
+      },
+      "duration": 330,
+      "price": 389,
+      "number_of_stops": 0,
+      "airline": "Wizz Air",
+      "airline_code": "W6",
+      "cheapest_flight": true
+    },
+    {
+      "departure_airport": {
+        "name": "Ben Gurion Airport",
+        "id": "TLV"
+      },
+      "arrival_airport": {
+        "name": "Heathrow Airport",
+        "id": "LHR"
+      },
+      "duration": 325,
+      "price": 612,
+      "number_of_stops": 0,
+      "airline": "El Al",
+      "airline_code": "LY"
+    },
+    {
+      "departure_airport": {
+        "name": "Ben Gurion Airport",
+        "id": "TLV"
+      },
+      "arrival_airport": {
+        "name": "Gatwick Airport",
+        "id": "LGW"
+      },
+      "duration": 300,
+      "price": 455,
+      "number_of_stops": 0,
+      "airline": "easyJet",
+      "airline_code": "U2"
+    },
+    {
+      "departure_airport": {
+        "name": "Ben Gurion Airport",
+        "id": "TLV"
+      },
+      "arrival_airport": {
+        "name": "Charles de Gaulle Airport",
+        "id": "CDG"
+      },
+      "duration": 290,
+      "price": 120,
+      "number_of_stops": 0,
+      "airline": "Air France",
+      "airline_code": "AF"
+    }
+  ],
+  "google_flights_link": "https://www.google.com/travel/flights?hl=en&curr=USD&tfs=explore-11",
+  "google_flights_serpapi_link": "https://serpapi.com/search.json?arrival_id=%2Fm%2F04jpl&currency=USD&departure_id=TLV&engine=google_flights&hl=en"
+}

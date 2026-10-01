@@ -1,0 +1,48 @@
+{
+  "search_metadata": {
+    "id": "explore-dests",
+    "status": "Success",
+    "created_at": "2026-10-01 05:00:00 UTC",
+    "google_travel_explore_url": "https://www.google.com/travel/explore?hl=en"
+  },
+  "destinations": [
+    {
+      "destination_id": "/m/04jpl",
+      "name": "London",
+      "country": "United Kingdom",
+      "gps_coordinates": {
+        "latitude": 51.5,
+        "longitude": -0.12
+      },
+      "thumbnail": "https://x",
+      "destination_airport": {
+        "code": "LTN"
+      },
+      "start_date": "2026-11-17",
+      "end_date": "2026-11-24",
+      "flight_price": 401,
+      "hotel_price": 150,
+      "flight_duration": 330,
+      "number_of_stops": 0,
+      "airline": "Wizz Air",
+      "airline_code": "W6",
+      "link": "https://www.google.com/travel/explore?l=1",
+      "serpapi_link": "https://serpapi.com/search.json?engine=google_travel_explore"
+    },
+    {
+      "destination_id": "/m/05qtj",
+      "name": "Paris",
+      "country": "France",
+      "destination_airport": {
+        "code": "CDG"
+      },
+      "start_date": "2026-11-03",
+      "end_date": "2026-11-10",
+      "flight_price": 250,
+      "flight_duration": 290,
+      "number_of_stops": 0,
+      "airline": "Alaska and JetBlue",
+      "airline_code": "multi"
+    }
+  ]
+}

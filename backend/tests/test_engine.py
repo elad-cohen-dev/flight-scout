@@ -144,10 +144,19 @@ def test_flexible_dates_calendar_then_confirm_cheapest_live(http, web, monkeypat
     assert out.meta.sources == ["google_flights", "aviasales"] and out.meta.live_searches == 2
 
 
-def test_flexible_dates_without_calendar_use_the_agent(http, web, monkeypatch):
+def test_flexible_dates_without_calendar_try_google_explore(http, web, monkeypatch):
     keys(monkeypatch, tp=False)
     out = engine.search("TLV", "Prague", "November", TWO, today=TODAY)
-    assert http == [] and len(web) == 1 and out.meta.sources == ["web"]
+    # Explore (test_explore.py covers it) answered nothing usable here: the agent
+    assert [p.get("engine") for _, p in http] == ["google_travel_explore"]
+    assert len(web) == 1 and out.meta.sources == ["web"]
+
+
+def test_flexible_dates_without_any_live_key_use_the_agent(http, web, monkeypatch):
+    keys(monkeypatch, serp=False)
+    monkeypatch.setattr(base, "http_get_json", lambda *a, **kw: {"data": {}})
+    out = engine.search("TLV", "Prague", "November", TWO, today=TODAY)
+    assert len(web) == 1 and out.meta.sources == ["web"]
 
 
 def test_region_goes_to_agent_seeded_with_explore(http, web, monkeypatch):

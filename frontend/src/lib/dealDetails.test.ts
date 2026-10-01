@@ -119,6 +119,8 @@ describe("bags on the card", () => {
     expect(priceIncludesBag("google_flights", "checked")).toBe(false);
     expect(priceIncludesBag("google_flights", "carry_on")).toBe(true);
     expect(priceIncludesBag("aviasales", "carry_on")).toBe(false);
+    expect(priceIncludesBag("google_explore", "carry_on")).toBe(true);
+    expect(priceIncludesBag("google_explore", "checked")).toBe(false);
     expect(priceIncludesBag("web", "checked")).toBe(true);
     expect(priceIncludesBag("", "checked")).toBe(true);
   });

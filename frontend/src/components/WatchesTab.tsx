@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { fetchUsage } from "../api";
 import { formatPrice, timeAgo } from "../lib/format";
+import { usageWarning } from "../lib/providers";
 import { criteriaChips } from "../lib/search";
 import {
   alertSettingsOf,
@@ -146,6 +148,11 @@ function WatchCard({
           <p className="watch-words small watch-dim">
             {words.search} {w.active ? <strong>{alerts.threshold ? words.alert : "Smart alerts only."}</strong> : <strong>Paused — not checked daily until you resume it.</strong>}
           </p>
+          {w.active && w.credits && w.credits.per_check > 0 && (
+            <p className="ws-credits small muted watch-dim" title="Live Google searches (SerpApi quota) one daily check may spend; the pre-screen often skips the confirmation">
+              {w.credits.text}
+            </p>
+          )}
           {chips.length > 0 && (
             <div className="chip-row watch-dim">
               {chips.map((c) => (
@@ -227,6 +234,18 @@ export default function WatchesTab({
   busy: boolean;
 }) {
   const [editingId, setEditingId] = useState<number | null>(editIdFromHash);
+  const [warning, setWarning] = useState<string | null>(null);
+  const costKey = watches.map((w) => `${w.id}:${w.active}:${w.credits?.per_month ?? ""}`).join(",");
+
+  useEffect(() => {
+    let alive = true;
+    fetchUsage()
+      .then((r) => alive && setWarning(usageWarning(r)))
+      .catch(() => {}); // best-effort banner
+    return () => {
+      alive = false;
+    };
+  }, [costKey]);
 
   useEffect(() => {
     const onHash = () => setEditingId(editIdFromHash());
@@ -256,6 +275,11 @@ export default function WatchesTab({
           <Icon name="plus" size={15} /> New watch
         </button>
       </div>
+      {warning && (
+        <p className="usage-warning card small" role="status">
+          <Icon name="alert" size={14} /> {warning}
+        </p>
+      )}
       {loading ? (
         <div className="watch-grid">
           {Array.from({ length: 3 }, (_, i) => (

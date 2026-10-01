@@ -143,3 +143,18 @@
     justify-content: center;
   }
 }
+
+/* Live-search budget: projected watch spend over the monthly cap */
+.usage-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.ws-credits {
+  margin: 4px 0 0;
+}

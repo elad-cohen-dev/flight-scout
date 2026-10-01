@@ -58,7 +58,7 @@ def test_full_update(client):
     assert (body["depart_from"], body["depart_to"]) == ("2026-12-01", "2026-12-10")
     # persisted, not just echoed
     [stored] = storage.list_watches()
-    assert stored.model_dump() == main.Watch.model_validate(body).model_dump()
+    assert stored.model_dump(exclude={"credits"}) == main.Watch.model_validate(body).model_dump(exclude={"credits"})
 
 
 def test_partial_update_keeps_other_fields(client):

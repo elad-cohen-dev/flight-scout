@@ -222,7 +222,12 @@ def run_watches(only_id: int | None = None, on_event=None, notify: bool = True) 
     if digest and notify and checked:
         now = datetime.now(timezone.utc)
         hits = [r for r in checked if r.alerting]
-        title, plain, rich = alerts.format_digest(checked, now)
+        try:
+            _, warning = engine.watch_projection(watches, now.date())
+        except Exception:
+            logger.exception("watch credit projection failed")
+            warning = ""
+        title, plain, rich = alerts.format_digest(checked, now, warning)
         top = next((r.link[1] for r in hits if r.link), "")
         try:
             digest_channels = send_notification(title, plain, top, html=rich, quiet=not hits)

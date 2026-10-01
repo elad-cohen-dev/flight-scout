@@ -89,7 +89,7 @@ export function bagTotal(d: DealDetails | null | undefined): number | null {
  *  Aviasales prices never include bags; the web agent is told to add the fees. */
 export function priceIncludesBag(source: string | undefined, bag: Bag): boolean {
   if (source === "aviasales") return false;
-  if (source === "google_flights") return bag === "carry_on";
+  if (source === "google_flights" || source === "google_explore") return bag === "carry_on";
   return true;
 }
 

@@ -15,7 +15,7 @@ TripType = Literal["round_trip", "one_way"]
 CabinClass = Literal["economy", "premium_economy", "business", "first"]
 PriceConfidence = Literal["verified", "estimated", "from_price"]
 BookingLinkKind = Literal["airline", "google_flights", "skyscanner", "kayak", "momondo", "other"]
-FareSource = Literal["", "google_flights", "aviasales", "web"]
+FareSource = Literal["", "google_flights", "google_explore", "aviasales", "web"]
 
 
 class Passengers(BaseModel):
@@ -102,7 +102,9 @@ class FlightDeal(BaseModel):
     # Set by code (engine / providers), never by the LLM; '' on legacy rows.
     source: FareSource = Field(
         default="",
-        description="Where the fare came from: google_flights (SerpApi, live), aviasales (Travelpayouts cache), web (LLM agent). Set by code",
+        description="Where the fare came from: google_flights (SerpApi, live), google_explore (SerpApi Travel "
+                    "Explore: Google's cheapest-dates price, not a confirmed itinerary), aviasales (Travelpayouts "
+                    "cache), web (LLM agent). Set by code",
     )
     seen_at: str = Field(
         default="",
@@ -145,9 +147,10 @@ class SearchMeta(BaseModel):
     """How a search was answered: which sources ran, Google's price insights,
     and anything the user should know (budget used up, fell back to the web)."""
 
-    sources: list[str] = Field(default_factory=list, description="Sources used, in order: google_flights, aviasales, web")
+    sources: list[str] = Field(default_factory=list,
+                               description="Sources used, in order: google_flights, google_explore, aviasales, web")
     price_insights: PriceInsights | None = None
-    live_searches: int = Field(default=0, description="Paid SerpApi searches this run spent")
+    live_searches: int = Field(default=0, description="Paid SerpApi searches this run spent (Explore included)")
     messages: list[str] = Field(default_factory=list)
     decision: str = Field(default="", description="Watch pre-screen decision (watch runs only)")
 
@@ -163,6 +166,18 @@ class ProviderUsage(BaseModel):
 class UsageReport(BaseModel):
     month: str = Field(description="YYYY-MM (UTC)")
     providers: list[ProviderUsage]
+    watch_projection: int = Field(default=0, description="Live searches the active watches may spend in a month (sum of WatchCredits.per_month)")
+    warning: str = Field(default="", description="Set when watch_projection exceeds the monthly live-search budget")
+
+
+class WatchCredits(BaseModel):
+    """What one watch may spend on live searches (engine.watch_credits). An
+    upper bound: the pre-screen skips the Google Flights confirmation on most
+    days when the price is far from firing."""
+
+    per_check: int = Field(description="Most live searches one check spends")
+    per_month: int = Field(description="per_check x the daily sweep's ~30 runs")
+    text: str = Field(default="", description="e.g. 'Up to 3 live searches per check (~90/month)'")
 
 
 class FlightDealList(BaseModel):
@@ -227,7 +242,7 @@ class AlertSettings(BaseModel):
     big_drop_pct: float = Field(default=15, ge=5, le=80)
 
 
-StatsBasis = Literal["verified", "google", "cached", "legacy"]
+StatsBasis = Literal["verified", "google", "explore", "cached", "legacy"]
 
 
 class LegacyStats(BaseModel):
@@ -257,7 +272,8 @@ class WatchStats(BaseModel):
     basis: StatsBasis = Field(
         default="legacy",
         description="verified = own Google Flights runs; google = Google's price insights (+ own verified runs); "
-                    "cached = Aviasales cache runs; legacy = unverified LLM-era estimates only",
+                    "explore = Google Travel Explore prices only; cached = Aviasales cache runs; "
+                    "legacy = unverified LLM-era estimates only",
     )
     basis_runs: int = Field(default=0, description="Runs of the basis tier (verified ones for basis=google)")
     history_points: int = Field(default=0, description="Google price-history points of the last 30 days used")
@@ -307,6 +323,7 @@ class Watch(WatchCreate):
     # Computed on read by the API (alerts.enrich_watches); never stored.
     stats: WatchStats | None = None
     last_alert: AlertRecord | None = None
+    credits: WatchCredits | None = None
 
 
 # WatchUpdate fields where an explicit null means something ("any stops", "no

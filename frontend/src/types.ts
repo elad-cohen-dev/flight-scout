@@ -2,8 +2,9 @@
 export type TripType = "round_trip" | "one_way";
 export type CabinClass = "economy" | "premium_economy" | "business" | "first";
 export type PriceConfidence = "verified" | "estimated" | "from_price";
-/** Where a fare came from: live Google Flights (SerpApi), the Aviasales cache, or the LLM web agent. "" = legacy row. */
-export type FareSource = "" | "google_flights" | "aviasales" | "web";
+/** Where a fare came from: live Google Flights (SerpApi), Google Travel Explore (Google's
+ *  cheapest-dates price, not a confirmed itinerary), the Aviasales cache, or the LLM web agent. "" = legacy row. */
+export type FareSource = "" | "google_flights" | "google_explore" | "aviasales" | "web";
 
 export interface Passengers {
   adults: number;
@@ -112,7 +113,7 @@ export interface PriceInsights {
 }
 
 export interface SearchMeta {
-  sources: string[]; // google_flights, aviasales, web — in that order
+  sources: string[]; // google_flights, google_explore, aviasales, web — in that order
   price_insights: PriceInsights | null;
   live_searches: number; // paid SerpApi searches this run
   messages: string[]; // e.g. "This month's live Google Flights budget … is used up"
@@ -130,6 +131,15 @@ export interface ProviderUsage {
 export interface UsageReport {
   month: string; // YYYY-MM
   providers: ProviderUsage[];
+  watch_projection?: number; // live searches the active watches may spend in a month
+  warning?: string; // set when that projection exceeds the monthly budget
+}
+
+/** What one watch may spend on live searches (an upper bound; backend engine.watch_credits). */
+export interface WatchCredits {
+  per_check: number;
+  per_month: number;
+  text: string; // "Up to 3 live searches per check (~90/month)"
 }
 
 /** Per-watch alert rules (backend AlertSettings). */
@@ -155,8 +165,9 @@ export interface WatchStats {
   score: number | null; // 0-100 deal score of the last best price
   // Which trust tier the numbers rest on (absent from pre-2.1 servers):
   // verified = own Google Flights runs; google = Google's price history (+ own
-  // verified runs); cached = Aviasales cache runs; legacy = unverified estimates only.
-  basis?: "verified" | "google" | "cached" | "legacy";
+  // verified runs); explore = Google Travel Explore prices only; cached = Aviasales
+  // cache runs; legacy = unverified estimates only.
+  basis?: "verified" | "google" | "explore" | "cached" | "legacy";
   basis_runs?: number; // runs of that tier (verified ones for basis=google)
   history_points?: number; // Google price-history points of the last 30 days used
   typical_low?: number | null; // Google's typical range (basis=google)
@@ -190,6 +201,7 @@ export interface Watch extends SearchParams {
   alerts?: AlertSettings;
   stats?: WatchStats | null; // null before the first comparable run
   last_alert?: AlertRecord | null;
+  credits?: WatchCredits | null; // live-search cost estimate (absent from pre-2.2 servers)
 }
 
 export interface WatchCreate extends Partial<SearchParams> {

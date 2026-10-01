@@ -35,6 +35,12 @@ export function sourceBadge(deal: Pick<StoredDeal, "source" | "seen_at" | "found
         tip: "Exact fare from a Google Flights search; prices may have moved since.",
         tone: "cached",
       };
+    case "google_explore":
+      return {
+        label: age == null ? "Google Explore · estimate" : `Google Explore · ${compactAge(age)}`,
+        tip: "Cheapest price Google Travel Explore showed for these dates — not a confirmed itinerary. Check it on Google Flights.",
+        tone: "cached",
+      };
     case "aviasales":
       return {
         label: age == null ? "Aviasales · cached" : `Aviasales · cached ${compactAge(age)}`,
@@ -71,6 +77,11 @@ export interface UsageMeterInfo {
   used: number;
   budget: number;
   low: boolean; // 10% or less left
+}
+
+/** The Watches tab / digest warning when active watches may outspend the monthly budget, else null. */
+export function usageWarning(report: UsageReport | null | undefined): string | null {
+  return report?.warning ? report.warning : null;
 }
 
 /** The live-search meter, or null when live search isn't configured. */

@@ -86,6 +86,7 @@ describe("stats basis", () => {
     expect(basisNote({ ...base, basis: "verified", basis_runs: 12 })).toBe("Based on 12 verified checks");
     expect(basisNote({ ...base, basis: "google", basis_runs: 1 })).toBe("Based on Google's price history + 1 verified check");
     expect(basisNote({ ...base, basis: "google", basis_runs: 0 })).toBe("Based on Google's price history");
+    expect(basisNote({ ...base, basis: "explore", basis_runs: 2 })).toBe("Based on 2 Google Explore checks — dates' prices, not confirmed fares yet");
     expect(basisNote({ ...base, basis: "cached", basis_runs: 2 })).toBe("Based on 2 cached-fare checks — not confirmed live yet");
     expect(basisNote({ ...base, basis: "legacy" })).toBe("");
     expect(basisNote(base)).toBe(""); // pre-2.1 server

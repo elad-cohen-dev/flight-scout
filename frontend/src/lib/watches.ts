@@ -221,6 +221,8 @@ export function basisNote(s: WatchStats): string {
       return `Based on ${checks(n, "verified")}`;
     case "google":
       return n ? `Based on Google's price history + ${checks(n, "verified")}` : "Based on Google's price history";
+    case "explore":
+      return `Based on ${checks(n, "Google Explore")} — dates' prices, not confirmed fares yet`;
     case "cached":
       return `Based on ${checks(n, "cached-fare")} — not confirmed live yet`;
     default:

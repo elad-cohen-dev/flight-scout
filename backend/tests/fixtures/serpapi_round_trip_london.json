@@ -1,0 +1,229 @@
+{
+  "_comment": "SerpApi engine=google_flights, type=1, TLV->PRG 2026-11-17/2026-11-24, adults=2, currency=USD. Shape from serpapi.com/google-flights-api; values made up.",
+  "search_metadata": {
+    "id": "6710f1c2a5e3b8d2c4f0a111",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/1a2b3c4d5e6f7a8b/6710f1c2a5e3b8d2c4f0a111.json",
+    "created_at": "2026-10-01 08:12:40 UTC",
+    "processed_at": "2026-10-01 08:12:40 UTC",
+    "google_flights_url": "https://www.google.com/travel/flights?hl=en&gl=us&curr=USD&tfs=CBwQAhoeEgoyMDI2LTExLTA1agcIARIDVExWcgcIARIDUFJHGh4SCjIwMjYtMTEtMDlqBwgBEgNQUkdyBwgBEgNUTFZCAQJIAXABggELCP___________wGYAQE",
+    "raw_html_file": "https://serpapi.com/searches/1a2b3c4d5e6f7a8b/6710f1c2a5e3b8d2c4f0a111.html",
+    "total_time_taken": 3.41
+  },
+  "search_parameters": {
+    "engine": "google_flights",
+    "hl": "en",
+    "type": "1",
+    "departure_id": "TLV",
+    "arrival_id": "LTN",
+    "outbound_date": "2026-11-17",
+    "return_date": "2026-11-24",
+    "travel_class": "1",
+    "adults": "2",
+    "currency": "USD"
+  },
+  "best_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "Ben Gurion Airport",
+            "id": "TLV",
+            "time": "2026-11-17 06:10"
+          },
+          "arrival_airport": {
+            "name": "London Luton Airport",
+            "id": "LTN",
+            "time": "2026-11-17 09:25"
+          },
+          "duration": 255,
+          "airplane": "Boeing 737",
+          "airline": "Smartwings",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/QS.png",
+          "travel_class": "Economy",
+          "flight_number": "QS 1285",
+          "legroom": "29 in",
+          "extensions": [
+            "Below average legroom (29 in)",
+            "Carbon emissions estimate: 210 kg"
+          ]
+        }
+      ],
+      "total_duration": 255,
+      "carbon_emissions": {
+        "this_flight": 211000,
+        "typical_for_this_route": 230000,
+        "difference_percent": -8
+      },
+      "price": 486,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/QS.png",
+      "extensions": [
+        "Checked baggage for a fee",
+        "Bag and fare conditions depend on the return flight"
+      ],
+      "departure_token": "WyJDalJJWkZsR1RYbzROMjFaV0RkQlFrSjNOV2RDUnkwdExTMHRMUzB0ZEdOaWEyc3lNM0ZtU0VGQlFVRkJSMlpPWm1sclRVRk5WM0ZCRWdaUlV6RXlPRFVhQ3dqY3BBTVFBaG9EVlZORU9CeHczS1FEIixbWyJUTFYiLCIyMDI2LTExLTA1IiwiUFJHIixudWxsLCJRUyIsIjEyODUiXV1d"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "Ben Gurion Airport",
+            "id": "TLV",
+            "time": "2026-11-17 05:00"
+          },
+          "arrival_airport": {
+            "name": "Vienna International Airport",
+            "id": "VIE",
+            "time": "2026-11-17 08:05"
+          },
+          "duration": 245,
+          "airplane": "Airbus A320",
+          "airline": "Austrian",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/OS.png",
+          "travel_class": "Economy",
+          "flight_number": "OS 858",
+          "legroom": "30 in",
+          "extensions": [
+            "Average legroom (30 in)",
+            "Wi-Fi for a fee",
+            "Carbon emissions estimate: 190 kg"
+          ]
+        },
+        {
+          "departure_airport": {
+            "name": "Vienna International Airport",
+            "id": "VIE",
+            "time": "2026-11-17 09:30"
+          },
+          "arrival_airport": {
+            "name": "London Luton Airport",
+            "id": "LTN",
+            "time": "2026-11-17 10:25"
+          },
+          "duration": 55,
+          "airplane": "Embraer 195",
+          "airline": "Austrian",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/OS.png",
+          "travel_class": "Economy",
+          "flight_number": "OS 703",
+          "legroom": "30 in",
+          "extensions": [
+            "Average legroom (30 in)",
+            "Carbon emissions estimate: 44 kg"
+          ],
+          "often_delayed_by_over_30_min": true
+        }
+      ],
+      "layovers": [
+        {
+          "duration": 85,
+          "name": "Vienna International Airport",
+          "id": "VIE"
+        }
+      ],
+      "total_duration": 385,
+      "carbon_emissions": {
+        "this_flight": 235000,
+        "typical_for_this_route": 230000,
+        "difference_percent": 2
+      },
+      "price": 612,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/OS.png",
+      "departure_token": "WyJDalJJWkZsR1RYbzROMjFaV0RkQlFrSjNOV2RDUnkwdExTMHRMUzB0ZEdOaWEyc3lNM0ZtU0VGQlFVRkJSMlpPWm1sclRVRk5WM0ZCRWdWUFV6ZzFPQT0iXQ=="
+    }
+  ],
+  "other_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "Ben Gurion Airport",
+            "id": "TLV",
+            "time": "2026-11-17 16:40"
+          },
+          "arrival_airport": {
+            "name": "London Luton Airport",
+            "id": "LTN",
+            "time": "2026-11-17 20:05"
+          },
+          "duration": 265,
+          "airplane": "Boeing 737",
+          "airline": "El Al",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/LY.png",
+          "travel_class": "Economy",
+          "flight_number": "LY 2521",
+          "legroom": "30 in",
+          "extensions": [
+            "Average legroom (30 in)",
+            "Carbon emissions estimate: 215 kg"
+          ]
+        }
+      ],
+      "total_duration": 265,
+      "carbon_emissions": {
+        "this_flight": 216000,
+        "typical_for_this_route": 230000,
+        "difference_percent": -6
+      },
+      "price": 702,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/LY.png",
+      "departure_token": "WyJDalJJWkZsR1RYbzROMjFaV0RkQlFrSjNOV2RDUnkwdExTMHRMUzB0ZEdOaWEyc3lNM0ZtU0VGQlFVRkJSMlpPWm1sclRVRk5WM0ZCRWdaTVdUSTFNakU9Il0="
+    },
+    {
+      "flights": [],
+      "price": 999,
+      "type": "Round trip"
+    }
+  ],
+  "price_insights": {
+    "lowest_price": 486,
+    "price_level": "low",
+    "typical_price_range": [
+      540,
+      760
+    ],
+    "price_history": [
+      [
+        1788998400,
+        540
+      ],
+      [
+        1789603200,
+        520
+      ],
+      [
+        1790208000,
+        505
+      ]
+    ]
+  },
+  "airports": [
+    {
+      "departure": [
+        {
+          "airport": {
+            "name": "Ben Gurion Airport",
+            "id": "TLV"
+          },
+          "city": "Tel Aviv",
+          "country": "Israel",
+          "country_code": "IL"
+        }
+      ],
+      "arrival": [
+        {
+          "airport": {
+            "name": "London Luton Airport",
+            "id": "LTN"
+          },
+          "city": "Prague",
+          "country": "Czechia",
+          "country_code": "CZ"
+        }
+      ]
+    }
+  ]
+}

@@ -17,6 +17,14 @@ Trust tiers (by the row's `source`, set by code — never by the LLM):
   price_confidence is NOT used: with a checked bag Google's fares are marked
   "estimated" (the bag fee isn't in them), yet every such run is priced the
   same way, so they stay comparable with each other;
+- **explore**: Google Travel Explore prices (source google_explore) — Google's
+  own cheapest-dates price, but not a bookable itinerary: no flight times, no
+  booking token, no price history, and Explore's own cache may lag Google
+  Flights. So they do NOT count as verified; they rank above the Aviasales
+  cache because they come from Google for the exact party/stops/bags. In normal
+  runs Explore only picks the dates and a verified Google Flights fare is
+  stored for them; explore rows are the unconfirmed leftovers (budget out, or
+  the pre-screen skipped the confirmation);
 - **cached**: Aviasales cache fares (source aviasales) — real but possibly stale;
 - **legacy**: everything else — pre-2.0 rows (no source) and LLM web results,
   whose prices were often teasers without bags. An LLM's own "verified" label
@@ -29,8 +37,9 @@ The stats and the smart rules rest on ONE basis (select_baseline), first match:
    median of its price history), lows from its price history, plus whatever
    verified runs the watch has;
 3. ``verified`` — 1+ verified runs (thin: the run-count minimums still apply);
-4. ``cached``   — Aviasales runs only (no verified data at all);
-5. ``legacy``   — unverified runs only: the pre-2.0 behaviour, labelled as such.
+4. ``explore``  — Google Travel Explore runs (no verified data at all);
+5. ``cached``   — Aviasales runs only;
+6. ``legacy``   — unverified runs only: the pre-2.0 behaviour, labelled as such.
 Legacy runs never mix into a trusted basis. While that basis has fewer than
 LEGACY_SHOWN_BELOW runs (and no Google data) their numbers are reported apart
 (WatchStats.legacy) for the UI to show muted; after that only their count.
@@ -68,8 +77,8 @@ REALERT_DAYS = 7            # the same fare isn't re-alerted within this many da
 REALERT_DROP_PCT = 5        # ...unless it got at least this much cheaper
 TELEGRAM_LIMIT = 4096
 
-VERIFIED, CACHED, LEGACY = "verified", "cached", "legacy"
-_TIER_ORDER = {VERIFIED: 0, CACHED: 1, LEGACY: 2}
+VERIFIED, EXPLORE, CACHED, LEGACY = "verified", "explore", "cached", "legacy"
+_TIER_ORDER = {VERIFIED: 0, EXPLORE: 1, CACHED: 2, LEGACY: 3}
 
 
 # --- price stats --------------------------------------------------------------
@@ -85,6 +94,8 @@ def source_tier(source: str | None) -> str:
     """Trust tier of a fare by its provenance (see the module docstring)."""
     if source == "google_flights":
         return VERIFIED
+    if source == "google_explore":
+        return EXPLORE
     if source == "aviasales":
         return CACHED
     return LEGACY
@@ -246,14 +257,16 @@ class Baseline:
 
 def select_baseline(runs: list[RunBest], google: GoogleHistory | None = None) -> Baseline:
     """The single trust basis for a watch's numbers — see the module docstring."""
-    tiers = {t: [r for r in runs if r.tier == t] for t in (VERIFIED, CACHED, LEGACY)}
-    verified, cached, legacy = tiers[VERIFIED], tiers[CACHED], tiers[LEGACY]
+    tiers = {t: [r for r in runs if r.tier == t] for t in (VERIFIED, EXPLORE, CACHED, LEGACY)}
+    verified, explore, cached, legacy = tiers[VERIFIED], tiers[EXPLORE], tiers[CACHED], tiers[LEGACY]
     if len(verified) >= OWN_RUNS_MIN:
         return Baseline(VERIFIED, verified, legacy=legacy)
     if google is not None:
         return Baseline("google", verified, google, legacy=legacy)
     if verified:
         return Baseline(VERIFIED, verified, legacy=legacy)
+    if explore:
+        return Baseline(EXPLORE, explore, legacy=legacy)
     if cached:
         return Baseline(CACHED, cached, legacy=legacy)
     return Baseline(LEGACY, legacy)
@@ -558,9 +571,10 @@ def _day(now: datetime) -> str:
     return f"{now.strftime('%a')} {now.day} {_MONTHS[now.month - 1]}"
 
 
-def format_digest(results: list[WatchResult], now: datetime) -> tuple[str, str, str]:
+def format_digest(results: list[WatchResult], now: datetime, warning: str = "") -> tuple[str, str, str]:
     """The daily sweep's single message: (title, plain text, Telegram HTML).
-    Alerting watches come first, then the rest in watch order."""
+    Alerting watches come first, then the rest in watch order; `warning` (the
+    live-search budget projection, engine.watch_projection) closes it."""
     hits = [r for r in results if r.alerting]
     rest = [r for r in results if not r.alerting]
     n_watch = f"{len(results)} watch{'es' if len(results) != 1 else ''}"
@@ -574,6 +588,8 @@ def format_digest(results: list[WatchResult], now: datetime) -> tuple[str, str, 
         parts += ["\n".join(_block(r, rich)) for r in hits]
         if rest:
             parts.append("\n".join(line for r in rest for line in _block(r, rich)))
+        if warning:
+            parts.append("⚠️ " + (html.escape(warning) if rich else warning))
         return _clip("\n\n".join(parts))
 
     return title, build(False), build(True)

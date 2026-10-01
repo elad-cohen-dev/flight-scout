@@ -165,8 +165,9 @@ def get_history() -> list[RouteHistory]:
 
 def _with_stats(watches: list[Watch]) -> list[Watch]:
     """Attach price stats (30-day low, typical, score...) and the last sent alert."""
-    return alerts.enrich_watches(watches, storage.watch_sightings(), storage.list_alerts(),
-                                 insights=storage.watch_price_insights())
+    enriched = alerts.enrich_watches(watches, storage.watch_sightings(), storage.list_alerts(),
+                                     insights=storage.watch_price_insights())
+    return [w.model_copy(update={"credits": engine.watch_credits(w)}) for w in enriched]
 
 
 @app.post("/api/watches", response_model=Watch, status_code=201, dependencies=[Depends(require_auth)])
