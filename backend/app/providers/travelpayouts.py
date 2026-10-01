@@ -18,7 +18,8 @@ v3 reference on support.travelpayouts.com. We use v3 `prices_for_dates`:
   users' searches (hours to days old). We multiply by the paying travellers,
   add ~10% per lap infant, and always mark them 'estimated' ('from_price' when
   the sighting is over a week old).
-- `link` is an Aviasales search path; the booking URL is
+- `link` is an Aviasales search path ending in the party ('/search/MAD2807BCN26081'
+  = 1 adult); we rewrite that to the searched party. The booking URL is
   https://www.aviasales.com + link + marker=<TRAVELPAYOUTS_MARKER> (affiliate).
 - Free; we still count calls (provider_usage) and cache responses for 6h.
 """
@@ -102,9 +103,24 @@ def _split(value: str) -> tuple[str, str]:
     return (m.group(1), m.group(2) or "") if m else ("", "")
 
 
-def booking_url(link: str) -> str:
+# '/search/MAD2807BCN26081?t=...': origin, DDMM, destination, [DDMM,] then the
+# party — adults, plus children and infants digits when any ('201').
+_SEARCH_PATH = re.compile(r"^(/search/[A-Z]{3}\d{4}[A-Z]{3}(?:\d{4})?)(\d{1,3})(?=\?|$)")
+
+
+def _with_party(link: str, params: SearchParams | None) -> str:
+    """Rewrite the party in an Aviasales search path (cached rows are for 1 adult)."""
+    if params is None:
+        return link
+    pax = params.passengers
+    party = f"{pax.adults}" + (f"{pax.children}{pax.infants}" if pax.children or pax.infants else "")
+    return _SEARCH_PATH.sub(lambda m: m.group(1) + party, link, count=1)
+
+
+def booking_url(link: str, params: SearchParams | None = None) -> str:
     if not link:
         return ""
+    link = _with_party(link, params)
     url = link if link.startswith("http") else SITE + ("" if link.startswith("/") else "/") + link
     if marker() and "marker=" not in url:
         url += ("&" if "?" in url else "?") + f"marker={marker()}"
@@ -152,7 +168,7 @@ def map_row(row: dict, currency: str, params: SearchParams, now: datetime | None
         notes.append("bags NOT included — add the airline's bag fees")
     notes.append("price from other travellers' recent searches; confirm on the booking site")
 
-    url = booking_url(str(row.get("link") or ""))
+    url = booking_url(str(row.get("link") or ""), params)
     return FlightDeal(
         origin=str(row.get("origin_airport") or row.get("origin") or ""),
         destination=str(row.get("destination_airport") or row.get("destination") or ""),

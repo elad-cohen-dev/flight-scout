@@ -201,7 +201,7 @@ def test_travelpayouts_maps_per_adult_prices_to_party_totals(keys):
         ("2026-11-05", "06:10", "2026-11-09", "10:25")
     assert (qs.duration, qs.stops) == ("4h 15m", 0)
     assert qs.price_confidence == "estimated" and qs.source == "aviasales"
-    assert qs.booking_url.startswith("https://www.aviasales.com/search/TLV0511PRG09112?t=")
+    assert qs.booking_url.startswith("https://www.aviasales.com/search/TLV0511PRG0911211?t=")  # 2 adults, 1 child, 1 infant
     assert qs.booking_url.endswith("&marker=12345") and qs.source_url == qs.booking_url
     assert "198 USD per adult x 4 travellers" in qs.notes and "lap infants" in qs.notes
     assert deals[2].flight_numbers == "LY 2521"  # integer flight_number
@@ -241,3 +241,12 @@ def test_travelpayouts_failure_raises(temp_db, keys, http):
     responses.append({"success": False, "error": "Unauthorized", "data": None})
     with pytest.raises(ProviderError, match="Unauthorized"):
         travelpayouts.search(FareQuery("TLV", "PRG", "2026-11", "", SearchParams()))
+
+
+def test_travelpayouts_link_party_rewrite():
+    one_way = SearchParams(passengers=Passengers(adults=3))
+    assert travelpayouts.booking_url("/search/MAD2807BCN1?t=x", one_way) == "https://www.aviasales.com/search/MAD2807BCN3?t=x"
+    infant = SearchParams(passengers=Passengers(adults=2, infants=1))
+    assert travelpayouts.booking_url("/search/MAD2807BCN26081?t=x", infant).startswith(
+        "https://www.aviasales.com/search/MAD2807BCN2608201?t=x")
+    assert travelpayouts.booking_url("/odd/path?t=x", infant) == "https://www.aviasales.com/odd/path?t=x"
