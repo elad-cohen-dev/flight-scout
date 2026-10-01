@@ -120,12 +120,37 @@ def summarize(rows: list[dict], changes: list[tuple[dict, dict]]) -> str:
     return "\n".join(lines)
 
 
-def apply(conn, changes: list[tuple[dict, dict]]) -> None:
-    for row, diff in changes:
-        cols = list(diff)
-        conn.execute(f"UPDATE deals SET {', '.join(f'{c} = ?' for c in cols)} WHERE id = ?",
-                     (*[diff[c] for c in cols], row["id"]))
-    conn.commit()
+BATCH = 20  # rows per transaction
+
+
+def apply(conn, changes: list[tuple[dict, dict]], reconnect=None):
+    """Write in small committed batches. Turso (Hrana) rolls back an interactive
+    transaction left open too long — and 300+ sequential round trips in one
+    transaction is exactly that — so each batch commits on its own and a batch
+    that fails is retried once on a fresh connection. Safe because the repair
+    is idempotent: a partly applied run is simply finished by the next one.
+    Returns the connection in use (it may have been replaced)."""
+    for start in range(0, len(changes), BATCH):
+        batch = changes[start:start + BATCH]
+        for attempt in (1, 2):
+            try:
+                for row, diff in batch:
+                    cols = list(diff)
+                    conn.execute(f"UPDATE deals SET {', '.join(f'{c} = ?' for c in cols)} WHERE id = ?",
+                                 (*[diff[c] for c in cols], row["id"]))
+                conn.commit()
+                break
+            except Exception as exc:
+                if attempt == 2 or reconnect is None:
+                    raise
+                print(f"  batch at row {start} failed ({str(exc)[:80]}…), retrying on a fresh connection")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                conn = reconnect()
+        print(f"  committed {min(start + BATCH, len(changes))}/{len(changes)}")
+    return conn
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -145,11 +170,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.apply:
             storage._init_schema(conn)  # adds quality_flags if this DB predates it
+            conn.commit()  # close the schema transaction before the long read/plan step
         rows = storage._rows_as_dicts(conn.execute("SELECT * FROM deals ORDER BY id"))
         changes = plan(rows)
         print(summarize(rows, changes))
         if args.apply and changes:
-            apply(conn, changes)
+            conn = apply(conn, changes, reconnect=storage._new_conn)
             print(f"Applied: {len(changes)} rows updated.")
     finally:
         conn.close()
