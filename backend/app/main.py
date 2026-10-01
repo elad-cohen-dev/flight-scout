@@ -32,7 +32,7 @@ from .models import (
     search_label,
 )
 
-app = FastAPI(title="Flight Scout", version="1.0.0")
+app = FastAPI(title="Flight Scout", version="2.0.0")
 
 
 def require_auth(
