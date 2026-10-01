@@ -137,7 +137,7 @@ function FlightScout() {
       else {
         const found = job.deals ?? [];
         setDeals((prev) => [...found, ...prev]);
-        setLastResult({ query: job.query, deals: found, finishedAt: new Date().toISOString() });
+        setLastResult({ query: job.query, deals: found, finishedAt: new Date().toISOString(), meta: job.meta });
         fetchHistory().then(setHistory).catch(() => {});
         toast("success", found.length ? `Found ${found.length} deal${found.length > 1 ? "s" : ""}.` : "Search finished — no deals this time.");
       }

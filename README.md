@@ -59,6 +59,7 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 | `GET`            | `/api/alerts`                        | Sent alerts, newest first (`watch_id`, `limit` filters) — the anti-spam log                                                        |
 | `POST`           | `/api/telegram/webhook/{secret}`     | Telegram bot webhook (secret path + `X-Telegram-Bot-Api-Secret-Token`; only `TELEGRAM_CHAT_ID` chats are answered)                 |
 | `POST`           | `/api/telegram/setup`                | Register this deployment as the bot's webhook + command menu (`{base_url}` optional; defaults to `PUBLIC_URL` / the request host)  |
+| `GET`            | `/api/usage`                         | Fare-API calls this month per provider: `{month, providers: [{provider, configured, used, budget, left}]}` (feeds the live-search meter) |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
 
 ### Search params
@@ -82,7 +83,9 @@ Searches and watches accept the same criteria. All are optional; the defaults re
 
 Watches additionally take `alerts` (see [Smart alerts](#smart-alerts); PATCH may send just the rule fields that change), and every watch returned by the API carries read-only `stats` (`runs`, `last_best`, `low_30d`, `typical`, `all_time_low`, `score`, in the watch currency; `null` before its first run) and `last_alert`.
 
-Each returned deal carries IATA airports, local times, flight numbers, airline code, `price_confidence` (`verified` = exact dated fare seen, `estimated`, `from_price` = "from X" teaser), `booking_links` pre-filled with the search, and the `search_params` of the run that found it.
+A finished search job also carries `meta`: `sources` used (`google_flights`, `aviasales`, `web`), Google's `price_insights` for the route (`typical_low`/`typical_high`, `price_level`), `live_searches` spent and any `messages` (e.g. the monthly live budget is used up).
+
+Each returned deal carries IATA airports, local times, flight numbers, airline code, `price_confidence` (`verified` = exact dated fare seen, `estimated`, `from_price` = "from X" teaser), `source` + `seen_at` (where and when the price was seen), `booking_links` pre-filled with the search, and the `search_params` of the run that found it.
 
 
 
@@ -145,6 +148,11 @@ Requests to the webhook need both the secret path and Telegram's `X-Telegram-Bot
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | —                                | Telegram bot alerts; chat ID accepts a comma-separated list of recipients (also the bot's allow-list) |
 | `TELEGRAM_WEBHOOK_SECRET`                 | — (bot off)                      | Enables the two-way bot: webhook path segment + `secret_token`, 16+ chars `A-Za-z0-9_-` |
 | `PUBLIC_URL`                              | request host                     | Public https base URL `POST /api/telegram/setup` registers                     |
+| `SERPAPI_API_KEY`                         | — (live fares off)               | [SerpApi](https://serpapi.com) Google Flights: live, exact dated fares (free plan 250 searches/month) |
+| `SERPAPI_MONTHLY_BUDGET`                  | `230`                            | Live searches allowed per calendar month (UTC) before falling back to cached fares / the web |
+| `SERPAPI_RETURN_LEGS`                     | `0`                              | Also fetch return-flight times for the N cheapest round trips (1 extra search each) |
+| `TRAVELPAYOUTS_TOKEN`                     | — (cached fares off)             | [Travelpayouts](https://www.travelpayouts.com) Aviasales Data API: free cached fares, calendars, explore |
+| `TRAVELPAYOUTS_MARKER`                    | —                                | Partner marker appended to Aviasales booking links                             |
 
 
 
@@ -168,6 +176,7 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 
 - **Live web search** for deals on any route — or an explore-style search to a country, region or "anywhere" — with the agent's searches and findings **streamed live** into the UI while it works
 - **Search-engine criteria**: one-way or round trip, party size (adults/children/infants, prices are party totals), cabin class, max stops, a departure window and trip length, a price ceiling, preferred currency, and nearby airports. The agent prefers exact dated fares from Google Flights/Skyscanner/Kayak/airline sites (opening pages to confirm them), and every result is re-checked in code against the criteria (stops, budget, dates, trip length, no past departures), de-duplicated and sorted by price
+- **Real fare data** (optional keys): live, exact Google Flights fares via SerpApi for exact routes and dates; the free Aviasales cache picks the cheapest dates for flexible searches (then the top ones are confirmed live) and seeds region/"anywhere" searches; every card says where its price came from ("Google Flights · live", "Aviasales · cached 2d", "Web search"), results show Google's typical price range for the route, and the Search tab shows live searches used this month. Without keys the LLM agent works exactly as before
 - **Price confidence** on every deal: verified dated fare vs. estimate vs. "from" teaser
 - **One-click, pre-filled booking** — airline deep links (Ryanair, Wizz Air, easyJet) and Google Flights / Skyscanner / Kayak / Momondo links with the route, exact dates, passengers, cabin and (where supported) stops and bags already set; the card shows what's pre-filled and what's left to set at checkout
 - **Baggage-inclusive pricing** — optionally require a 🎒 cabin trolley and/or 🧳 20kg+ checked bag; the agent adds the airline's bag fees to advertised fares (or flags when it can't verify them), so comparisons reflect what the trip actually costs

@@ -1,0 +1,35 @@
+{
+  "_comment": "Aviasales Data API v3 prices_for_dates, origin=TLV destination=PRG departure_at=2026-11 one_way=false currency=usd sorting=price. Prices are per 1 adult.",
+  "success": true,
+  "currency": "usd",
+  "data": [
+    {
+      "origin": "TLV", "destination": "PRG", "origin_airport": "TLV", "destination_airport": "PRG",
+      "price": 198, "airline": "QS", "flight_number": "1285",
+      "departure_at": "2026-11-05T06:10:00+02:00", "return_at": "2026-11-09T10:25:00+01:00",
+      "transfers": 0, "return_transfers": 0, "duration": 490, "duration_to": 255, "duration_back": 235,
+      "link": "/search/TLV0511PRG09112?t=QS17623092001762324500000255TLVPRG17626798001762693900000235PRGTLV_5c0a1f2e3d4b_198&search_date=30092026&expected_price_uuid=4d1e7b0c-0000-4000-8000-000000000001&expected_price_currency=usd"
+    },
+    {
+      "origin": "TLV", "destination": "PRG", "origin_airport": "TLV", "destination_airport": "PRG",
+      "price": 214, "airline": "QS", "flight_number": "1285",
+      "departure_at": "2026-11-12T06:10:00+02:00", "return_at": "2026-11-16T10:25:00+01:00",
+      "transfers": 0, "return_transfers": 0, "duration": 490, "duration_to": 255, "duration_back": 235,
+      "link": "/search/TLV1211PRG16112?t=QS17629140001762929300000255TLVPRG17632844001763298500000235PRGTLV_7a1b_214"
+    },
+    {
+      "origin": "TLV", "destination": "PRG", "origin_airport": "TLV", "destination_airport": "PRG",
+      "price": 231, "airline": "LY", "flight_number": 2521,
+      "departure_at": "2026-11-19T16:40:00+02:00", "return_at": "2026-11-23T21:00:00+01:00",
+      "transfers": 0, "return_transfers": 0, "duration": 515, "duration_to": 265, "duration_back": 250,
+      "link": "/search/TLV1911PRG23112?t=LY_9f_231"
+    },
+    {
+      "origin": "TLV", "destination": "PRG", "origin_airport": "TLV", "destination_airport": "PRG",
+      "price": 176, "airline": "OS", "flight_number": "858",
+      "departure_at": "2026-11-26T05:00:00+02:00", "return_at": "2026-11-29T17:10:00+01:00",
+      "transfers": 1, "return_transfers": 1, "duration": 790, "duration_to": 385, "duration_back": 405,
+      "link": "/search/TLV2611PRG29112?t=OS_3c_176"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import type { Job, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate } from "./types";
+import type { Job, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate } from "./types";
 
 const PASSWORD_KEY = "fs_app_password";
 
@@ -157,4 +157,9 @@ export async function updateWatch(id: number, patch: WatchUpdate): Promise<Watch
 
 export async function deleteWatch(id: number): Promise<void> {
   return handle(await fetch(`/api/watches/${id}`, { method: "DELETE", headers: authHeaders() }));
+}
+
+/** Fare-API calls this month (live Google Flights budget) — for the usage meter. */
+export async function fetchUsage(): Promise<UsageReport> {
+  return handle(await fetch("/api/usage", { headers: authHeaders() }));
 }

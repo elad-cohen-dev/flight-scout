@@ -24,7 +24,7 @@ import re
 import sqlite3
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -73,7 +73,9 @@ _SCHEMA = [
         price_per_person REAL,
         price_confidence TEXT NOT NULL DEFAULT 'estimated',
         search_params TEXT,
-        quality_flags TEXT NOT NULL DEFAULT ''
+        quality_flags TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        seen_at TEXT NOT NULL DEFAULT ''
     )""",
     "CREATE INDEX IF NOT EXISTS idx_deals_route ON deals (origin, destination)",
     """CREATE TABLE IF NOT EXISTS watches (
@@ -104,6 +106,31 @@ _SCHEMA = [
         sent_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_alert_log_watch ON alert_log (watch_id, sent_at)",
+    # Fare providers (app/providers): paid-call counter per calendar month,
+    # raw-response cache, and the watch pre-screen decisions.
+    """CREATE TABLE IF NOT EXISTS provider_usage (
+        provider TEXT NOT NULL,
+        month TEXT NOT NULL,
+        calls INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (provider, month)
+    )""",
+    """CREATE TABLE IF NOT EXISTS provider_cache (
+        cache_key TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS watch_prescreen (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        watch_id INTEGER NOT NULL,
+        decided_at TEXT NOT NULL,
+        live INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        cached_best REAL,
+        currency TEXT NOT NULL DEFAULT ''
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_watch_prescreen ON watch_prescreen (watch_id, decided_at)",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -127,6 +154,9 @@ _MIGRATIONS = [
     "ALTER TABLE deals ADD COLUMN quality_flags TEXT NOT NULL DEFAULT ''",
     # v2.0: per-watch alert rules (JSON-encoded AlertSettings; NULL = defaults).
     "ALTER TABLE watches ADD COLUMN alert_settings TEXT",
+    # v2.0: fare provenance (app/providers): google_flights / aviasales / web.
+    "ALTER TABLE deals ADD COLUMN source TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN seen_at TEXT NOT NULL DEFAULT ''",
 ]
 
 # Deal columns written by save_deals, beyond search_query/found_at/search_params.
@@ -135,7 +165,7 @@ _DEAL_COLUMNS = [
     "return_date", "duration", "stops", "booking_url", "source_url", "notes",
     "origin_airport", "destination_airport", "depart_time", "arrive_time",
     "return_depart_time", "flight_numbers", "airline_code", "price_per_person",
-    "price_confidence",
+    "price_confidence", "source", "seen_at",
 ]
 
 
@@ -802,3 +832,114 @@ def list_alerts(watch_id: int | None = None, since: datetime | None = None) -> l
     alerts = [AlertRecord(**row) for row in rows]
     _cache_store(cache_key, alerts, generation)
     return alerts
+
+
+# --- fare providers: usage counter, response cache, watch pre-screen log -------
+#
+# Not part of the read cache above: these tables are read on every provider call
+# and written after it, so memoizing them would only serve stale budgets, and
+# their writes don't touch deals/watches, so they don't invalidate it either.
+
+def _month(now: datetime | None = None) -> str:
+    return (now or datetime.now(timezone.utc)).strftime("%Y-%m")
+
+
+def provider_calls(provider: str, now: datetime | None = None) -> int:
+    """Paid calls `provider` made this calendar month (UTC)."""
+    rows = _with_conn(lambda conn: conn.execute(
+        "SELECT calls FROM provider_usage WHERE provider = ? AND month = ?",
+        (provider, _month(now)),
+    ).fetchall())
+    return int(rows[0][0]) if rows else 0
+
+
+def record_provider_call(provider: str, now: datetime | None = None) -> int:
+    """Count one paid call; returns this month's new total."""
+    month = _month(now)
+
+    def op(conn) -> int:
+        conn.execute(
+            "INSERT INTO provider_usage (provider, month, calls) VALUES (?, ?, 1) "
+            "ON CONFLICT (provider, month) DO UPDATE SET calls = calls + 1",
+            (provider, month),
+        )
+        conn.commit()
+        rows = conn.execute("SELECT calls FROM provider_usage WHERE provider = ? AND month = ?",
+                            (provider, month)).fetchall()
+        return int(rows[0][0])
+
+    return _with_conn(op)
+
+
+def cache_get(cache_key: str, now: datetime | None = None) -> dict | None:
+    """A provider's cached raw response, or None when missing or expired."""
+    now = now or datetime.now(timezone.utc)
+    rows = _with_conn(lambda conn: conn.execute(
+        "SELECT payload FROM provider_cache WHERE cache_key = ? AND expires_at > ?",
+        (cache_key, now.isoformat()),
+    ).fetchall())
+    if not rows:
+        return None
+    try:
+        return json.loads(rows[0][0])
+    except Exception:
+        return None
+
+
+def cache_put(cache_key: str, provider: str, payload: dict, ttl_seconds: float,
+              now: datetime | None = None) -> None:
+    """Store a raw response for `ttl_seconds`; also prunes expired entries."""
+    now = now or datetime.now(timezone.utc)
+    expires = now + timedelta(seconds=ttl_seconds)
+
+    def op(conn) -> None:
+        conn.execute("DELETE FROM provider_cache WHERE expires_at <= ?", (now.isoformat(),))
+        conn.execute(
+            "INSERT OR REPLACE INTO provider_cache (cache_key, provider, payload, created_at, expires_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (cache_key, provider, json.dumps(payload), now.isoformat(), expires.isoformat()),
+        )
+        conn.commit()
+
+    _with_conn(op)
+
+
+def log_prescreen(watch_id: int, live: bool, reason: str, cached_best: float | None,
+                  currency: str, now: datetime | None = None) -> None:
+    """Record a watch pre-screen decision (spend a live search or not, and why)."""
+    now = now or datetime.now(timezone.utc)
+
+    def op(conn) -> None:
+        conn.execute(
+            "INSERT INTO watch_prescreen (watch_id, decided_at, live, reason, cached_best, currency) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (watch_id, now.isoformat(), int(live), reason, cached_best, currency),
+        )
+        conn.commit()
+
+    _with_conn(op)
+
+
+def last_live_check(watch_id: int) -> datetime | None:
+    """When the pre-screen last spent a live search on this watch."""
+    rows = _with_conn(lambda conn: conn.execute(
+        "SELECT MAX(decided_at) FROM watch_prescreen WHERE watch_id = ? AND live = 1", (watch_id,),
+    ).fetchall())
+    if not rows or not rows[0][0]:
+        return None
+    return datetime.fromisoformat(rows[0][0])
+
+
+def list_prescreens(watch_id: int | None = None, limit: int = 50) -> list[dict]:
+    """Pre-screen decisions, newest first."""
+    query = "SELECT watch_id, decided_at, live, reason, cached_best, currency FROM watch_prescreen"
+    params: list = []
+    if watch_id is not None:
+        query += " WHERE watch_id = ?"
+        params.append(watch_id)
+    query += " ORDER BY decided_at DESC, id DESC LIMIT ?"
+    params.append(limit)
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(query, params)))
+    for row in rows:
+        row["live"] = bool(row["live"])
+    return rows

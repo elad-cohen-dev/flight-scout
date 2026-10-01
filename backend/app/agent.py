@@ -195,6 +195,16 @@ Research notes:
 {notes}"""
 
 
+# Explore searches (regions, "anywhere") get the cheapest cached fares from the
+# Aviasales cache as a starting point; they are leads, not results.
+LEADS_CLAUSE = """
+
+LEADS (cached fares other travellers saw recently, per adult, no bags — unverified):
+{leads}
+Use them to decide which destinations and dates to check first, then confirm current
+dated fares as usual. Never report a lead's price as verified unless you saw it yourself."""
+
+
 DIRECT_ONLY_CLAUSE = (
     "direct (non-stop) flights ONLY — skip every itinerary with a connection or "
     "stopover, even if it is cheaper"
@@ -481,6 +491,7 @@ class AgentState(TypedDict):
     params: dict  # SearchParams.model_dump(mode="json")
     research_notes: str
     deals: list[FlightDeal]
+    leads: str  # optional fare-cache sightings to verify (engine's explore seed)
 
 
 def _params_of(state: AgentState) -> SearchParams:
@@ -585,6 +596,8 @@ def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
               if len(uses) == 2 else f"about {SEARCH_USES} searches")
     prompt = build_research_prompt(state["origin"], state["destination"], state["dates_hint"],
                                    params, date.today(), budget)
+    if state.get("leads"):
+        prompt += LEADS_CLAUSE.format(leads=state["leads"])
     messages: list = [HumanMessage(prompt)]
     notes: list[str] = []
     streaming = on_event is not None
@@ -630,7 +643,9 @@ def extract(state: AgentState) -> dict:
         notes=state["research_notes"],
     )
     result: FlightDealList = extractor.invoke(prompt)
-    return {"deals": postprocess(result.deals, params)}
+    # Provenance is set in code: whatever the model put there, these came from the web.
+    deals = [d.model_copy(update={"source": "web", "seen_at": ""}) for d in result.deals]
+    return {"deals": postprocess(deals, params)}
 
 
 def build_graph(on_event: OnEvent | None = None):
@@ -664,11 +679,13 @@ def find_deals(
     checked_bag: bool = False,
     params: SearchParams | None = None,
     on_event: OnEvent | None = None,
+    leads: str = "",
 ) -> list[FlightDeal]:
     """Run the agent end to end and return the structured, filtered deals.
 
     `params` carries the full criteria; without it the legacy flags
-    (direct_only, currency, bags) build an equivalent SearchParams."""
+    (direct_only, currency, bags) build an equivalent SearchParams. `leads`
+    (from app/engine.py) lists cached fares the research pass should verify."""
     if params is None:
         params = SearchParams(
             max_stops=0 if direct_only else None,
@@ -685,6 +702,7 @@ def find_deals(
             "params": params.model_dump(mode="json"),
             "research_notes": "",
             "deals": [],
+            "leads": leads,
         }
     )
     if on_event:

@@ -2,6 +2,8 @@
 export type TripType = "round_trip" | "one_way";
 export type CabinClass = "economy" | "premium_economy" | "business" | "first";
 export type PriceConfidence = "verified" | "estimated" | "from_price";
+/** Where a fare came from: live Google Flights (SerpApi), the Aviasales cache, or the LLM web agent. "" = legacy row. */
+export type FareSource = "" | "google_flights" | "aviasales" | "web";
 
 export interface Passengers {
   adults: number;
@@ -68,6 +70,8 @@ export interface StoredDeal {
   // Data-quality issues from backend normalize.py, e.g. "currency_inferred", "price_too_low",
   // "destination_mismatch" (full list: normalize.FLAGS). Empty = clean or not yet checked.
   quality_flags?: string[];
+  source?: FareSource; // set by the backend engine/providers
+  seen_at?: string; // ISO time the source saw this price ("" = unknown)
 }
 
 export interface SearchRequest extends Partial<SearchParams> {
@@ -86,7 +90,41 @@ export interface Job {
   query: string;
   deals: StoredDeal[] | null;
   summary: Record<string, unknown> | null;
+  meta?: SearchMeta | null; // kind=search: sources, Google price insights, notices
   error: string | null;
+}
+
+/** Google Flights' price level for the searched route (SerpApi price_insights), party total in `currency`. */
+export interface PriceInsights {
+  route: string; // "TLV>PRG"
+  currency: string;
+  lowest_price: number | null;
+  price_level: string; // "low" | "typical" | "high"
+  typical_low: number | null;
+  typical_high: number | null;
+  depart_date: string;
+  return_date: string;
+}
+
+export interface SearchMeta {
+  sources: string[]; // google_flights, aviasales, web — in that order
+  price_insights: PriceInsights | null;
+  live_searches: number; // paid SerpApi searches this run
+  messages: string[]; // e.g. "This month's live Google Flights budget … is used up"
+  decision: string; // watch runs: the pre-screen decision
+}
+
+export interface ProviderUsage {
+  provider: string; // "serpapi" | "travelpayouts"
+  configured: boolean;
+  used: number; // calls this calendar month (UTC), cache hits excluded
+  budget: number | null; // null = uncapped
+  left: number | null;
+}
+
+export interface UsageReport {
+  month: string; // YYYY-MM
+  providers: ProviderUsage[];
 }
 
 /** Per-watch alert rules (backend AlertSettings). */

@@ -1,0 +1,5 @@
+{
+  "search_metadata": {"id": "6710f1c2a5e3b8d2c4f0a444", "status": "Success", "created_at": "2026-10-01 08:30:00 UTC", "google_flights_url": "https://www.google.com/travel/flights?hl=en"},
+  "search_parameters": {"engine": "google_flights", "departure_id": "TLV", "arrival_id": "PRG", "outbound_date": "2026-11-05", "type": "2"},
+  "error": "Google Flights hasn't returned any results for this query."
+}

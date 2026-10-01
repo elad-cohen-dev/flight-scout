@@ -59,6 +59,28 @@ A single call can't reliably do both jobs: web search needs a free-form response
 
 `_provider()` picks the provider at call time: `FLIGHT_SCOUT_PROVIDER` env override → `ANTHROPIC_API_KEY` present → `OPENAI_API_KEY` present. Default models: `claude-opus-5` / `gpt-5.4-mini`, overridable with `FLIGHT_SCOUT_MODEL`.
 
+## Real fare data (`backend/app/engine.py`, `backend/app/providers/`)
+
+The LLM agent is no longer the only source. `engine.search()` sits in front of it and routes each request to the cheapest source that can answer it:
+
+| Request | Source(s) |
+|---|---|
+| No fare-API keys | LLM agent, unchanged |
+| One origin + one destination (airport or metro), exact dates | **SerpApi Google Flights** (live, exact); on budget exhaustion / error → Aviasales cache for those dates |
+| Exact route, flexible dates ("November", a window, "anytime") | **Aviasales calendar** (one free call per month of the window) → cheapest 3 date pairs → top 2 confirmed live on Google Flights; other cached dates shown as cached |
+| Region, country, "anywhere", comma list, nearby airports | LLM agent, seeded with the cheapest **Aviasales explore** sightings as leads; sightings that provably match (country / list / anywhere) are shown too |
+| Nothing found by the APIs | LLM agent as last resort (if an LLM key is set) |
+
+Every provider deal goes through the same `agent.postprocess` (normalize + criteria filters + dedupe) as the agent's. Deals carry `source` (`google_flights` / `aviasales` / `web`) and `seen_at`; the job carries `meta` (sources, Google `price_insights`, live searches spent, notices).
+
+**Mapping caveats.** SerpApi prices are the total for the passengers sent (adults/children/lap infants) in the requested currency; on round trips the outbound list already shows the round-trip total, and return-leg times need one more search with the itinerary's `departure_token` (off by default, `SERPAPI_RETURN_LEGS`). `bags=N` adds carry-on fees; checked bags have no filter, so those fares are marked `estimated` with a note. Aviasales prices are per adult, economy, no bags, from other users' searches: multiplied by paying travellers (+~10% per lap infant), always `estimated` (`from_price` if seen over a week ago), booking link = `aviasales.com` + `link` + `marker`.
+
+**Budget & cache.** `provider_usage` counts uncached calls per provider per calendar month (UTC); SerpApi stops at `SERPAPI_MONTHLY_BUDGET` (default 230 of the free 250) and searches fall back to cached fares / the web with a notice. `provider_cache` stores raw (trimmed) responses keyed by a hash of the normalized request without credentials — SerpApi 1h (its own cache is free for identical queries within the hour anyway), Travelpayouts 6h. `GET /api/usage` reports both counters; the Search tab shows "Live searches this month: 12 / 230".
+
+**Watches.** `engine.find_for_watch` pre-screens each watch with the free Aviasales cache and spends one live search only when the cached best is within 15% of the threshold, a smart rule would fire at a 15% lower price, there is no cached fare, or the watch hasn't had a live check for 7 days. Each decision is logged (`watch_prescreen` table, app log, the run's progress events and the summary row's `prescreen`).
+
+All HTTP goes through `providers.base.http_get_json`, which never puts the request URL (it can hold the key) into an error. `backend/scripts/probe_fares.py` runs a handful of real queries side by side once keys exist.
+
 ## Request flow — what happens on "Find deals"
 
 A live web search takes 1–2 minutes, far beyond sane HTTP timeouts (and Render's proxy limits), so searches run as **background jobs**:
@@ -81,7 +103,7 @@ Two interchangeable backends behind one module — both speak the sqlite3 DB-API
 | Selected by | `TURSO_DATABASE_URL` unset | `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` set |
 | Why | zero setup | Render free tier has an **ephemeral disk** — a local file would vanish on every deploy/restart |
 
-Three tables: `deals` (every deal from every run, append-only), `watches` (alert rules in an `alert_settings` JSON column) and `alert_log` (every alert sent: watch, fare fingerprint, price, rules, score, time). Schema is created on first connect; lightweight migrations are `ALTER TABLE` statements that fail harmlessly once applied.
+Three core tables: `deals` (every deal from every run, append-only), `watches` (alert rules in an `alert_settings` JSON column) and `alert_log` (every alert sent: watch, fare fingerprint, price, rules, score, time); plus the fare-provider tables `provider_usage`, `provider_cache` and `watch_prescreen`. Schema is created on first connect; lightweight migrations are `ALTER TABLE` statements that fail harmlessly once applied.
 
 Performance shape (matters because every Turso statement is a network round trip):
 

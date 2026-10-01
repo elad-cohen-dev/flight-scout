@@ -17,6 +17,14 @@ services:
         sync: false
       - key: APP_PASSWORD
         sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: TRAVELPAYOUTS_TOKEN
+        sync: false
+      - key: TRAVELPAYOUTS_MARKER
+        sync: false
+      - key: SERPAPI_MONTHLY_BUDGET
+        sync: false
       # Optional: set FLIGHT_SCOUT_MODEL to override the default model,
       # TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID for Telegram alerts,
       # TELEGRAM_WEBHOOK_SECRET (+ optional PUBLIC_URL) for the two-way bot

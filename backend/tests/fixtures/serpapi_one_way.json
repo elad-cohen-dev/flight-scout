@@ -1,0 +1,65 @@
+{
+  "_comment": "SerpApi engine=google_flights, type=2, TLV->LTN 2026-11-12, adults=1, bags=1, currency=GBP. Overnight layover itinerary included.",
+  "search_metadata": {
+    "id": "6710f1c2a5e3b8d2c4f0a222",
+    "status": "Success",
+    "created_at": "2026-10-01 08:20:02 UTC",
+    "google_flights_url": "https://www.google.com/travel/flights?hl=en&curr=GBP&tfs=CBwQAhoeEgoyMDI2LTExLTEyagcIARIDVExWcgcIARIDTFROQAFIAXABggELCP___________wGYAQI"
+  },
+  "search_parameters": {"engine": "google_flights", "type": "2", "departure_id": "TLV", "arrival_id": "LTN", "outbound_date": "2026-11-12", "adults": "1", "bags": "1", "currency": "GBP"},
+  "best_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {"name": "Ben Gurion Airport", "id": "TLV", "time": "2026-11-12 21:00"},
+          "arrival_airport": {"name": "London Luton Airport", "id": "LTN", "time": "2026-11-13 00:30"},
+          "duration": 330,
+          "airplane": "Airbus A321neo",
+          "airline": "Wizz Air",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/W9.png",
+          "travel_class": "Economy",
+          "flight_number": "W9 5702",
+          "legroom": "28 in",
+          "extensions": ["Below average legroom (28 in)", "Carbon emissions estimate: 300 kg"],
+          "overnight": true
+        }
+      ],
+      "total_duration": 330,
+      "price": 131,
+      "type": "One way",
+      "extensions": ["Carry-on bag fee included in price", "Checked baggage for a fee"],
+      "booking_token": "WyJDalJJTkdWcVdXeGFhRVYzZVhKQlFrWkNTRUZDUnkwdExTMHRMUzB0ZEdOaWEyc3lNM0ZtU0VGQlFVRkJSMlpPWm1sclRVRk5WM0ZCRWdaWE9UVTNNREk9Il0="
+    }
+  ],
+  "other_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {"name": "Ben Gurion Airport", "id": "TLV", "time": "2026-11-12 23:55"},
+          "arrival_airport": {"name": "Istanbul Airport", "id": "IST", "time": "2026-11-13 02:10"},
+          "duration": 135,
+          "airline": "Turkish Airlines",
+          "travel_class": "Economy",
+          "flight_number": "TK 789",
+          "extensions": ["Carbon emissions estimate: 120 kg"],
+          "overnight": true
+        },
+        {
+          "departure_airport": {"name": "Istanbul Airport", "id": "IST", "time": "2026-11-13 07:30"},
+          "arrival_airport": {"name": "London Luton Airport", "id": "LTN", "time": "2026-11-13 09:40"},
+          "duration": 250,
+          "airline": "Pegasus",
+          "travel_class": "Economy",
+          "flight_number": "PC 1171",
+          "extensions": ["Carbon emissions estimate: 190 kg"]
+        }
+      ],
+      "layovers": [{"duration": 320, "name": "Istanbul Airport", "id": "IST", "overnight": true}],
+      "total_duration": 705,
+      "price": 158,
+      "type": "One way",
+      "booking_token": "WyJDalJJTkdWcVdXeGFhRVYzZVhKQlFrWkNTRUZDUnkwdExTMHRMUzB0Il0="
+    }
+  ],
+  "price_insights": {"lowest_price": 131, "price_level": "typical", "typical_price_range": [110, 190]}
+}

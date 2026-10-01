@@ -1,0 +1,37 @@
+{
+  "_comment": "SerpApi departure_token request for the QS 1285 outbound: the return options. Prices stay the round-trip total.",
+  "search_metadata": {"id": "6710f1c2a5e3b8d2c4f0a333", "status": "Success", "created_at": "2026-10-01 08:12:55 UTC", "google_flights_url": "https://www.google.com/travel/flights?hl=en&curr=USD"},
+  "best_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {"name": "Václav Havel Airport Prague", "id": "PRG", "time": "2026-11-09 10:25"},
+          "arrival_airport": {"name": "Ben Gurion Airport", "id": "TLV", "time": "2026-11-09 15:20"},
+          "duration": 235,
+          "airline": "Smartwings",
+          "travel_class": "Economy",
+          "flight_number": "QS 1286"
+        }
+      ],
+      "total_duration": 235,
+      "price": 486,
+      "type": "Round trip",
+      "booking_token": "WyJDalJJWkZsR1RYbzROMjFaV0RkQlFrSjNOV2RDUnkwdExTMHRMUzB0ZEdOaWEyc3lNM0ZtU0VGQlFVRkJSMlpPWm1sclRVRk5WM0ZCRWdaUlV6RXlPRFlhIl0="
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": {"name": "Václav Havel Airport Prague", "id": "PRG", "time": "2026-11-09 21:40"},
+          "arrival_airport": {"name": "Ben Gurion Airport", "id": "TLV", "time": "2026-11-10 02:35"},
+          "duration": 235,
+          "airline": "Smartwings",
+          "travel_class": "Economy",
+          "flight_number": "QS 1288"
+        }
+      ],
+      "total_duration": 235,
+      "price": 520,
+      "type": "Round trip"
+    }
+  ]
+}

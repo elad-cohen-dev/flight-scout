@@ -1,0 +1,98 @@
+/* Fare provenance badge, Google price insights line and the live-search meter. */
+.badge-source {
+  gap: 4px;
+}
+
+.badge-source-live {
+  background: var(--good-soft);
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+}
+
+.badge-source-cached {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+}
+
+.badge-source-web {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.source-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.insights-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.insights-good {
+  background: var(--good-soft);
+  color: var(--green);
+}
+
+.insights-bad {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.search-notices {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.usage-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.usage-track {
+  flex: 0 0 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.usage-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.usage-low .usage-fill {
+  background: var(--warn);
+}
+
+.usage-low {
+  color: var(--warn);
+}
+
+@media (max-width: 520px) {
+  .usage-track {
+    flex-basis: 80px;
+  }
+}

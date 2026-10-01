@@ -1,8 +1,10 @@
 """Re-run watched routes and alert on the watch's alert rules (app/alerts.py).
 
 Triggered by the scheduled GitHub Actions workflow via POST /api/watches/run
-(one agent search per active watch, sequentially — searches are slow and
-parallelism would just multiply API spend). The scheduled sweep sends ONE
+(one search per active watch, sequentially — searches are slow and parallelism
+would just multiply API spend). With fare-API keys each watch is pre-screened
+against the free Aviasales cache and spends a live Google Flights search only
+when it may matter (engine.find_for_watch). The scheduled sweep sends ONE
 digest message covering every watch; a single-watch "Run now" alerts
 immediately, and only when a rule fires.
 """
@@ -12,7 +14,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from . import agent, alerts, storage
+from . import agent, alerts, engine, storage
 from .alerts import WatchResult
 from .currency import convert
 from .models import AlertRecord, BookingLink, SearchParams, StoredDeal, Watch, search_label
@@ -153,10 +155,9 @@ def run_watches(only_id: int | None = None, on_event=None, notify: bool = True) 
             emit(f"Checking {route} ({watch.dates_hint}) — alert at ≤ {watch.max_price:,.0f} {watch.currency}")
             prior_rows = storage.watch_sightings().get(watch.id, [])  # read before this run is saved
             params = watch_params(watch)
-            deals = agent.find_deals(
-                watch.origin, watch.destination, watch.dates_hint,
-                params=params, on_event=on_event,
-            )
+            # Free cached pre-screen first; a paid live search only when it may matter.
+            outcome = engine.find_for_watch(watch, params, prior_rows, on_event=on_event)
+            deals = outcome.deals
             stored = storage.save_deals(watch_label(watch), deals, params)
             now = datetime.now(timezone.utc)
             recent = storage.list_alerts(watch.id, since=now - timedelta(days=alerts.REALERT_DAYS))
@@ -189,7 +190,8 @@ def run_watches(only_id: int | None = None, on_event=None, notify: bool = True) 
             # last_best_price is displayed in the watch's currency by the UI.
             storage.update_watch_run(watch.id, r.best_price)
             checked.append(r)
-            rows.append(_summary_row(r, len(stored), alerted))
+            rows.append({**_summary_row(r, len(stored), alerted),
+                         "sources": outcome.meta.sources, "prescreen": outcome.meta.decision})
         except agent.SearchCancelled:
             raise  # user aborted a manual run — stop, don't continue to other watches
         except Exception as exc:

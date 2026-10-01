@@ -1,12 +1,14 @@
 import type { AgentEvent } from "../api";
 import { formatPrice, timeAgo } from "../lib/format";
+import { insightsLine, priceLevelTone } from "../lib/providers";
 import type { QueryGroup } from "../lib/history";
 import type { SearchForm as Form } from "../lib/search";
-import type { StoredDeal } from "../types";
+import type { SearchMeta, StoredDeal } from "../types";
 import AgentConsole from "./AgentConsole";
 import DealList from "./DealList";
 import Icon from "./Icon";
 import SearchForm from "./SearchForm";
+import UsageMeter from "./UsageMeter";
 
 export interface RunState {
   title: string;
@@ -18,6 +20,7 @@ export interface LastResult {
   query: string;
   deals: StoredDeal[];
   finishedAt: string;
+  meta?: SearchMeta | null; // sources, Google price insights, notices (searches only)
 }
 
 export default function SearchTab({
@@ -59,6 +62,18 @@ export default function SearchTab({
               <p className="muted small">
                 {lastResult.query.replace(" -> ", " → ")} · {timeAgo(lastResult.finishedAt)}
               </p>
+              {insightsLine(lastResult.meta?.price_insights) && (
+                <p className={`insights-line insights-${priceLevelTone(lastResult.meta?.price_insights)}`} title="Google Flights' typical price range for this route and dates, for your whole party">
+                  {insightsLine(lastResult.meta?.price_insights)}
+                </p>
+              )}
+              {!!lastResult.meta?.messages.length && (
+                <ul className="search-notices">
+                  {lastResult.meta.messages.map((m) => (
+                    <li key={m}>{m}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
           {lastResult.deals.length === 0 ? (
@@ -95,6 +110,8 @@ export default function SearchTab({
           </div>
         </section>
       )}
+
+      <UsageMeter refreshKey={lastResult?.finishedAt} />
     </div>
   );
 }

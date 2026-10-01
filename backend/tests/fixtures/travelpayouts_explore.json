@@ -1,0 +1,11 @@
+{
+  "_comment": "Aviasales Data API v3 prices_for_dates without destination (explore), origin=TLV departure_at=2026-11 one_way=false currency=usd.",
+  "success": true,
+  "currency": "usd",
+  "data": [
+    {"origin": "TLV", "destination": "ATH", "origin_airport": "TLV", "destination_airport": "ATH", "price": 129, "airline": "A3", "flight_number": "929", "departure_at": "2026-11-07T09:55:00+02:00", "return_at": "2026-11-11T13:40:00+02:00", "transfers": 0, "return_transfers": 0, "duration": 255, "duration_to": 125, "duration_back": 130, "link": "/search/TLV0711ATH11111?t=A3_1_129"},
+    {"origin": "TLV", "destination": "SKG", "origin_airport": "TLV", "destination_airport": "SKG", "price": 141, "airline": "6H", "flight_number": "561", "departure_at": "2026-11-14T08:00:00+02:00", "return_at": "2026-11-18T12:00:00+02:00", "transfers": 0, "return_transfers": 0, "duration": 290, "duration_to": 145, "duration_back": 145, "link": "/search/TLV1411SKG18111?t=6H_2_141"},
+    {"origin": "TLV", "destination": "BUD", "origin_airport": "TLV", "destination_airport": "BUD", "price": 155, "airline": "W6", "flight_number": "2326", "departure_at": "2026-11-03T05:45:00+02:00", "return_at": "2026-11-07T23:10:00+01:00", "transfers": 0, "return_transfers": 0, "duration": 470, "duration_to": 235, "duration_back": 235, "link": "/search/TLV0311BUD07111?t=W6_3_155"},
+    {"origin": "TLV", "destination": "ROM", "origin_airport": "TLV", "destination_airport": "FCO", "price": 168, "airline": "AZ", "flight_number": "811", "departure_at": "2026-11-20T06:20:00+02:00", "return_at": "2026-11-24T22:05:00+01:00", "transfers": 0, "return_transfers": 0, "duration": 470, "duration_to": 230, "duration_back": 240, "link": "/search/TLV2011ROM24111?t=AZ_4_168"}
+  ]
+}

@@ -14,6 +14,7 @@ TripType = Literal["round_trip", "one_way"]
 CabinClass = Literal["economy", "premium_economy", "business", "first"]
 PriceConfidence = Literal["verified", "estimated", "from_price"]
 BookingLinkKind = Literal["airline", "google_flights", "skyscanner", "kayak", "momondo", "other"]
+FareSource = Literal["", "google_flights", "aviasales", "web"]
 
 
 class Passengers(BaseModel):
@@ -97,6 +98,15 @@ class FlightDeal(BaseModel):
         default_factory=list,
         description="Data-quality issues found by normalize.normalize_deal (see normalize.FLAGS), not by the LLM",
     )
+    # Set by code (engine / providers), never by the LLM; '' on legacy rows.
+    source: FareSource = Field(
+        default="",
+        description="Where the fare came from: google_flights (SerpApi, live), aviasales (Travelpayouts cache), web (LLM agent). Set by code",
+    )
+    seen_at: str = Field(
+        default="",
+        description="ISO time the source observed this price (live = search time; cached = when the cache saw it). Set by code",
+    )
 
     @field_validator("currency")
     @classmethod
@@ -104,6 +114,44 @@ class FlightDeal(BaseModel):
         # The extractor sometimes emits a symbol ("₪") instead of an ISO code;
         # normalizing here covers fresh extractions AND old rows read back.
         return _normalize_currency(v)
+
+
+class PriceInsights(BaseModel):
+    """Google Flights' view of a route's price level (SerpApi price_insights),
+    in the search currency, for the whole party."""
+
+    route: str = Field(description="e.g. 'TLV>PRG'")
+    currency: str
+    lowest_price: float | None = None
+    price_level: str = Field(default="", description="'low' | 'typical' | 'high' (Google's wording)")
+    typical_low: float | None = None
+    typical_high: float | None = None
+    depart_date: str = ""
+    return_date: str = ""
+
+
+class SearchMeta(BaseModel):
+    """How a search was answered: which sources ran, Google's price insights,
+    and anything the user should know (budget used up, fell back to the web)."""
+
+    sources: list[str] = Field(default_factory=list, description="Sources used, in order: google_flights, aviasales, web")
+    price_insights: PriceInsights | None = None
+    live_searches: int = Field(default=0, description="Paid SerpApi searches this run spent")
+    messages: list[str] = Field(default_factory=list)
+    decision: str = Field(default="", description="Watch pre-screen decision (watch runs only)")
+
+
+class ProviderUsage(BaseModel):
+    provider: str
+    configured: bool
+    used: int = Field(description="Calls this calendar month (UTC), cache hits excluded")
+    budget: int | None = Field(default=None, description="Monthly cap we enforce; None = uncapped")
+    left: int | None = None
+
+
+class UsageReport(BaseModel):
+    month: str = Field(description="YYYY-MM (UTC)")
+    providers: list[ProviderUsage]
 
 
 class FlightDealList(BaseModel):

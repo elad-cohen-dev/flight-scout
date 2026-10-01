@@ -26,9 +26,10 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from . import agent, alerts, notify, storage, telegram_bot, watcher
+from . import agent, alerts, engine, notify, storage, telegram_bot, watcher
 from .models import (
-    AlertRecord, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate, search_label,
+    AlertRecord, RouteHistory, SearchMeta, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate,
+    search_label,
 )
 
 app = FastAPI(title="Flight Scout", version="1.0.0")
@@ -72,6 +73,7 @@ class Job(BaseModel):
     query: str
     deals: list[StoredDeal] | None = None   # set for kind=search
     summary: dict | None = None             # set for kind=watch_run
+    meta: SearchMeta | None = None          # kind=search: sources used, price insights, notices
     error: str | None = None
 
 
@@ -191,12 +193,11 @@ def start_search(req: SearchRequest) -> Job:
                          req.direct_only, req.cabin_bag, req.checked_bag, params=params)
 
     def work(job_id: str) -> dict:
-        deals = agent.find_deals(
-            req.origin, req.destination, req.dates_hint,
-            params=params,
+        outcome = engine.search(
+            req.origin, req.destination, req.dates_hint, params,
             on_event=lambda event: _emit_or_cancel(job_id, event),
         )
-        return {"deals": storage.save_deals(query, deals, params)}
+        return {"deals": storage.save_deals(query, outcome.deals, params), "meta": outcome.meta}
 
     return _start_job("search", query, work)
 
@@ -365,6 +366,13 @@ def telegram_setup(request: Request, body: TelegramSetup | None = None) -> dict:
         return telegram_bot.register_webhook(base)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/usage", response_model=UsageReport, dependencies=[Depends(require_auth)])
+def get_usage() -> UsageReport:
+    """Fare-API calls this calendar month (UTC) per provider, with the
+    SerpApi budget left — feeds the UI's live-search meter. No network."""
+    return engine.usage_report()
 
 
 @app.get("/api/health")

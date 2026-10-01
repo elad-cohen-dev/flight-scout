@@ -3,6 +3,7 @@ import { comparable, formatPrice, formatTripDate, nightsBetween, shortDate, stop
 import { dealCriteria, totalPassengers } from "../lib/search";
 import type { PriceConfidence, StoredDeal } from "../types";
 import Icon from "./Icon";
+import SourceBadge from "./SourceBadge";
 
 const CONFIDENCE: Record<PriceConfidence, { label: string; tip: string }> = {
   verified: { label: "Verified", tip: "Exact fare seen for these dates on a booking or fare site." },
@@ -146,6 +147,7 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
 
       <div className="deal-tags">
         <ConfidenceBadge value={deal.price_confidence} />
+        <SourceBadge deal={deal} />
         {!hasTimes && !deal.origin_airport && (
           <span className={`badge${deal.stops === 0 ? " badge-good" : ""}`}>{stopsLabel(deal.stops)}</span>
         )}
