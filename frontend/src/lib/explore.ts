@@ -45,6 +45,7 @@ export const DEFAULT_EXPLORE: ExploreForm = {
 
 export const REGION_LABELS: Record<ExploreRegion, string> = {
   europe: "Europe",
+  caucasus: "Caucasus",
   middle_east: "Middle East",
   africa: "Africa",
   asia: "Asia",

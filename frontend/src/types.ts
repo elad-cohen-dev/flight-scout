@@ -346,7 +346,7 @@ export interface DealDetails {
 // --- Explore mode (backend app/explore.py) ---
 
 export type TravelDuration = "weekend" | "week" | "two_weeks";
-export type ExploreRegion = "europe" | "middle_east" | "africa" | "asia" | "americas" | "oceania";
+export type ExploreRegion = "europe" | "caucasus" | "middle_east" | "africa" | "asia" | "americas" | "oceania";
 
 /** POST /api/explore (and /quote). max_price / region / country are applied after the fetch, so they're free. */
 export interface ExploreRequest {

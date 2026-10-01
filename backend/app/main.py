@@ -41,7 +41,7 @@ async def _lifespan(_app: FastAPI):
     jobs.shutdown()
 
 
-app = FastAPI(title="Flight Scout", version="2.3.0", lifespan=_lifespan)
+app = FastAPI(title="Flight Scout", version="2.3.1", lifespan=_lifespan)
 
 
 def require_auth(

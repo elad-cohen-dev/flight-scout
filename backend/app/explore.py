@@ -49,14 +49,15 @@ DURATION_PARAM = {"weekend": serpapi.WEEKEND, "week": serpapi.ONE_WEEK, "two_wee
 # A return Google left out is estimated from the trip length: Fri -> Sun, 7 or 14 nights.
 DURATION_NIGHTS = {"weekend": 2, "week": 7, "two_weeks": 14}
 
-Region = Literal["europe", "middle_east", "africa", "asia", "americas", "oceania"]
+Region = Literal["europe", "caucasus", "middle_east", "africa", "asia", "americas", "oceania"]
 REGION_LABELS: dict[str, str] = {
-    "europe": "Europe", "middle_east": "Middle East", "africa": "Africa",
+    "europe": "Europe", "caucasus": "Caucasus", "middle_east": "Middle East", "africa": "Africa",
     "asia": "Asia", "americas": "Americas", "oceania": "Oceania",
 }
 _REGION_COUNTRIES = {
     "europe": "AL AT BA BE BG BY CH CY CZ DE DK EE ES FI FR GB GI GR HR HU IE IS IT LT LU LV MD ME MK MT "
-              "NL NO PL PT RO RS RU SE SI SK TR UA XK GE AM AZ",
+              "NL NO PL PT RO RS RU SE SI SK TR UA XK",
+    "caucasus": "GE AM AZ",
     "middle_east": "AE BH IL JO KW LB OM QA SA",
     "africa": "EG MA TN ZA KE ET TZ MU SC NG GH RW UG NA ZW MG SN RE",
     "asia": "IN LK MV NP TH VN KH LA MM MY SG ID PH CN HK MO TW JP KR MN UZ KZ KG",
@@ -296,7 +297,29 @@ def map_destinations(data: dict, req: ExploreRequest, origin_code: str, seen_at:
         if key not in seen:
             seen.add(key)
             unique.append(x)
-    return unique[:MAX_DESTINATIONS]
+    return _merge_same_flight(unique)[:MAX_DESTINATIONS]
+
+
+def _merge_same_flight(destinations: list[ExploreDestination]) -> list[ExploreDestination]:
+    """Google lists places that aren't cities ("Amalfi", "Dolomites") with the
+    same airport, dates and price as the city they fly into (Naples, Venice).
+    That's one fare, so keep one entry — the airport's own city when it's among
+    them, else the first (cheapest-ordered) one. Order is preserved."""
+    groups: dict[tuple, list[ExploreDestination]] = {}
+    order: list[tuple] = []
+    for x in destinations:
+        key = (x.airport, x.depart_date, x.return_date, round(x.price, 2)) if x.airport else (id(x),)
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(x)
+    merged = []
+    for key in order:
+        group = groups[key]
+        place = airports.airport(group[0].airport) if group[0].airport else None
+        home = place.city.casefold() if place else ""
+        merged.append(next((x for x in group if x.city.casefold() == home), group[0]))
+    return merged
 
 
 def apply_filters(destinations: list[ExploreDestination], req: ExploreRequest) -> list[ExploreDestination]:

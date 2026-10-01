@@ -1,6 +1,6 @@
 [project]
 name = "flight-scout-backend"
-version = "2.3.0"
+version = "2.3.1"
 description = "LangGraph agent that finds cheap flights on the web and serves them via FastAPI"
 requires-python = ">=3.11"
 dependencies = [

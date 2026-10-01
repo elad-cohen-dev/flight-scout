@@ -206,3 +206,22 @@ def test_no_destinations_message(http, monkeypatch):
                         lambda url, params, headers=None, *, provider: {"search_metadata": {}, "destinations": []})
     out = explore.explore(req())
     assert out.destinations == [] and out.total == 0 and out.messages
+
+
+def test_same_flight_places_merge_into_the_airport_city():
+    from app.explore import ExploreDestination, _merge_same_flight
+
+    def dest(city, airport, price, dep="2026-10-23", ret="2026-10-29"):
+        return ExploreDestination.model_construct(city=city, airport=airport, price=price, depart_date=dep, return_date=ret)
+
+    merged = _merge_same_flight([dest("Amalfi", "NAP", 104), dest("Naples", "NAP", 104),
+                                 dest("Dolomites", "VCE", 142), dest("Venice", "VCE", 142),
+                                 dest("Naples", "NAP", 150, dep="2026-11-01", ret="2026-11-08")])
+    assert [(d.city, d.price) for d in merged] == [("Naples", 104), ("Venice", 142), ("Naples", 150)]
+
+
+def test_caucasus_is_its_own_region():
+    from app.explore import COUNTRY_REGION, REGION_LABELS
+
+    assert {COUNTRY_REGION[c] for c in ("GE", "AM", "AZ")} == {"caucasus"}
+    assert COUNTRY_REGION["GR"] == "europe" and REGION_LABELS["caucasus"] == "Caucasus"
