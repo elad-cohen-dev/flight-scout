@@ -264,7 +264,8 @@ def _ago(when: datetime | None, now: datetime) -> str:
 
 
 def _enriched(now: datetime) -> list[Watch]:
-    return alerts.enrich_watches(storage.list_watches(), storage.watch_sightings(), storage.list_alerts(), now)
+    return alerts.enrich_watches(storage.list_watches(), storage.watch_sightings(), storage.list_alerts(), now,
+                                 insights=storage.watch_price_insights())
 
 
 def format_watches(watches: list[Watch], now: datetime) -> str:

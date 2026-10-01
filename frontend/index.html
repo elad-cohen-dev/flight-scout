@@ -9,9 +9,15 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Flight Scout</title>
+    <style>
+      /* Shown until the app bundle renders (React replaces #root's content). */
+      body { margin: 0; background: #f4f6fa; color: #5b6b82; }
+      .boot { padding: 30vh 16px 0; text-align: center; font: 15px/1.5 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      @media (prefers-color-scheme: dark) { body { background: #0b1120; color: #93a1b7; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="boot">Loading Flight Scout…</div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -6,6 +6,7 @@ from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from .currency import normalize as _normalize_currency
 
@@ -107,6 +108,12 @@ class FlightDeal(BaseModel):
         default="",
         description="ISO time the source observed this price (live = search time; cached = when the cache saw it). Set by code",
     )
+    # SerpApi follow-up references (app/details.py): the round trip's return-flight
+    # token, the itinerary's booking-options token, and the request they belong to
+    # (JSON). Persisted with the row, but kept out of the LLM schema and API output.
+    departure_token: SkipJsonSchema[str] = Field(default="", exclude=True)
+    booking_token: SkipJsonSchema[str] = Field(default="", exclude=True)
+    serp_params: SkipJsonSchema[str] = Field(default="", exclude=True)
 
     @field_validator("currency")
     @classmethod
@@ -128,6 +135,10 @@ class PriceInsights(BaseModel):
     typical_high: float | None = None
     depart_date: str = ""
     return_date: str = ""
+    price_history: list[tuple[int, float]] = Field(
+        default_factory=list,
+        description="Google's [unix seconds, price] points for THESE dates, oldest first (seeds watch stats)",
+    )
 
 
 class SearchMeta(BaseModel):
@@ -175,6 +186,10 @@ class StoredDeal(FlightDeal):
     )
     compare_currency: str = Field(default="USD", description="The run's preferred currency (USD for legacy rows)")
     route_key: str = Field(default="", description="Canonical route id, e.g. 'TLV>PRG' — groups 'Prague', 'PRG' and 'Prague [PRG]'")
+    details_cost: int = Field(
+        default=0,
+        description="Most live searches 'Details & book direct' may spend (1 one-way, 2 round trip); 0 = not available",
+    )
 
 
 class HistoryPoint(BaseModel):
@@ -198,8 +213,9 @@ AlertRule = Literal["threshold", "new_low", "under_typical", "big_drop"]
 class AlertSettings(BaseModel):
     """When a watch alerts, beyond (or instead of) the absolute max_price.
 
-    Every rule compares the run's best price against this watch's own earlier
-    runs (same party/cabin/trip type, converted into the watch currency); see
+    Every rule compares the run's best price against this watch's earlier runs
+    (same party/cabin/trip type, converted into the watch currency) of one trust
+    tier, or Google's price insights while it has few verified runs; see
     app/alerts.py. Defaults are on, so existing watches get the smart rules."""
 
     threshold: bool = Field(default=True, description="Alert when the best price is at or under max_price")
@@ -211,17 +227,44 @@ class AlertSettings(BaseModel):
     big_drop_pct: float = Field(default=15, ge=5, le=80)
 
 
+StatsBasis = Literal["verified", "google", "cached", "legacy"]
+
+
+class LegacyStats(BaseModel):
+    """Numbers from unverified (pre-2.0 / LLM web) runs, shown muted while the
+    trusted basis is still thin. They never feed the score or the rules then."""
+
+    runs: int
+    low_30d: float | None = None
+    typical: float | None = None
+    all_time_low: float | None = None
+
+
 class WatchStats(BaseModel):
-    """Price statistics of a watch's runs, in the watch currency (read-only)."""
+    """Price statistics of a watch's runs, in the watch currency (read-only).
+
+    Only one trust tier feeds the numbers — see `basis` and app/alerts.py
+    (select_baseline) for the rule."""
 
     currency: str
-    runs: int = Field(description="Runs with a comparable price")
-    last_best: float | None = None
+    runs: int = Field(description="Runs with a comparable price (every tier)")
+    last_best: float | None = Field(default=None, description="Latest run-best of the basis tier")
     last_run_at: datetime | None = None
     low_30d: float | None = None
-    typical: float | None = Field(default=None, description="Median of the run-bests of the last 30 days")
+    typical: float | None = Field(default=None, description="Median of the basis' last 30 days, or the middle of Google's typical range")
     all_time_low: float | None = None
-    score: int | None = Field(default=None, description="0-100 deal score of the last best price vs earlier runs")
+    score: int | None = Field(default=None, description="0-100 deal score of the last best price vs the basis")
+    basis: StatsBasis = Field(
+        default="legacy",
+        description="verified = own Google Flights runs; google = Google's price insights (+ own verified runs); "
+                    "cached = Aviasales cache runs; legacy = unverified LLM-era estimates only",
+    )
+    basis_runs: int = Field(default=0, description="Runs of the basis tier (verified ones for basis=google)")
+    history_points: int = Field(default=0, description="Google price-history points of the last 30 days used")
+    typical_low: float | None = Field(default=None, description="Google's typical range (basis=google)")
+    typical_high: float | None = None
+    legacy_runs: int = Field(default=0, description="Unverified runs left out of the numbers")
+    legacy: LegacyStats | None = Field(default=None, description="Their numbers, while the basis is thin")
 
 
 class AlertRecord(BaseModel):

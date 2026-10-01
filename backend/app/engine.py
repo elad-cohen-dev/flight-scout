@@ -385,13 +385,14 @@ def _best_in(deals: list[FlightDeal], currency: str) -> float | None:
 
 def prescreen_decision(watch: Watch, cached_best: float | None, prior_rows: list[dict],
                        last_live: datetime | None, live_left: int | None,
-                       now: datetime) -> tuple[bool, str]:
+                       now: datetime, google: alerts.GoogleHistory | None = None) -> tuple[bool, str]:
     """Spend a live search on this watch run? (decision, human-readable reason).
 
     `live_left` is the SerpApi budget left (None = not configured). Live when:
     no cached fare at all; the cached best is within 15% of the threshold; a
     smart rule would fire if the live price came in 15% under the cached one;
-    or the watch hasn't had a live check for a week. Pure."""
+    or the watch hasn't had a live check for a week. The rules compare on the
+    same basis as the run itself (`google`: the watch's stored price insights). Pure."""
     cur = watch.currency
     if live_left is None:
         return False, "live search not configured"
@@ -404,7 +405,7 @@ def prescreen_decision(watch: Watch, cached_best: float | None, prior_rows: list
         return True, f"cached best {fmt(cached_best, cur)} is within 15% of the {fmt(watch.max_price, cur)} threshold"
     prior = alerts.run_bests(prior_rows, cur, alerts.fare_kind(watch))
     hits = [h.rule for h in alerts.evaluate_rules(cached_best * (1 - PRESCREEN_MARGIN), prior, watch.alerts,
-                                                  watch.max_price, cur, now) if h.rule != "threshold"]
+                                                  watch.max_price, cur, now, google) if h.rule != "threshold"]
     if hits:
         return True, f"a smart rule may fire ({', '.join(hits)})"
     if last_live is None:
@@ -443,7 +444,13 @@ def find_for_watch(watch: Watch, params: SearchParams, prior_rows: list[dict], o
     except Exception:
         logger.exception("watch #%s: reading last live check failed", watch.id)
         last_live = None
-    live, reason = prescreen_decision(watch, best, prior_rows, last_live, left, now)
+    try:
+        google = alerts.latest_google(storage.watch_price_insights().get(watch.id, []), watch,
+                                      watch.currency, now)
+    except Exception:
+        logger.exception("watch #%s: reading price insights failed", watch.id)
+        google = None
+    live, reason = prescreen_decision(watch, best, prior_rows, last_live, left, now, google)
     logger.info("watch #%s pre-screen: %s — %s", watch.id, "live" if live else "cached only", reason)
     try:
         storage.log_prescreen(watch.id, live, reason, best, watch.currency, now)

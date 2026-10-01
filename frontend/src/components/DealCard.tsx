@@ -1,7 +1,10 @@
+import { useState } from "react";
 import BookingLinks from "../BookingLinks";
+import { directSeller } from "../lib/dealDetails";
 import { comparable, formatPrice, formatTripDate, nightsBetween, shortDate, stopsLabel, timeAgo } from "../lib/format";
 import { dealCriteria, totalPassengers } from "../lib/search";
-import type { PriceConfidence, StoredDeal } from "../types";
+import type { DealDetails, PriceConfidence, StoredDeal } from "../types";
+import DirectBooking from "./DirectBooking";
 import Icon from "./Icon";
 import SourceBadge from "./SourceBadge";
 
@@ -87,6 +90,10 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
   const nights = nightsBetween(deal.depart_date, deal.return_date);
   const hasTimes = !!(deal.depart_time || deal.arrive_time);
   const showSource = deal.source_url && deal.source_url !== deal.booking_url;
+  const [details, setDetails] = useState<DealDetails | null>(null);
+  const ready = details?.status === "ready" ? details : null;
+  const back = ready?.return_leg ?? (details?.status === "expired" ? details.return_leg : null);
+  const direct = directSeller(ready);
 
   return (
     <article className={`deal card${highlight ? " deal-best" : ""}`}>
@@ -131,7 +138,16 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
             stops={deal.stops}
           />
           {deal.return_date && (
-            <Leg label="Back" date={deal.return_date} dep={deal.return_depart_time} arr="" from={to} to={from} />
+            <Leg
+              label="Back"
+              date={deal.return_date}
+              dep={back?.depart_time || deal.return_depart_time}
+              arr={back?.arrive_time ?? ""}
+              from={to}
+              to={from}
+              duration={back?.duration}
+              stops={back?.stops}
+            />
           )}
         </div>
       ) : (
@@ -146,7 +162,13 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
       )}
 
       <div className="deal-tags">
-        <ConfidenceBadge value={deal.price_confidence} />
+        {!ready?.verified_incl_bags && <ConfidenceBadge value={deal.price_confidence} />}
+        {ready?.verified_incl_bags && ready.price_incl_bags != null && (
+          <span className="badge badge-conf-verified" title="A seller's exact fare plus the exact fees for the bags you asked for">
+            <Icon name="check" size={12} />
+            Verified incl. bags · {formatPrice(ready.price_incl_bags, ready.currency || deal.currency)}
+          </span>
+        )}
         <SourceBadge deal={deal} />
         {!hasTimes && !deal.origin_airport && (
           <span className={`badge${deal.stops === 0 ? " badge-good" : ""}`}>{stopsLabel(deal.stops)}</span>
@@ -170,7 +192,10 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
       </div>
 
       <div className="deal-foot">
-        <BookingLinks deal={deal} />
+        <BookingLinks
+          deal={deal}
+          direct={direct ? { label: direct.seller.book_with, url: direct.link.url } : undefined}
+        />
         {(deal.notes || showSource) && (
           <details className="deal-details">
             <summary>
@@ -192,6 +217,7 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
             </div>
           </details>
         )}
+        <DirectBooking deal={deal} details={details} onDetails={setDetails} />
       </div>
     </article>
   );

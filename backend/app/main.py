@@ -2,8 +2,9 @@
 
 Long work (searches ~1-2 min each, watch runs potentially several searches) never
 blocks a request: POST endpoints return a job id immediately and clients poll
-GET /api/jobs/{id}. Jobs run in daemon threads and live in memory — fine for a
-single instance; a restart loses in-flight jobs but never stored data.
+GET /api/jobs/{id}. Jobs run in daemon threads, live in memory and are mirrored
+to the DB (app/jobs.py), so a restart marks in-flight ones "interrupted" instead
+of losing them.
 
 In production the built frontend (static files) is served from STATIC_DIR.
 """
@@ -13,26 +14,34 @@ from __future__ import annotations
 import json
 import os
 import secrets
-import threading
-import time
-import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Callable, Literal
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from . import agent, alerts, engine, notify, storage, telegram_bot, watcher
+from . import alerts, details, engine, jobs, notify, storage, telegram_bot, watcher
+from .jobs import Job
 from .models import (
-    AlertRecord, RouteHistory, SearchMeta, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate,
+    AlertRecord, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate,
     search_label,
 )
 
-app = FastAPI(title="Flight Scout", version="2.0.0")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Jobs a previous process left "running" can never finish: say so (one
+    # small DB call, which also warms the Turso connection for the first request).
+    jobs.recover_interrupted()
+    yield
+    jobs.shutdown()
+
+
+app = FastAPI(title="Flight Scout", version="2.0.0", lifespan=_lifespan)
 
 
 def require_auth(
@@ -64,75 +73,22 @@ app.add_middleware(
 )
 
 
-# --- background jobs -------------------------------------------------------
+# --- background jobs (app/jobs.py) -------------------------------------------
 
-class Job(BaseModel):
-    job_id: str
-    kind: Literal["search", "watch_run"]
-    status: Literal["running", "done", "error", "cancelled"]
-    query: str
-    deals: list[StoredDeal] | None = None   # set for kind=search
-    summary: dict | None = None             # set for kind=watch_run
-    meta: SearchMeta | None = None          # kind=search: sources used, price insights, notices
-    error: str | None = None
+_start_job = jobs.start_job
+_emit_event = jobs.emit_event
+_emit_or_cancel = jobs.emit_or_cancel
 
-
-_JOBS: dict[str, Job] = {}
-_JOBS_LOCK = threading.Lock()
-
-# Live progress events per job ({"kind": "phase"|"delta"|"search", "text": ...}),
-# appended by the job thread and streamed to clients by /api/jobs/{id}/events.
-_JOB_EVENTS: dict[str, list[dict]] = {}
-_MAX_EVENTS_PER_JOB = 5000
-
-# Jobs the user asked to stop. The job thread notices at its next progress
-# emission (sub-second during streaming research) and aborts without saving.
-_CANCEL_REQUESTED: set[str] = set()
-
-
-def _emit_event(job_id: str, event: dict) -> None:
-    with _JOBS_LOCK:
-        events = _JOB_EVENTS.setdefault(job_id, [])
-        if len(events) < _MAX_EVENTS_PER_JOB:
-            events.append(event)
-
-
-def _emit_or_cancel(job_id: str, event: dict) -> None:
-    """Progress callback for cancellable jobs: emission points double as
-    cancellation points (see agent.SearchCancelled)."""
-    with _JOBS_LOCK:
-        if job_id in _CANCEL_REQUESTED:
-            raise agent.SearchCancelled()
-    _emit_event(job_id, event)
-
-
-def _start_job(kind: Literal["search", "watch_run"], query: str, work: Callable[[str], dict]) -> Job:
-    """Register a job and run `work(job_id)` in a daemon thread; its dict return updates the job."""
-    job = Job(job_id=uuid.uuid4().hex, kind=kind, status="running", query=query)
-    with _JOBS_LOCK:
-        _JOBS[job.job_id] = job
-
-    def _run() -> None:
-        try:
-            update = {"status": "done", **work(job.job_id)}
-        except agent.SearchCancelled:
-            update = {"status": "cancelled"}
-        except Exception as exc:
-            update = {"status": "error", "error": str(exc)}
-        with _JOBS_LOCK:
-            _JOBS[job.job_id] = _JOBS[job.job_id].model_copy(update=update)
-            _CANCEL_REQUESTED.discard(job.job_id)
-
-    threading.Thread(target=_run, daemon=True).start()
-    return job
+_UNKNOWN_JOB = "Unknown job id"
 
 
 @app.get("/api/jobs/{job_id}", response_model=Job, dependencies=[Depends(require_auth)])
 def get_job(job_id: str) -> Job:
-    with _JOBS_LOCK:
-        job = _JOBS.get(job_id)
+    """A job's status and result — from memory while this process runs it, else
+    its stored record (so it survives restarts; see app/jobs.py)."""
+    job = jobs.get_job(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="Unknown job id (server may have restarted)")
+        raise HTTPException(status_code=404, detail=_UNKNOWN_JOB)
     return job
 
 
@@ -140,42 +96,26 @@ def get_job(job_id: str) -> Job:
 def cancel_job(job_id: str) -> Job:
     """Request a running job to stop. Cooperative: the job aborts at its next
     progress emission and flips to status "cancelled" without saving anything."""
-    with _JOBS_LOCK:
-        job = _JOBS.get(job_id)
-        if job is None:
-            raise HTTPException(status_code=404, detail="Unknown job id (server may have restarted)")
-        if job.status == "running":
-            _CANCEL_REQUESTED.add(job_id)
-    if job.status == "running":
-        _emit_event(job_id, {"kind": "phase", "text": "Stopping…"})
+    job = jobs.cancel(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=_UNKNOWN_JOB)
     return job
 
 
 @app.get("/api/jobs/{job_id}/events", dependencies=[Depends(require_auth)])
-def stream_job_events(job_id: str) -> StreamingResponse:
-    """Server-Sent Events: replay this job's progress so far, then follow it
-    live until the job leaves the running state. The UI renders these as a
-    streaming 'agent console'; polling /api/jobs/{id} remains the source of
-    truth for completion, so a dropped stream degrades gracefully."""
-    with _JOBS_LOCK:
-        if job_id not in _JOBS:
-            raise HTTPException(status_code=404, detail="Unknown job id (server may have restarted)")
+def stream_job_events(job_id: str, after: int = 0) -> StreamingResponse:
+    """Server-Sent Events: replay this job's progress so far (from `after`),
+    then follow it live until the job leaves the running state. The UI renders
+    these as a streaming 'agent console'; polling /api/jobs/{id} remains the
+    source of truth for completion, so a dropped stream degrades gracefully.
+    A job from before a restart is replayed from its stored events."""
+    events = jobs.event_stream(job_id, after)
+    if events is None:
+        raise HTTPException(status_code=404, detail=_UNKNOWN_JOB)
 
     def gen():
-        sent = 0
-        while True:
-            with _JOBS_LOCK:
-                events = _JOB_EVENTS.get(job_id, [])
-                pending = events[sent:]
-                job = _JOBS.get(job_id)
-            for event in pending:
-                yield f"data: {json.dumps(event)}\n\n"
-            sent += len(pending)
-            if job is None or job.status != "running":
-                status = job.status if job else "error"
-                yield f"data: {json.dumps({'kind': 'end', 'text': status})}\n\n"
-                return
-            time.sleep(0.25)
+        for event in events:
+            yield f"data: {json.dumps(event)}\n\n"
 
     return StreamingResponse(
         gen(),
@@ -199,7 +139,7 @@ def start_search(req: SearchRequest) -> Job:
         )
         return {"deals": storage.save_deals(query, outcome.deals, params), "meta": outcome.meta}
 
-    return _start_job("search", query, work)
+    return _start_job("search", query, work, request=req.model_dump(mode="json"))
 
 
 @app.get("/api/deals", response_model=list[StoredDeal], dependencies=[Depends(require_auth)])
@@ -225,7 +165,8 @@ def get_history() -> list[RouteHistory]:
 
 def _with_stats(watches: list[Watch]) -> list[Watch]:
     """Attach price stats (30-day low, typical, score...) and the last sent alert."""
-    return alerts.enrich_watches(watches, storage.watch_sightings(), storage.list_alerts())
+    return alerts.enrich_watches(watches, storage.watch_sightings(), storage.list_alerts(),
+                                 insights=storage.watch_price_insights())
 
 
 @app.post("/api/watches", response_model=Watch, status_code=201, dependencies=[Depends(require_auth)])
@@ -280,7 +221,7 @@ def run_single_watch(watch_id: int) -> Job:
         )
         return {"summary": summary}
 
-    return _start_job("watch_run", query, work)
+    return _start_job("watch_run", query, work, request={"watch_id": watch_id})
 
 
 @app.post("/api/watches/run", response_model=Job, status_code=202)
@@ -293,7 +234,8 @@ def run_watches(x_cron_secret: str | None = Header(default=None)) -> Job:
     expected = os.environ.get("CRON_SECRET")
     if expected and x_cron_secret != expected:
         raise HTTPException(status_code=401, detail="Bad or missing X-Cron-Secret header")
-    return _start_job("watch_run", "scheduled watch run", lambda _job_id: {"summary": watcher.run_watches()})
+    return _start_job("watch_run", "scheduled watch run", lambda _job_id: {"summary": watcher.run_watches()},
+                      request={"scheduled": True})
 
 
 @app.get("/api/alerts", response_model=list[AlertRecord], dependencies=[Depends(require_auth)])
@@ -373,6 +315,66 @@ def get_usage() -> UsageReport:
     """Fare-API calls this calendar month (UTC) per provider, with the
     SerpApi budget left — feeds the UI's live-search meter. No network."""
     return engine.usage_report()
+
+
+# --- deal details on demand (app/details.py) ----------------------------------
+
+def _deal_or_404(deal_id: int) -> StoredDeal:
+    deal = storage.get_deal(deal_id)
+    if deal is None:
+        raise HTTPException(status_code=404, detail="No such deal")
+    return deal
+
+
+@app.get("/api/deals/{deal_id}/details", response_model=details.DealDetails,
+         dependencies=[Depends(require_auth)])
+def get_deal_details(deal_id: int) -> details.DealDetails:
+    """Cached return flight + sellers, or status "needs_fetch" with the live
+    searches a fetch would cost. Never spends a search."""
+    return details.get_details(_deal_or_404(deal_id))
+
+
+@app.post("/api/deals/{deal_id}/details", response_model=details.DealDetails,
+          dependencies=[Depends(require_auth)])
+def fetch_deal_details(deal_id: int) -> details.DealDetails:
+    """Spend up to 2 live searches (return leg + booking options), within the
+    monthly budget; cached for 6h. 409 = budget too low, 503 = not configured."""
+    try:
+        return details.fetch_details(_deal_or_404(deal_id))
+    except details.DetailsError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from None
+
+
+@app.get("/api/deals/{deal_id}/book/{option}", include_in_schema=False)
+def book_deal(deal_id: int, option: int, part: str = "together", exp: int | None = None,
+              sig: str | None = None, authorization: str | None = Header(default=None)) -> HTMLResponse:
+    """A page that POSTs Google's booking request for one seller (Google then
+    redirects to the seller). Opened as a plain link, so it is authorised by
+    the signature details put on it, or the usual Bearer header."""
+    headers = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY"}
+    if not details.book_link_valid(deal_id, option, part, exp, sig):
+        try:
+            require_auth(authorization, None)
+        except HTTPException:
+            return HTMLResponse(details.message_page(
+                "Link expired", "Open the deal's details again in Flight Scout and pick the seller."),
+                status_code=401, headers=headers)
+    deal = storage.get_deal(deal_id)
+    target = details.booking_request(deal, option, part) if deal else None
+    if target is None:
+        return HTMLResponse(details.message_page(
+            "Booking link expired", "Refresh the deal's details in Flight Scout to get current sellers."),
+            status_code=410, headers=headers)
+    seller, url, post_data = target
+    if not details.safe_target(url):
+        return HTMLResponse(details.message_page("Can't open this link", "Google returned an unexpected address."),
+                            status_code=502, headers=headers)
+    nonce = details.new_nonce()
+    # No form-action directive: browsers apply it to the redirects after the
+    # POST too, which would block the hop from Google to the seller.
+    headers["Content-Security-Policy"] = (f"default-src 'none'; script-src 'nonce-{nonce}'; "
+                                          "style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
+    return HTMLResponse(details.redirect_page(seller, url, post_data, nonce), headers=headers)
 
 
 @app.get("/api/health")

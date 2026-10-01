@@ -6,7 +6,8 @@ Docs: https://serpapi.com/google-flights-api (+ /google-flights-booking-options)
   every passenger passed in (adults/children/infants), in `currency`. On a round
   trip (type=1) the outbound list already carries the ROUND-TRIP total; the
   return leg's times need a second call with that itinerary's departure_token,
-  which we only make on request (it costs a search).
+  which we only make on request (it costs a search). Each deal keeps its
+  departure_token / booking_token / request params for app/details.py.
 - `bags=N` makes Google add carry-on fees for N passengers to the price; there
   is no checked-bag filter, so checked bags stay a note + 'estimated'.
 - Quota: free plan 250 searches/month. We count every uncached call in
@@ -17,6 +18,7 @@ Docs: https://serpapi.com/google-flights-api (+ /google-flights-booking-options)
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -36,6 +38,7 @@ URL = "https://serpapi.com/search"
 CACHE_TTL_SECONDS = 3600
 DEFAULT_MONTHLY_BUDGET = 230
 MAX_ITINERARIES = 8  # per query; the rest are pricier variants of the same flights
+MAX_HISTORY_POINTS = 90  # price_insights.price_history: ~daily points; watch stats use 30 days
 
 TRAVEL_CLASS = {"economy": "1", "premium_economy": "2", "business": "3", "first": "4"}
 # SerpApi `stops`: 0 any, 1 nonstop, 2 one stop or fewer, 3 two stops or fewer.
@@ -104,10 +107,11 @@ def request_params(query: FareQuery) -> dict:
 
 
 def _trim(data: dict) -> dict:
-    """What we keep of a response: itineraries, insights (minus the long
-    history), the Google Flights URL, and any error."""
+    """What we keep of a response: itineraries, insights (history capped to
+    the last MAX_HISTORY_POINTS days), the Google Flights URL, and any error."""
     insights = dict(data.get("price_insights") or {})
-    insights.pop("price_history", None)
+    if isinstance(insights.get("price_history"), list):
+        insights["price_history"] = insights["price_history"][-MAX_HISTORY_POINTS:]
     meta = data.get("search_metadata") or {}
     return {
         "search_metadata": {k: meta.get(k) for k in ("id", "status", "google_flights_url", "created_at")},
@@ -115,6 +119,7 @@ def _trim(data: dict) -> dict:
         "other_flights": data.get("other_flights") or [],
         "price_insights": insights,
         # Present only on booking_token requests.
+        "selected_flights": data.get("selected_flights") or [],
         "booking_options": data.get("booking_options") or [],
         "baggage_prices": data.get("baggage_prices") or {},
         "error": data.get("error", ""),
@@ -178,7 +183,8 @@ def _bag_notes(itinerary: dict, params: SearchParams) -> list[str]:
     return notes
 
 
-def map_itinerary(itinerary: dict, query: FareQuery, google_url: str, seen_at: str) -> FlightDeal | None:
+def map_itinerary(itinerary: dict, query: FareQuery, google_url: str, seen_at: str,
+                  serp_params: str = "") -> FlightDeal | None:
     """One best_flights/other_flights entry -> FlightDeal (None when unpriced)."""
     params = query.params
     segments = itinerary.get("flights") or []
@@ -231,6 +237,9 @@ def map_itinerary(itinerary: dict, query: FareQuery, google_url: str, seen_at: s
         price_confidence="estimated" if params.checked_bag else "verified",
         source=SOURCE,
         seen_at=seen_at,
+        departure_token=itinerary.get("departure_token") or "",
+        booking_token=itinerary.get("booking_token") or "",
+        serp_params=serp_params,
     )
 
 
@@ -249,7 +258,20 @@ def map_insights(data: dict, query: FareQuery) -> PriceInsights | None:
         typical_high=hi,
         depart_date=query.depart_date,
         return_date=query.return_date,
+        price_history=_history(raw.get("price_history")),
     )
+
+
+def _history(raw) -> list[tuple[int, float]]:
+    """price_history [[unix seconds, price], ...] -> clean (ts, price) pairs, oldest first."""
+    points = []
+    for item in raw if isinstance(raw, list) else []:
+        if not (isinstance(item, (list, tuple)) and len(item) == 2):
+            continue
+        ts, price = item
+        if isinstance(ts, (int, float)) and isinstance(price, (int, float)) and price > 0:
+            points.append((int(ts // 1000 if ts > 1e11 else ts), float(price)))  # tolerate milliseconds
+    return sorted(points)
 
 
 def map_response(data: dict, query: FareQuery, seen_at: str | None = None) -> tuple[list[FlightDeal], dict]:
@@ -260,8 +282,9 @@ def map_response(data: dict, query: FareQuery, seen_at: str | None = None) -> tu
     itineraries.sort(key=lambda it: it.get("price") if isinstance(it.get("price"), (int, float)) else 1e12)
     deals: list[FlightDeal] = []
     tokens: dict[int, str] = {}
+    serp_params = json.dumps(request_params(query), sort_keys=True)
     for it in itineraries:
-        deal = map_itinerary(it, query, google_url, seen_at)
+        deal = map_itinerary(it, query, google_url, seen_at, serp_params)
         if deal is None:
             continue
         if it.get("departure_token"):
@@ -291,16 +314,36 @@ def _created_iso(created: str) -> str | None:
         return None
 
 
+def matching_return(returns: list[dict], price: float) -> dict | None:
+    """The return itinerary that completes an outbound: the one whose round-trip
+    total equals the outbound's (Google prices the cheapest return into it),
+    else the closest-priced."""
+    priced = [it for it in returns if it.get("flights")]
+    return min(priced, key=lambda it: (abs((it.get("price") or 1e12) - price), it.get("price") or 1e12),
+               default=None)
+
+
+def return_flights(params: dict, departure_token: str) -> tuple[list[dict], bool]:
+    """(return itineraries, from_cache) for an outbound's departure_token; one search."""
+    data, cached = fetch({**params, "departure_token": departure_token})
+    return [*(data.get("best_flights") or []), *(data.get("other_flights") or [])], cached
+
+
+def booking_response(params: dict, booking_token: str) -> tuple[dict, bool]:
+    """(trimmed booking-options response, from_cache) for an itinerary's
+    booking_token; one search. The token can't be combined with departure_token."""
+    clean = {k: v for k, v in params.items() if k != "departure_token"}
+    return fetch({**clean, "booking_token": booking_token})
+
+
 def with_return_leg(deal: FlightDeal, query: FareQuery, departure_token: str) -> tuple[FlightDeal, int]:
     """Fill a round-trip deal's return times/flight numbers from the return
     flights its departure_token lists (one more search; the cheapest return
-    whose price equals the outbound's round-trip total is the match). Returns
-    (deal, paid calls)."""
-    data, cached = fetch({**request_params(query), "departure_token": departure_token})
-    returns = [*(data.get("best_flights") or []), *(data.get("other_flights") or [])]
-    match = min(returns, key=lambda it: (abs((it.get("price") or 1e12) - deal.price), it.get("price") or 1e12),
-                default=None)
-    if not match or not match.get("flights"):
+    whose price equals the outbound's round-trip total is the match), and keep
+    that return's booking_token. Returns (deal, paid calls)."""
+    returns, cached = return_flights(request_params(query), departure_token)
+    match = matching_return(returns, deal.price)
+    if not match:
         return deal, 0 if cached else 1
     segs = match["flights"]
     _, back_time = _split_time((segs[0].get("departure_airport") or {}).get("time", ""))
@@ -309,6 +352,7 @@ def with_return_leg(deal: FlightDeal, query: FareQuery, departure_token: str) ->
     update = {
         "return_depart_time": back_time,
         "flight_numbers": " / ".join(_unique([*deal.flight_numbers.split(" / "), *numbers])),
+        "booking_token": match.get("booking_token") or deal.booking_token,
     }
     if isinstance(price, (int, float)) and price > 0:
         update["price"] = float(price)
@@ -316,22 +360,59 @@ def with_return_leg(deal: FlightDeal, query: FareQuery, departure_token: str) ->
     return deal.model_copy(update=update), 0 if cached else 1
 
 
-def booking_options(query: FareQuery, booking_token: str) -> list[dict]:
-    """Booking options for an itinerary (one more search): seller, price,
-    Google's redirect request and baggage prices. Not used by the search flow
-    yet — the probe script exercises it so the format can be verified."""
-    data, _ = fetch({**request_params(query), "booking_token": booking_token})
+def map_leg(itinerary: dict) -> dict:
+    """A best/other/selected flights entry -> the leg summary details show."""
+    segs = itinerary.get("flights") or []
+    if not segs:
+        return {}
+    dep_date, dep_time = _split_time((segs[0].get("departure_airport") or {}).get("time", ""))
+    arr_date, arr_time = _split_time((segs[-1].get("arrival_airport") or {}).get("time", ""))
+    layovers = itinerary.get("layovers") or []
+    return {
+        "origin": (segs[0].get("departure_airport") or {}).get("id", ""),
+        "destination": (segs[-1].get("arrival_airport") or {}).get("id", ""),
+        "depart_date": dep_date,
+        "depart_time": dep_time,
+        "arrive_date": arr_date,
+        "arrive_time": arr_time,
+        "airline": " + ".join(_unique(s.get("airline", "") for s in segs)),
+        "flight_numbers": " / ".join(_unique(s.get("flight_number", "") for s in segs)),
+        "duration": fmt_minutes(itinerary.get("total_duration")),
+        "stops": len(layovers) if layovers else len(segs) - 1,
+        "layovers": [_layover_text(l) for l in layovers],
+    }
+
+
+def map_booking_options(data: dict) -> list[dict]:
+    """booking_options -> one dict per seller: who sells it, the total price,
+    bag fees (the option's own baggage_prices, else the response-level list for
+    that part) and Google's redirect request per ticket. A separate-tickets
+    option has a departing and a returning part, each booked on its own."""
+    top_bags = data.get("baggage_prices") or {}
+    if isinstance(top_bags, list):
+        top_bags = {"together": top_bags}
     out = []
     for option in data.get("booking_options") or []:
-        part = option.get("together") or option.get("departing") or {}
-        request = part.get("booking_request") or {}
-        out.append({
-            "book_with": part.get("book_with", ""),
-            "price": part.get("price"),
-            "option_title": part.get("option_title", ""),
-            "baggage_prices": part.get("baggage_prices") or [],
-            "url": request.get("url", ""),
-            "post_data": request.get("post_data", ""),
-            "separate_tickets": bool(option.get("separate_tickets")),
-        })
+        names = ("together",) if option.get("together") else ("departing", "returning")
+        parts = []
+        for name in names:
+            part = option.get(name) or {}
+            if not part:
+                continue
+            request = part.get("booking_request") or {}
+            parts.append({
+                "part": name,
+                "book_with": str(part.get("book_with") or ""),
+                "airline": bool(part.get("airline")),
+                "price": part.get("price") if isinstance(part.get("price"), (int, float)) else None,
+                "option_title": str(part.get("option_title") or ""),
+                "extensions": [str(e) for e in part.get("extensions") or []],
+                "baggage_prices": [str(b) for b in (part.get("baggage_prices") or top_bags.get(name) or [])],
+                "url": str(request.get("url") or ""),
+                "post_data": str(request.get("post_data") or ""),
+                "phone": str(part.get("booking_phone") or ""),
+            })
+        if parts:
+            out.append({"separate_tickets": bool(option.get("separate_tickets")) or len(parts) > 1,
+                        "parts": parts})
     return out

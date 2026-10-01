@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from . import agent, alerts, engine, storage
 from .alerts import WatchResult
 from .currency import convert
-from .models import AlertRecord, BookingLink, SearchParams, StoredDeal, Watch, search_label
+from .models import AlertRecord, BookingLink, SearchMeta, SearchParams, StoredDeal, Watch, search_label
 from .notify import send_notification
 
 logger = logging.getLogger(__name__)
@@ -80,24 +80,43 @@ def cheapest(watch: Watch, deals: list[StoredDeal]) -> tuple[float | None, Store
 
 
 def check_watch(watch: Watch, stored: list[StoredDeal], prior_rows: list[dict],
-                recent_alerts: list[AlertRecord], now: datetime) -> WatchResult:
+                recent_alerts: list[AlertRecord], now: datetime,
+                google: alerts.GoogleHistory | None = None) -> WatchResult:
     """Score one run: best price, stats including this run, rule hits, and
-    whether those hits repeat an alert sent in the last week. Pure."""
+    whether those hits repeat an alert sent in the last week. `google` is the
+    watch's latest Google price insights (alerts.latest_google). Pure."""
     kind = alerts.fare_kind(watch)
     prior = alerts.run_bests(prior_rows, watch.currency, kind)
     best_price, best = cheapest(watch, stored)
     result = WatchResult(watch=watch, best_price=best_price, best=best)
     if best is None:
-        result.stats = alerts.price_stats(prior, watch.currency, now)
+        result.stats = alerts.price_stats(prior, watch.currency, now, google)
         return result
-    runs = prior + [alerts.RunBest(now, best_price)]
-    result.stats = alerts.price_stats(runs, watch.currency, now)
+    # This run's bests per trust tier, like the stored rows will read back.
+    current = alerts.run_bests(alerts.deal_rows(stored, now), watch.currency, kind) or \
+        [alerts.RunBest(now, best_price, alerts.source_tier(best.source))]
+    result.stats = alerts.price_stats(prior + current, watch.currency, now, google)
     result.link = best_link_labeled(best)
-    result.hits = alerts.evaluate_rules(best_price, prior, watch.alerts, watch.max_price, watch.currency, now)
+    result.hits = alerts.evaluate_rules(best_price, prior, watch.alerts, watch.max_price, watch.currency, now,
+                                        google)
     if result.hits:
         fingerprint = alerts.fare_fingerprint(best)
         result.suppressed = alerts.suppressed_by(fingerprint, best_price, recent_alerts, now)
     return result
+
+
+def _google(watch: Watch, meta: SearchMeta, now: datetime) -> alerts.GoogleHistory | None:
+    """Keep this run's Google price insights (live runs only) and return the
+    watch's latest ones. Storage trouble only costs the seed, never the run."""
+    kind = alerts.insight_kind(watch)
+    try:
+        if meta.price_insights is not None:
+            storage.save_price_insights(watch.id, kind, meta.price_insights, now)
+            return alerts.google_history(meta.price_insights, watch.currency, now, now)
+        return alerts.latest_google(storage.watch_price_insights().get(watch.id, []), watch, watch.currency, now)
+    except Exception:
+        logger.exception("watch #%s: price insights unavailable", watch.id)
+        return None
 
 
 def _log_alert(r: WatchResult, now: datetime) -> None:
@@ -161,7 +180,7 @@ def run_watches(only_id: int | None = None, on_event=None, notify: bool = True) 
             stored = storage.save_deals(watch_label(watch), deals, params)
             now = datetime.now(timezone.utc)
             recent = storage.list_alerts(watch.id, since=now - timedelta(days=alerts.REALERT_DAYS))
-            r = check_watch(watch, stored, prior_rows, recent, now)
+            r = check_watch(watch, stored, prior_rows, recent, now, _google(watch, outcome.meta, now))
 
             alerted = False
             if r.alerting and notify and not digest:

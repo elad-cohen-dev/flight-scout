@@ -36,8 +36,8 @@ from . import airports as _airports
 from .currency import convert as _convert_currency
 from .currency import normalize as _normalize_currency
 from .models import (
-    AlertRecord, BookingLink, FlightDeal, HistoryPoint, RouteHistory, SearchParams, StoredDeal, Watch,
-    WatchCreate,
+    AlertRecord, BookingLink, FlightDeal, HistoryPoint, PriceInsights, RouteHistory, SearchParams, StoredDeal,
+    Watch, WatchCreate,
 )
 
 load_dotenv()
@@ -131,6 +131,45 @@ _SCHEMA = [
         currency TEXT NOT NULL DEFAULT ''
     )""",
     "CREATE INDEX IF NOT EXISTS idx_watch_prescreen ON watch_prescreen (watch_id, decided_at)",
+    # Google Flights' price insights (typical range + price history) of a watch's
+    # latest live search, one row per watch and comparable fare kind; they seed
+    # the watch's stats until it has enough verified runs (app/alerts.py).
+    """CREATE TABLE IF NOT EXISTS price_insights (
+        watch_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        route TEXT NOT NULL DEFAULT '',
+        currency TEXT NOT NULL,
+        depart_date TEXT NOT NULL DEFAULT '',
+        return_date TEXT NOT NULL DEFAULT '',
+        lowest_price REAL,
+        price_level TEXT NOT NULL DEFAULT '',
+        typical_low REAL,
+        typical_high REAL,
+        price_history TEXT NOT NULL DEFAULT '[]',
+        seen_at TEXT NOT NULL,
+        PRIMARY KEY (watch_id, kind)
+    )""",
+    # Background jobs (app/jobs.py), so a restart can't lose a search mid-flight:
+    # the in-memory copy is the hot path, these rows are the durable record.
+    """CREATE TABLE IF NOT EXISTS jobs (
+        job_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        query TEXT NOT NULL,
+        request TEXT,
+        result TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)",
+    # A job's progress events, one row per flushed batch (a JSON array).
+    """CREATE TABLE IF NOT EXISTS job_events (
+        job_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        events TEXT NOT NULL,
+        PRIMARY KEY (job_id, seq)
+    )""",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -157,6 +196,10 @@ _MIGRATIONS = [
     # v2.0: fare provenance (app/providers): google_flights / aviasales / web.
     "ALTER TABLE deals ADD COLUMN source TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE deals ADD COLUMN seen_at TEXT NOT NULL DEFAULT ''",
+    # v2.1: SerpApi follow-up tokens + their request (app/details.py).
+    "ALTER TABLE deals ADD COLUMN departure_token TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN booking_token TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE deals ADD COLUMN serp_params TEXT NOT NULL DEFAULT ''",
 ]
 
 # Deal columns written by save_deals, beyond search_query/found_at/search_params.
@@ -165,7 +208,7 @@ _DEAL_COLUMNS = [
     "return_date", "duration", "stops", "booking_url", "source_url", "notes",
     "origin_airport", "destination_airport", "depart_time", "arrive_time",
     "return_depart_time", "flight_numbers", "airline_code", "price_per_person",
-    "price_confidence", "source", "seen_at",
+    "price_confidence", "source", "seen_at", "departure_token", "booking_token", "serp_params",
 ]
 
 
@@ -389,7 +432,17 @@ def _row_to_deal(row: dict) -> StoredDeal:
     deal.booking_links = _booking_links(deal, link_params)
     _set_compare_price(deal)
     deal.route_key = route_key(deal.search_query)
+    deal.details_cost = _details_cost(deal)
     return deal
+
+
+def _details_cost(deal: FlightDeal) -> int:
+    """Upper bound of live searches for a deal's booking details (0 = none to fetch)."""
+    if deal.source != "google_flights" or not deal.serp_params:
+        return 0
+    if deal.booking_token:
+        return 1
+    return 2 if deal.departure_token else 0
 
 
 def _set_compare_price(deal: StoredDeal) -> None:
@@ -429,6 +482,9 @@ def save_deals(search_query: str, deals: list[FlightDeal],
             item.booking_links = _booking_links(item, params)
             _set_compare_price(item)
             item.route_key = route_key(item.search_query)
+            item.departure_token, item.booking_token = deal.departure_token, deal.booking_token
+            item.serp_params = deal.serp_params
+            item.details_cost = _details_cost(deal)
             stored.append(item)
         conn.commit()
         return stored
@@ -437,6 +493,30 @@ def save_deals(search_query: str, deals: list[FlightDeal],
         return _with_conn(op)
     finally:
         # Also clears history, which the UI re-fetches the moment a search ends.
+        _invalidate_cache()
+
+
+def get_deal(deal_id: int) -> StoredDeal | None:
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute("SELECT * FROM deals WHERE id = ?", (deal_id,))))
+    return _row_to_deal(rows[0]) if rows else None
+
+
+def set_deal_details(deal_id: int, booking_token: str = "", return_depart_time: str = "") -> None:
+    """Keep what a details fetch learned on the row: the return itinerary's
+    booking token (the next fetch then costs one search, not two) and the
+    return departure time when the row had none. Empty values change nothing."""
+    def op(conn) -> None:
+        conn.execute(
+            "UPDATE deals SET booking_token = CASE WHEN ? != '' THEN ? ELSE booking_token END, "
+            "return_depart_time = CASE WHEN return_depart_time = '' THEN ? ELSE return_depart_time END "
+            "WHERE id = ?",
+            (booking_token, booking_token, return_depart_time, deal_id),
+        )
+        conn.commit()
+
+    try:
+        _with_conn(op)
+    finally:
         _invalidate_cache()
 
 
@@ -729,6 +809,7 @@ def list_watches(active_only: bool = False) -> list[Watch]:
 def delete_watch(watch_id: int) -> bool:
     def op(conn) -> bool:
         cur = conn.execute("DELETE FROM watches WHERE id = ?", (watch_id,))
+        conn.execute("DELETE FROM price_insights WHERE watch_id = ?", (watch_id,))
         conn.commit()
         return cur.rowcount > 0
 
@@ -759,7 +840,8 @@ _WATCH_TAG = re.compile(r"\[watch #(\d+)\]\s*$")
 
 def watch_sightings() -> dict[int, list[dict]]:
     """Every stored deal of every watch's runs, as light rows (found_at, price,
-    currency, search_params) keyed by watch id — the input of the price stats.
+    currency, search_params, source) keyed by watch id — the input of the price
+    stats (source decides the row's trust tier).
     A watch's runs are tagged "[watch #N]" at the end of their search label."""
     cache_key = ("watch_sightings",)
     cached, generation = _cache_read(cache_key)
@@ -768,7 +850,7 @@ def watch_sightings() -> dict[int, list[dict]]:
 
     rows = _with_conn(
         lambda conn: _rows_as_dicts(conn.execute(
-            "SELECT search_query, found_at, price, currency, search_params FROM deals "
+            "SELECT search_query, found_at, price, currency, search_params, source FROM deals "
             "WHERE search_query LIKE '%[watch #%'"
         ))
     )
@@ -832,6 +914,49 @@ def list_alerts(watch_id: int | None = None, since: datetime | None = None) -> l
     alerts = [AlertRecord(**row) for row in rows]
     _cache_store(cache_key, alerts, generation)
     return alerts
+
+
+_INSIGHT_COLUMNS = ["route", "currency", "depart_date", "return_date", "lowest_price", "price_level",
+                    "typical_low", "typical_high"]
+
+
+def save_price_insights(watch_id: int, kind: str, insights: PriceInsights,
+                        seen_at: datetime | None = None) -> None:
+    """Keep Google's latest price insights for a watch's fare `kind`
+    (alerts.insight_kind), replacing the previous ones."""
+    seen_at = seen_at or datetime.now(timezone.utc)
+    columns = ["watch_id", "kind", *_INSIGHT_COLUMNS, "price_history", "seen_at"]
+    values = [watch_id, kind, *(getattr(insights, c) for c in _INSIGHT_COLUMNS),
+              json.dumps(insights.price_history), seen_at.isoformat()]
+
+    def op(conn) -> None:
+        conn.execute(f"INSERT OR REPLACE INTO price_insights ({', '.join(columns)}) "
+                     f"VALUES ({', '.join('?' for _ in columns)})", values)
+        conn.commit()
+
+    try:
+        _with_conn(op)
+    finally:
+        _invalidate_cache()
+
+
+def watch_price_insights() -> dict[int, list[dict]]:
+    """Stored price insights keyed by watch id: rows with the PriceInsights
+    fields (price_history decoded) plus kind and seen_at."""
+    cache_key = ("price_insights",)
+    cached, generation = _cache_read(cache_key)
+    if cached is not None:
+        return dict(cached)
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute("SELECT * FROM price_insights")))
+    by_watch: dict[int, list[dict]] = defaultdict(list)
+    for row in rows:
+        try:
+            row["price_history"] = json.loads(row["price_history"] or "[]")
+        except Exception:
+            row["price_history"] = []
+        by_watch[int(row["watch_id"])].append(row)
+    _cache_store(cache_key, list(by_watch.items()), generation)
+    return dict(by_watch)
 
 
 # --- fare providers: usage counter, response cache, watch pre-screen log -------
@@ -943,3 +1068,85 @@ def list_prescreens(watch_id: int | None = None, limit: int = 50) -> list[dict]:
     for row in rows:
         row["live"] = bool(row["live"])
     return rows
+
+
+# --- background jobs ----------------------------------------------------------
+#
+# Durable copies of app/jobs.py's in-memory jobs. Never cached: a job is read
+# from here only when it isn't in memory (after a restart), and its writes don't
+# touch deals/watches, so they leave the read cache alone too.
+
+_JOB_COLUMNS = ["job_id", "kind", "status", "query", "request", "result", "error",
+                "created_at", "updated_at"]
+
+
+def save_job(row: dict) -> None:
+    """Insert or update one job row (`request` / `result` already JSON text)."""
+    sql = (f"INSERT INTO jobs ({', '.join(_JOB_COLUMNS)}) "
+           f"VALUES ({', '.join('?' for _ in _JOB_COLUMNS)}) "
+           "ON CONFLICT (job_id) DO UPDATE SET status = excluded.status, "
+           "result = excluded.result, error = excluded.error, updated_at = excluded.updated_at")
+
+    def op(conn) -> None:
+        conn.execute(sql, [row.get(col) for col in _JOB_COLUMNS])
+        conn.commit()
+
+    _with_conn(op)
+
+
+def get_job(job_id: str) -> dict | None:
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(
+        f"SELECT {', '.join(_JOB_COLUMNS)} FROM jobs WHERE job_id = ?", (job_id,))))
+    return rows[0] if rows else None
+
+
+def append_job_events(job_id: str, seq: int, events: list[dict]) -> None:
+    """Store one batch of a job's progress events; `seq` orders the batches."""
+    def op(conn) -> None:
+        conn.execute("INSERT OR REPLACE INTO job_events (job_id, seq, events) VALUES (?, ?, ?)",
+                     (job_id, seq, json.dumps(events)))
+        conn.commit()
+
+    _with_conn(op)
+
+
+def get_job_events(job_id: str) -> list[dict]:
+    """Every stored event of a job, in emission order."""
+    rows = _with_conn(lambda conn: conn.execute(
+        "SELECT events FROM job_events WHERE job_id = ? ORDER BY seq", (job_id,)).fetchall())
+    events: list[dict] = []
+    for (raw,) in rows:
+        try:
+            events.extend(json.loads(raw))
+        except Exception:
+            logger.warning("ignoring unreadable job_events batch for %s", job_id)
+    return events
+
+
+def interrupt_running_jobs(search_message: str, watch_message: str,
+                           now: datetime | None = None, keep_events_days: int = 7,
+                           keep_jobs_days: int = 30) -> list[str]:
+    """Mark jobs a dead process left "running" as "interrupted"; returns their ids.
+
+    Also trims old history in the same round trip budget: events go after
+    `keep_events_days`, job rows after `keep_jobs_days`.
+    """
+    now = now or datetime.now(timezone.utc)
+    events_cutoff = (now - timedelta(days=keep_events_days)).isoformat()
+    jobs_cutoff = (now - timedelta(days=keep_jobs_days)).isoformat()
+
+    def op(conn) -> list[str]:
+        ids = [r[0] for r in conn.execute("SELECT job_id FROM jobs WHERE status = 'running'").fetchall()]
+        if ids:
+            conn.execute(
+                "UPDATE jobs SET status = 'interrupted', updated_at = ?, "
+                "error = CASE WHEN kind = 'watch_run' THEN ? ELSE ? END WHERE status = 'running'",
+                (now.isoformat(), watch_message, search_message),
+            )
+        conn.execute("DELETE FROM job_events WHERE job_id IN "
+                     "(SELECT job_id FROM jobs WHERE updated_at < ?)", (events_cutoff,))
+        conn.execute("DELETE FROM jobs WHERE updated_at < ?", (jobs_cutoff,))
+        conn.commit()
+        return ids
+
+    return _with_conn(op)

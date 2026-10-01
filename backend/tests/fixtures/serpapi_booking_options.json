@@ -1,0 +1,86 @@
+{
+  "_comment": "SerpApi booking_token request (TLV-PRG round trip, 2 adults, USD), shaped like https://serpapi.com/google-flights-booking-options: selected_flights, top-level baggage_prices, booking_options with together / separate_tickets parts and booking_request {url, post_data}.",
+  "search_metadata": {"id": "6710f1c2a5e3b8d2c4f0a444", "status": "Success", "created_at": "2026-10-01 08:13:10 UTC", "google_flights_url": "https://www.google.com/travel/flights?hl=en&curr=USD"},
+  "selected_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {"name": "Ben Gurion Airport", "id": "TLV", "time": "2026-11-05 06:10"},
+          "arrival_airport": {"name": "Václav Havel Airport Prague", "id": "PRG", "time": "2026-11-05 09:25"},
+          "duration": 255, "airline": "Smartwings", "travel_class": "Economy", "flight_number": "QS 1285"
+        }
+      ],
+      "total_duration": 255,
+      "type": "Round trip"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": {"name": "Václav Havel Airport Prague", "id": "PRG", "time": "2026-11-09 10:25"},
+          "arrival_airport": {"name": "Ben Gurion Airport", "id": "TLV", "time": "2026-11-09 15:20"},
+          "duration": 235, "airline": "Smartwings", "travel_class": "Economy", "flight_number": "QS 1286"
+        }
+      ],
+      "total_duration": 235,
+      "type": "Round trip"
+    }
+  ],
+  "baggage_prices": {
+    "together": ["1 free carry-on", "1st checked bag: 35"]
+  },
+  "booking_options": [
+    {
+      "together": {
+        "book_with": "Kiwi.com",
+        "airline": false,
+        "airline_logos": ["https://www.gstatic.com/flights/airline_logos/70px/QS.png"],
+        "marketed_as": ["QS 1285", "QS 1286"],
+        "price": 471,
+        "local_prices": [{"currency": "ILS", "price": 1760}],
+        "baggage_prices": ["1 free carry-on", "1st checked bag: 42-60"],
+        "booking_request": {
+          "url": "https://www.google.com/travel/clk/f",
+          "post_data": "u=EvsvCgJLV0ICZW4aFC0xMTg2MjAxNzkzMjcyNTc0OTE2IgNVU0Q%3D"
+        }
+      },
+      "separate_tickets": false
+    },
+    {
+      "together": {
+        "book_with": "Smartwings",
+        "airline": true,
+        "airline_logos": ["https://www.gstatic.com/flights/airline_logos/70px/QS.png"],
+        "marketed_as": ["QS 1285", "QS 1286"],
+        "price": 486,
+        "local_prices": [{"currency": "ILS", "price": 1816}],
+        "option_title": "Economy Light",
+        "extensions": ["Seat selection for a fee", "No refunds"],
+        "baggage_prices": ["1 free carry-on", "1st checked bag: 35"],
+        "booking_request": {
+          "url": "https://www.google.com/travel/clk/f",
+          "post_data": "u=EvsvCgJRUxoECAMQAULXBAoCVVMSAmVuGhQtMTE4NjIwMTc5MzI3MjU3NDkxNiIDVVNE&g=1"
+        },
+        "booking_phone": "+420 220 116 686"
+      },
+      "separate_tickets": false
+    },
+    {
+      "departing": {
+        "book_with": "Smartwings",
+        "airline": true,
+        "price": 250,
+        "baggage_prices": ["1 free carry-on", "1st checked bag: 20"],
+        "booking_request": {"url": "https://www.google.com/travel/clk/f", "post_data": "u=REVQQVJUSU5H"}
+      },
+      "returning": {
+        "book_with": "Smartwings",
+        "airline": true,
+        "price": 255,
+        "baggage_prices": ["1 free carry-on", "1st checked bag: 20"],
+        "booking_request": {"url": "https://www.google.com/travel/clk/f", "post_data": "u=UkVUVVJOSU5H"}
+      },
+      "separate_tickets": true
+    }
+  ],
+  "price_insights": {"lowest_price": 471, "price_level": "low", "typical_price_range": [520, 760]}
+}

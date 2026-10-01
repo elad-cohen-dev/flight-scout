@@ -111,6 +111,25 @@
   text-overflow: ellipsis;
 }
 
+/* what the numbers rest on; unverified estimates stay muted and folded */
+.ws-basis,
+.ws-legacy {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.ws-legacy summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.ws-legacy[open] span {
+  display: block;
+  margin-top: 0.2rem;
+  opacity: 0.85;
+}
+
 .score-pill {
   display: inline-flex;
   align-items: baseline;

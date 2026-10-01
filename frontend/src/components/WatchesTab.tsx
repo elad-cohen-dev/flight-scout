@@ -1,50 +1,84 @@
 import { useEffect, useState } from "react";
 import { formatPrice, timeAgo } from "../lib/format";
 import { criteriaChips } from "../lib/search";
-import { alertSettingsOf, describeWatch, ruleChips, ruleHeadline, ruleWords, scoreTone } from "../lib/watches";
+import {
+  alertSettingsOf,
+  basisNote,
+  describeWatch,
+  legacyNote,
+  legacyOnly,
+  priceRange,
+  ruleChips,
+  ruleHeadline,
+  ruleWords,
+  scoreTone,
+} from "../lib/watches";
 import type { Watch, WatchUpdate } from "../types";
 import Icon from "./Icon";
 import WatchEditor from "./WatchEditor";
 import "./watches.css";
 import "./alerts.css";
 
-/** Last best / 30-day low / typical / deal score, from the API's per-watch stats. */
+/** Last best / 30-day low / typical / deal score, from the API's per-watch stats,
+ *  with what they rest on. Numbers from unverified estimates only stay hidden
+ *  behind a muted note. */
 function WatchStatsGrid({ watch: w, hit }: { watch: Watch; hit: boolean }) {
-  const s = w.stats ?? null;
+  const all = w.stats ?? null;
+  const hidden = legacyOnly(all);
+  const s = hidden ? null : all;
   const price = (n: number | null | undefined) => (n != null ? formatPrice(n, w.currency) : "—");
   const last = s?.last_best ?? w.last_best_price;
+  const lastAt = s?.last_run_at ?? w.last_run_at;
   const tone = s?.score != null ? scoreTone(s.score) : null;
   const everLower = s?.all_time_low != null && s.low_30d != null && s.all_time_low < s.low_30d;
+  const range = s?.typical_low != null && s.typical_high != null ? priceRange(s.typical_low, s.typical_high, w.currency) : null;
+  const basis = s ? basisNote(s) : "";
+  const legacy = all ? legacyNote(all, w.currency) : null;
   return (
-    <div className="watch-stats ws-grid watch-dim">
-      <div>
-        <span className="muted small">Last best</span>
-        <strong className={hit ? "text-good" : ""}>{price(last)}</strong>
-        <span className="ws-note">{w.last_run_at ? timeAgo(w.last_run_at) : "Not checked yet"}</span>
+    <>
+      <div className="watch-stats ws-grid watch-dim">
+        <div>
+          <span className="muted small">Last best</span>
+          <strong className={hit ? "text-good" : ""}>{price(last)}</strong>
+          <span className="ws-note">{lastAt ? timeAgo(lastAt) : "Not checked yet"}</span>
+        </div>
+        <div>
+          <span className="muted small">30-day low</span>
+          <strong>{price(s?.low_30d)}</strong>
+          <span className="ws-note">{everLower ? `${price(s!.all_time_low)} all-time` : s ? "lowest so far" : "\u00a0"}</span>
+        </div>
+        <div>
+          <span className="muted small">Typical</span>
+          <strong title={range && s?.typical != null ? `Middle of Google's range: ${price(s.typical)}` : undefined}>{range ?? price(s?.typical)}</strong>
+          <span className="ws-note">{range ? "per Google" : s ? `${s.basis_runs ?? s.runs} check${(s.basis_runs ?? s.runs) === 1 ? "" : "s"}` : "\u00a0"}</span>
+        </div>
+        <div>
+          <span className="muted small">Deal score</span>
+          {s?.score != null && tone ? (
+            <strong
+              className={`score-pill score-${tone.tone}`}
+              title={s.basis === "google" ? "How this price compares with Google's price history for the route" : "How this price compares with earlier checks of this watch"}
+            >
+              {s.score}
+              <small>/100</small>
+            </strong>
+          ) : (
+            <strong>—</strong>
+          )}
+          <span className="ws-note">{tone ? tone.label : "after 4 checks"}</span>
+        </div>
       </div>
-      <div>
-        <span className="muted small">30-day low</span>
-        <strong>{price(s?.low_30d)}</strong>
-        <span className="ws-note">{everLower ? `${price(s!.all_time_low)} all-time` : s ? "lowest so far" : "\u00a0"}</span>
-      </div>
-      <div>
-        <span className="muted small">Typical</span>
-        <strong>{price(s?.typical)}</strong>
-        <span className="ws-note">{s ? `${s.runs} check${s.runs === 1 ? "" : "s"}` : "\u00a0"}</span>
-      </div>
-      <div>
-        <span className="muted small">Deal score</span>
-        {s?.score != null && tone ? (
-          <strong className={`score-pill score-${tone.tone}`} title="How this price compares with every earlier check of this watch">
-            {s.score}
-            <small>/100</small>
-          </strong>
+      {basis && <p className="ws-basis small watch-dim">{basis}</p>}
+      {legacy &&
+        (legacy.detail ? (
+          <details className="ws-legacy small watch-dim">
+            <summary>{legacy.summary}</summary>
+            <span>{legacy.detail}</span>
+          </details>
         ) : (
-          <strong>—</strong>
-        )}
-        <span className="ws-note">{tone ? tone.label : "after 4 checks"}</span>
-      </div>
-    </div>
+          <p className="ws-legacy small watch-dim">{legacy.summary}</p>
+        ))}
+    </>
   );
 }
 

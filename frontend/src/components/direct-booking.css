@@ -1,0 +1,293 @@
+/* DirectBooking ("Details & book direct"). Colors come from the app tokens in styles.css. */
+.db {
+  flex-basis: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.db-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 0.65rem 0.75rem;
+}
+
+.db-start,
+.db-fetch,
+.db-toggle {
+  font: inherit;
+  cursor: pointer;
+}
+
+.db-start {
+  align-self: flex-start;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 6px;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.db-start:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.db-start-cost {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.db-quote {
+  margin: 0;
+}
+
+.db-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.db-fetch {
+  min-height: 36px;
+  padding: 0.35rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.db-fetch:disabled,
+.db-start:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.db-start:focus-visible,
+.db-fetch:focus-visible,
+.db-toggle:focus-visible,
+.db-book:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.db-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 600;
+  text-align: left;
+}
+
+.db-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.db-toggle .icon {
+  transition: transform 0.15s ease;
+}
+
+.db-toggle[aria-expanded="true"] .icon {
+  transform: rotate(180deg);
+}
+
+.db-legs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.db-leg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+}
+
+.db-leg-label {
+  min-width: 2.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.db-plus {
+  color: var(--warn);
+  margin-left: 0.1rem;
+}
+
+.db-sellers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.db-seller {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.db-seller-direct {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.db-seller-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.db-seller-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.db-seller-price {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.db-seller-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+  color: var(--muted);
+}
+
+.db-seller-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.db-seller-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.db-book {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 34px;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-decoration: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-book:hover {
+  border-color: var(--accent);
+}
+
+.db-book-direct {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.db-book-direct:hover {
+  filter: brightness(1.08);
+}
+
+.db-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.db-tag-direct {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.db-tag-ok {
+  border-color: transparent;
+  background: var(--good-soft);
+  color: var(--green);
+}
+
+.db-ok {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.db-warn {
+  color: var(--warn);
+  margin: 0;
+}
+
+.db-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.82rem;
+}
+
+.db-foot {
+  margin: 0;
+}
+
+@media (max-width: 420px) {
+  .db-panel {
+    padding: 0.55rem;
+  }
+
+  .db-book {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}

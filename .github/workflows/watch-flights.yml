@@ -26,16 +26,27 @@ jobs:
           job_id=$(echo "$job" | jq -r .job_id)
 
           # Poll every 30s (keeps the Render instance awake) for up to 30 min.
+          # A failed poll (e.g. the app restarting after a deploy) is retried:
+          # jobs are stored in the DB, so the restarted app still knows this one
+          # and reports it as "interrupted".
           st=running
           for i in $(seq 1 60); do
             sleep 30
-            st=$(curl -fsS "$APP_URL/api/jobs/$job_id" -H "X-Cron-Secret: $CRON_SECRET" | jq -r .status)
-            echo "[$i] status: $st"
-            [ "$st" != "running" ] && break
+            st=$(curl -fsS -m 30 "$APP_URL/api/jobs/$job_id" -H "X-Cron-Secret: $CRON_SECRET" | jq -r .status) || st=""
+            echo "[$i] status: ${st:-unreachable (app restarting?)}"
+            [ -n "$st" ] && [ "$st" != "running" ] && break
           done
 
-          curl -fsS "$APP_URL/api/jobs/$job_id" -H "X-Cron-Secret: $CRON_SECRET" | jq .
-          [ "$st" = "done" ]
+          curl -fsS -m 30 "$APP_URL/api/jobs/$job_id" -H "X-Cron-Secret: $CRON_SECRET" | jq . || true
+          case "$st" in
+            done) ;;
+            interrupted)
+              echo "::error::Watch run $job_id was interrupted: the app restarted (deploy or crash) mid-run. Watches checked before the restart kept their results; re-run this workflow to check the rest."
+              exit 1 ;;
+            *)
+              echo "::error::Watch run $job_id did not finish (status: ${st:-unreachable})."
+              exit 1 ;;
+          esac
         env:
           APP_URL: ${{ vars.APP_URL || 'https://flight-scout-8k34.onrender.com' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

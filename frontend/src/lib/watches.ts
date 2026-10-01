@@ -1,4 +1,4 @@
-import type { AlertSettings, SearchParams, SearchRequest, Watch, WatchCreate, WatchUpdate } from "../types";
+import type { AlertSettings, SearchParams, SearchRequest, Watch, WatchCreate, WatchStats, WatchUpdate } from "../types";
 import { formatPrice } from "./format";
 import type { QueryGroup } from "./history";
 import { CABIN_LABELS, exactWindowLabel, formToWatch, requestToForm, totalPassengers } from "./search";
@@ -199,4 +199,55 @@ export function clampRule(value: string | number, [lo, hi]: readonly [number, nu
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n) || (typeof value === "string" && value.trim() === "")) return fallback;
   return Math.min(hi, Math.max(lo, Math.round(n)));
+}
+
+// --- stats trust basis ------------------------------------------------------------
+
+/** "$285–390" / "950–1,300 CZK", like the alert messages. */
+export function priceRange(low: number, high: number, currency: string): string {
+  const lo = formatPrice(low, currency);
+  const hi = formatPrice(high, currency);
+  return lo.endsWith(currency) ? `${lo.slice(0, -currency.length - 1)}–${hi}` : `${lo}–${hi.replace(/^[^\d]+/, "")}`;
+}
+
+const checks = (n: number, what: string) => `${n} ${what} check${n === 1 ? "" : "s"}`;
+
+/** What a watch card's numbers rest on, e.g. "Based on 12 verified checks";
+ *  "" for legacy-only stats (see legacyNote) and pre-2.1 servers. */
+export function basisNote(s: WatchStats): string {
+  const n = s.basis_runs ?? 0;
+  switch (s.basis) {
+    case "verified":
+      return `Based on ${checks(n, "verified")}`;
+    case "google":
+      return n ? `Based on Google's price history + ${checks(n, "verified")}` : "Based on Google's price history";
+    case "cached":
+      return `Based on ${checks(n, "cached-fare")} — not confirmed live yet`;
+    default:
+      return "";
+  }
+}
+
+/** True when the card's numbers come from unverified estimates only (hidden behind legacyNote). */
+export function legacyOnly(s: WatchStats | null | undefined): boolean {
+  return s?.basis === "legacy";
+}
+
+/** The muted note for unverified (pre-2.0 / web-search) checks: a summary line
+ *  and, when there are numbers to show, the numbers. null when there are none. */
+export function legacyNote(s: WatchStats, currency: string): { summary: string; detail: string } | null {
+  const old =
+    s.basis === "legacy"
+      ? { runs: s.runs, low_30d: s.low_30d, typical: s.typical }
+      : s.legacy ?? (s.legacy_runs ? { runs: s.legacy_runs, low_30d: null, typical: null } : null);
+  if (!old || !old.runs) return null;
+  const est = `${old.runs} older estimated check${old.runs === 1 ? "" : "s"}`;
+  const nums = [
+    old.low_30d != null && `30-day low ${formatPrice(old.low_30d, currency)}`,
+    old.typical != null && `typical ${formatPrice(old.typical, currency)}`,
+  ].filter(Boolean);
+  const why = "web-search estimates, often without bags";
+  const detail = nums.length ? `${nums.join(" · ")} — ${why}${s.basis === "legacy" ? "." : "; not used for the score or alerts."}` : "";
+  if (s.basis === "legacy") return { summary: `Only ${est} so far — not verified`, detail };
+  return { summary: s.legacy ? `${est}, not counted` : `${est} not counted`, detail };
 }

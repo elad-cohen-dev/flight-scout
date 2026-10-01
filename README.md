@@ -46,8 +46,8 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 | Method           | Path                                 | Description                                                                                                                        |
 | ---------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `POST`           | `/api/search`                        | `{origin, destination, dates_hint, ...search params}` (see below) → starts a search job, returns `{job_id}` (202)                 |
-| `GET`            | `/api/jobs/{job_id}`                 | Poll a job: `{status: running\|done\|error, deals, summary, error}`                                                                  |
-| `GET`            | `/api/jobs/{job_id}/events`          | Live progress stream (SSE): the agent's web-search calls and streamed research text                                                |
+| `GET`            | `/api/jobs/{job_id}`                 | Poll a job: `{status: running\|done\|error\|cancelled\|interrupted, deals, summary, error, request}` — survives restarts (stored in the DB) |
+| `GET`            | `/api/jobs/{job_id}/events`          | Live progress stream (SSE): the agent's web-search calls and streamed research text; `?after=N` skips events already seen      |
 | `POST`           | `/api/jobs/{job_id}/cancel`          | Stop a running job; it aborts at its next progress event without saving anything                                                   |
 | `GET`            | `/api/deals`                         | List stored deals, de-duplicated across runs (`dedupe=false` for raw rows). Filters: `origin`, `destination`, `max_price`, `limit` |
 | `GET`            | `/api/history`                       | Best price per route per search run (feeds the price chart)                                                                        |
@@ -81,7 +81,7 @@ Searches and watches accept the same criteria. All are optional; the defaults re
 | `cabin_bag` / `checked_bag` | `false` | Prices must include a 10kg cabin trolley / a 20kg+ checked bag per traveller |
 | `nearby_airports` | `false` | Also consider alternate airports near origin and destination |
 
-Watches additionally take `alerts` (see [Smart alerts](#smart-alerts); PATCH may send just the rule fields that change), and every watch returned by the API carries read-only `stats` (`runs`, `last_best`, `low_30d`, `typical`, `all_time_low`, `score`, in the watch currency; `null` before its first run) and `last_alert`.
+Watches additionally take `alerts` (see [Smart alerts](#smart-alerts); PATCH may send just the rule fields that change), and every watch returned by the API carries read-only `stats` (`runs`, `last_best`, `low_30d`, `typical`, `all_time_low`, `score`, in the watch currency, plus what they rest on: `basis`, `basis_runs`, `history_points`, Google's `typical_low`/`typical_high`, `legacy_runs`/`legacy`; `null` before its first run) and `last_alert`.
 
 A finished search job also carries `meta`: `sources` used (`google_flights`, `aviasales`, `web`), Google's `price_insights` for the route (`typical_low`/`typical_high`, `price_level`), `live_searches` spent and any `messages` (e.g. the monthly live budget is used up).
 
@@ -111,6 +111,8 @@ Each watch has its own rules (editable under **Alert me when** in the watch edit
 | Big drop | `big_drop`, `big_drop_pct` | on, 15% | is that much cheaper than the previous run |
 
 **Anti-spam:** the same fare (airline, airports, dates, flight numbers, party) is not re-alerted within 7 days unless it dropped another 5%; sent alerts are logged in the `alert_log` table (`GET /api/alerts`). **Deal score** (0–100, in messages, the bot and on watch cards): 75% percentile against earlier run-bests (ties count half) + 25% distance from their median; 50 = a typical price, 88+ = a new low; shown after 3 earlier runs.
+
+**Trustworthy stats:** only one trust tier feeds the numbers, scores and smart rules (`stats.basis`): `verified` (the watch's own Google Flights runs, once it has 5+), `google` (Google's price insights from the latest live search — typical = middle of Google's typical range, lows from its price history — plus any verified runs), `cached` (Aviasales runs, only while there is no verified data) or `legacy` (unverified LLM-era estimates only — the old behaviour, labelled). Legacy runs never mix into a trusted basis; watch cards show them only in a muted note. Messages say when the basis is Google ("typical $285–390 per Google"). Google's history is for the one date pair the live search asked about, so it is an approximation for a multi-date watch until it has its own verified runs.
 
 ### Telegram bot
 
@@ -170,7 +172,11 @@ The repo ships a `Dockerfile` (builds the frontend, serves everything from FastA
   - Fill in the env vars: `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`), `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`.
 3. Every push to `main` auto-deploys.
 
-Free-tier notes: the service spins down after ~15 min idle (first request takes ~1 min to cold-start), and searches run as background jobs the UI polls — so keep the tab open until a search finishes.
+Free-tier notes:
+
+- **Sleep / cold start.** The service spins down after ~15 min idle; the next request takes ~1 min while it boots. The page itself comes from that same server, so a *first* visit to a sleeping instance shows the browser's own loading state for that minute — nothing can render before the server answers. Return visits are covered: a small service worker (`frontend/public/sw.js`) caches the app shell, so the page renders at once and shows a "Waking up the server…" banner (elapsed time, rough progress) until `/api/health` answers, then carries on by itself. The same banner appears if you start a search after the tab sat idle long enough for the server to sleep.
+- **No keep-alive pinger, on purpose.** Render's free tier gives 750 instance-hours a month and one always-on instance uses ~744, so pinging it awake is technically possible but spends the whole allowance on idle time (and any second free service on the account would run out). The daily cron already wakes it when it matters.
+- **Restarts.** Every deploy or env-var change restarts the instance. Jobs are stored in the DB, so a search or watch run in flight comes back as **interrupted** (never re-run automatically — each run can cost a live fare-API credit or LLM money); the UI offers *Run again* with the same criteria. Reloading the page mid-search re-attaches to it, and a finished result is shown even if the tab was closed.
 
 ## Features
 

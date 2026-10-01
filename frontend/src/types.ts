@@ -72,6 +72,7 @@ export interface StoredDeal {
   quality_flags?: string[];
   source?: FareSource; // set by the backend engine/providers
   seen_at?: string; // ISO time the source saw this price ("" = unknown)
+  details_cost?: number; // most live searches "Details & book direct" may use (0/absent = not available)
 }
 
 export interface SearchRequest extends Partial<SearchParams> {
@@ -86,12 +87,16 @@ export interface SearchRequest extends Partial<SearchParams> {
 export interface Job {
   job_id: string;
   kind: "search" | "watch_run";
-  status: "running" | "done" | "error" | "cancelled";
+  // interrupted: the server restarted mid-run; nothing re-runs by itself
+  status: "running" | "done" | "error" | "cancelled" | "interrupted";
   query: string;
   deals: StoredDeal[] | null;
   summary: Record<string, unknown> | null;
   meta?: SearchMeta | null; // kind=search: sources, Google price insights, notices
   error: string | null;
+  request?: Record<string, unknown> | null; // what started it (search body / {watch_id}) — for "Run again"
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 /** Google Flights' price level for the searched route (SerpApi price_insights), party total in `currency`. */
@@ -148,6 +153,16 @@ export interface WatchStats {
   typical: number | null; // median of the last 30 days' run-bests
   all_time_low: number | null;
   score: number | null; // 0-100 deal score of the last best price
+  // Which trust tier the numbers rest on (absent from pre-2.1 servers):
+  // verified = own Google Flights runs; google = Google's price history (+ own
+  // verified runs); cached = Aviasales cache runs; legacy = unverified estimates only.
+  basis?: "verified" | "google" | "cached" | "legacy";
+  basis_runs?: number; // runs of that tier (verified ones for basis=google)
+  history_points?: number; // Google price-history points of the last 30 days used
+  typical_low?: number | null; // Google's typical range (basis=google)
+  typical_high?: number | null;
+  legacy_runs?: number; // unverified runs left out of the numbers
+  legacy?: { runs: number; low_30d: number | null; typical: number | null; all_time_low: number | null } | null;
 }
 
 export interface AlertRecord {
@@ -218,4 +233,66 @@ export interface SearchGroup {
   foundAt: string;
   deals: StoredDeal[];
   minPrice: number;
+}
+
+// --- deal details on demand (GET/POST /api/deals/{id}/details, backend app/details.py) ---
+
+export interface DetailsLeg {
+  origin: string;
+  destination: string;
+  depart_date: string;
+  depart_time: string;
+  arrive_date: string;
+  arrive_time: string;
+  airline: string;
+  flight_numbers: string;
+  duration: string;
+  stops: number;
+  layovers: string[];
+}
+
+export interface BagFee {
+  text: string; // Google's wording; "" = not stated
+  fee: number | null; // exact per traveller (0 = free); null = unknown or a range
+}
+
+export interface SellerLink {
+  part: "together" | "departing" | "returning";
+  label: string;
+  url: string; // signed /api/deals/{id}/book/{option} page; "" = no booking link
+}
+
+export interface Seller {
+  index: number;
+  book_with: string;
+  airline: boolean; // sold by the airline itself
+  price: number | null; // party total
+  option_title: string;
+  extensions: string[];
+  carry_on: BagFee;
+  checked: BagFee;
+  bag_notes: string[];
+  price_incl_bags: number | null;
+  bags_verified: boolean;
+  separate_tickets: boolean;
+  phone: string;
+  links: SellerLink[];
+}
+
+export interface DealDetails {
+  deal_id: number;
+  status: "ready" | "needs_fetch" | "expired" | "unavailable";
+  message: string;
+  cost: number; // live searches a fetch would use now
+  left: number; // live searches left this month
+  budget: number;
+  spent: number;
+  fetched_at: string;
+  currency: string;
+  outbound: DetailsLeg | null;
+  return_leg: DetailsLeg | null;
+  sellers: Seller[]; // cheapest first, airlines win ties
+  bags_requested: ("carry_on" | "checked")[];
+  verified_incl_bags: boolean;
+  price_incl_bags: number | null;
 }

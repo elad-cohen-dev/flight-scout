@@ -2232,3 +2232,71 @@ input::placeholder {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- server wake-up banner + interrupted run ---------- */
+.wake-banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+}
+
+.wake-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wake-banner-time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.wake-banner p {
+  margin: 0.45rem 0 0;
+}
+
+.wake-progress {
+  height: 4px;
+  margin-top: 0.6rem;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  overflow: hidden;
+}
+
+.wake-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--warn);
+  transition: width 1s linear;
+}
+
+.interrupted {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--border));
+}
+
+.interrupted-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--warn);
+}
+
+.interrupted p {
+  margin: 0.4rem 0 0;
+}
+
+.interrupted-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wake-progress-bar {
+    transition: none;
+  }
+}

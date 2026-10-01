@@ -77,21 +77,32 @@ function hostOf(url: string) {
   }
 }
 
-export default function BookingLinks({ deal }: { deal: StoredDeal }) {
+/** An airline seller fetched by "Details & book direct" (DirectBooking): it
+ *  becomes the primary button, ahead of the pre-filled search links. */
+export interface DirectLink {
+  label: string;
+  url: string;
+}
+
+export default function BookingLinks({ deal, direct }: { deal: StoredDeal; direct?: DirectLink }) {
   const [open, setOpen] = useState(false);
   const moreId = useId();
-  const links: BookingLink[] = deal.booking_links?.length
+  const found: BookingLink[] = deal.booking_links?.length
     ? deal.booking_links
     : deal.booking_url
       ? [{ label: hostOf(deal.booking_url) || "Book", url: deal.booking_url, kind: "other", prefilled: [] }]
       : [];
+  // The seller's own booking page carries the exact itinerary and party.
+  const links: BookingLink[] = direct
+    ? [{ label: direct.label, url: direct.url, kind: "airline", prefilled: ["route", "dates", "passengers", "cabin"] }, ...found]
+    : found;
   if (!links.length) return null;
 
   const [primary, ...others] = links;
   const c: Criteria = deal.search_params ?? DEFAULTS;
   const hint = prefilledHint(primary, c);
   const steps = todo(primary, c, others);
-  const verb = primary.kind === "airline" ? "Book on" : primary.kind === "other" ? "Open" : "Search on";
+  const verb = direct ? "Book with" : primary.kind === "airline" ? "Book on" : primary.kind === "other" ? "Open" : "Search on";
 
   return (
     <div className="bl">
@@ -99,7 +110,7 @@ export default function BookingLinks({ deal }: { deal: StoredDeal }) {
         <a
           href={primary.url}
           target="_blank"
-          rel="noreferrer"
+          rel={direct ? "noopener noreferrer" : "noreferrer"}
           className="bl-primary"
           title={hint ? `Opens with ${hint}` : undefined}
         >

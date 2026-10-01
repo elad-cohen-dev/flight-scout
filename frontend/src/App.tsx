@@ -9,6 +9,9 @@ import {
   fetchHistory,
   fetchWatches,
   followJob,
+  getJob,
+  HttpError,
+  pingHealth,
   setAppPassword,
   startSearch,
   startWatchRun,
@@ -23,15 +26,20 @@ import SearchTab from "./components/SearchTab";
 import type { LastResult, RunState } from "./components/SearchTab";
 import { ToastProvider, useToast } from "./components/Toasts";
 import TrendsTab from "./components/TrendsTab";
+import WakeBanner from "./components/WakeBanner";
 import WatchesTab from "./components/WatchesTab";
 import { formatPrice } from "./lib/format";
 import { groupHistory } from "./lib/history";
 import type { QueryGroup } from "./lib/history";
+import { forgetJob, loadActiveJob, rememberJob, rerunTarget, waitForServer } from "./lib/jobs";
 import { formToRequest, formToWatch, loadForm, requestToForm, rerunRequest, saveForm } from "./lib/search";
 import type { SearchForm } from "./lib/search";
 import { useHashTab } from "./lib/useHashTab";
 import type { Tab } from "./lib/useHashTab";
-import type { RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate } from "./types";
+import type { Job, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate } from "./types";
+
+/** A remembered job that finished longer ago than this isn't resurfaced on load. */
+const RESUME_RESULT_MAX_AGE_MS = 6 * 60 * 60_000;
 
 const NAV: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: "search", label: "Search", icon: "search" },
@@ -51,6 +59,8 @@ function FlightScout() {
   const [form, setForm] = useState<SearchForm>(loadForm);
   const [run, setRun] = useState<RunState | null>(null);
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
+  const [interrupted, setInterrupted] = useState<Job | null>(null);
+  const [wakingSince, setWakingSince] = useState<number | null>(null);
   const currentJobId = useRef<string | null>(null);
   const priceRef = useRef<HTMLInputElement>(null);
 
@@ -71,17 +81,34 @@ function FlightScout() {
       setWatches(w);
       setHistory(h);
       setLocked(false);
+      return true;
     } catch (e) {
       if (e instanceof AuthError) lock();
       else toast("error", `Couldn't load your data — ${String(e)}`);
+      return false;
     } finally {
       setLoading(false);
     }
   }, [lock, toast]);
 
+  /** Resolve once the server answers, showing the wake-up banner if it's
+   *  asleep (free hosting) — before the first load and before starting runs. */
+  const ensureAwake = useCallback(async () => {
+    await waitForServer({ ping: () => pingHealth(), onSlow: () => setWakingSince(Date.now()) });
+    setWakingSince(null);
+  }, []);
+
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    let cancelled = false;
+    ensureAwake().then(async () => {
+      if (cancelled) return;
+      if (await loadAll()) resumeActiveJob();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per page load
+  }, []);
 
   useEffect(() => saveForm(form), [form]);
 
@@ -103,7 +130,7 @@ function FlightScout() {
       return String(e);
     }
     setLoading(true);
-    await loadAll();
+    if (await loadAll()) resumeActiveJob();
     return null;
   }
 
@@ -123,30 +150,101 @@ function FlightScout() {
     cancelJob(jobId).catch(() => setRun((r) => (r ? { ...r, stopping: false } : r)));
   }
 
-  async function performSearch(req: SearchRequest) {
-    if (run) return;
-    setRun({ title: `Searching ${req.origin} → ${req.destination}`, events: [], stopping: false });
-    setLastResult(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  /** Follow a started (or re-attached) job to its end, remembering it so a
+   *  page reload picks it up again instead of losing it. */
+  async function track(job: Job, title: string) {
+    rememberJob({ job_id: job.job_id, kind: job.kind, title });
+    currentJobId.current = job.job_id;
+    setRun({ title, events: [], stopping: false });
     try {
-      const started = await startSearch(req);
-      currentJobId.current = started.job_id;
-      const job = await followJob(started, onAgentEvent);
-      if (job.status === "error") toast("error", job.error ?? "Search failed");
-      else if (job.status === "cancelled") toast("info", "Search stopped — nothing was saved.");
-      else {
-        const found = job.deals ?? [];
-        setDeals((prev) => [...found, ...prev]);
-        setLastResult({ query: job.query, deals: found, finishedAt: new Date().toISOString(), meta: job.meta });
-        fetchHistory().then(setHistory).catch(() => {});
-        toast("success", found.length ? `Found ${found.length} deal${found.length > 1 ? "s" : ""}.` : "Search finished — no deals this time.");
-      }
+      finishJob(await followJob(job, onAgentEvent));
+      forgetJob(job.job_id);
     } catch (e) {
-      handleRunError(e);
+      if (e instanceof HttpError && e.status === 404) {
+        forgetJob(job.job_id);
+        toast("error", "The server no longer knows this run — start it again if you still need it.");
+      } else handleRunError(e); // remembered: a reload re-attaches once the server is back
     } finally {
       setRun(null);
       currentJobId.current = null;
     }
+  }
+
+  /** Show a finished job's outcome. */
+  function finishJob(job: Job) {
+    const what = job.kind === "search" ? "Search" : "Watch run";
+    if (job.status === "error") toast("error", job.error ?? `${what} failed`);
+    else if (job.status === "cancelled") toast("info", `${what} stopped — nothing was saved.`);
+    else if (job.status === "interrupted") {
+      setInterrupted(job);
+      toast("error", `${what} interrupted by a server restart.`);
+    } else if (job.kind === "search") {
+      const found = job.deals ?? [];
+      const ids = new Set(found.map((d) => d.id));
+      // after a reload these deals may already be in the fetched list
+      setDeals((prev) => [...found, ...prev.filter((d) => !ids.has(d.id))]);
+      setLastResult({ query: job.query, deals: found, finishedAt: job.updated_at ?? new Date().toISOString(), meta: job.meta });
+      fetchHistory().then(setHistory).catch(() => {});
+      toast("success", found.length ? `Found ${found.length} deal${found.length > 1 ? "s" : ""}.` : "Search finished — no deals this time.");
+    } else {
+      loadAll(); // fresh deals, watch stats (last best / checked), history point
+      if (job.deals) setLastResult({ query: job.query, deals: job.deals, finishedAt: new Date().toISOString() });
+      const r = ((job.summary?.results as Record<string, unknown>[] | undefined) ?? [])[0];
+      if (r?.error) toast("error", String(r.error));
+      else if (r) {
+        const currency = String(r.currency ?? "USD");
+        toast(
+          r.alerted ? "success" : "info",
+          r.best_price == null
+            ? `Checked ${r.route}: no comparable deals this run.`
+            : `Checked ${r.route}: best ${formatPrice(Number(r.best_price), currency)} vs your ${formatPrice(Number(r.threshold), currency)} target — ${r.alerted ? "alert sent!" : "no alert."}`
+        );
+      }
+    }
+  }
+
+  /** After a reload: pick the remembered job back up (live, or its result). */
+  async function resumeActiveJob() {
+    const saved = loadActiveJob();
+    if (!saved || currentJobId.current) return;
+    let job: Job;
+    try {
+      job = await getJob(saved.job_id);
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 404) forgetJob(saved.job_id);
+      return;
+    }
+    if (job.status === "running") {
+      if (saved.kind === "search") go("search");
+      await track(job, saved.title);
+    } else {
+      forgetJob(job.job_id);
+      // Finished while the page was closed: show it, unless that was long ago.
+      if (Date.now() - Date.parse(job.updated_at ?? "") < RESUME_RESULT_MAX_AGE_MS) finishJob(job);
+    }
+  }
+
+  /** Start a job: shows the console at once, wakes a sleeping server first. */
+  async function launch(title: string, start: () => Promise<Job>) {
+    if (run) return;
+    setRun({ title, events: [], stopping: false });
+    setLastResult(null);
+    setInterrupted(null);
+    let started: Job;
+    try {
+      await ensureAwake();
+      started = await start();
+    } catch (e) {
+      handleRunError(e);
+      setRun(null);
+      return;
+    }
+    await track(started, title);
+  }
+
+  async function performSearch(req: SearchRequest) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    await launch(`Searching ${req.origin} → ${req.destination}`, () => startSearch(req));
   }
 
   function onSearch() {
@@ -180,36 +278,19 @@ function FlightScout() {
   async function onRunWatch(id: number) {
     if (run) return;
     const w = watches.find((x) => x.id === id);
-    setRun({ title: `Checking watch ${w ? `${w.origin} → ${w.destination}` : ""}`, events: [], stopping: false });
-    setLastResult(null);
     go("search");
-    try {
-      const started = await startWatchRun(id);
-      currentJobId.current = started.job_id;
-      const job = await followJob(started, onAgentEvent);
-      if (job.status === "error") toast("error", job.error ?? "Watch run failed");
-      else if (job.status === "cancelled") toast("info", "Watch run stopped — nothing was saved.");
-      else {
-        loadAll(); // fresh deals, watch stats (last best / checked), history point
-        if (job.deals) setLastResult({ query: job.query, deals: job.deals, finishedAt: new Date().toISOString() });
-        const r = ((job.summary?.results as Record<string, unknown>[] | undefined) ?? [])[0];
-        if (r?.error) toast("error", String(r.error));
-        else if (r) {
-          const currency = String(r.currency ?? "USD");
-          toast(
-            r.alerted ? "success" : "info",
-            r.best_price == null
-              ? `Checked ${r.route}: no comparable deals this run.`
-              : `Checked ${r.route}: best ${formatPrice(Number(r.best_price), currency)} vs your ${formatPrice(Number(r.threshold), currency)} target — ${r.alerted ? "alert sent!" : "no alert."}`
-          );
-        }
-      }
-    } catch (e) {
-      handleRunError(e);
-    } finally {
-      setRun(null);
-      currentJobId.current = null;
-    }
+    await launch(`Checking watch ${w ? `${w.origin} → ${w.destination}` : ""}`, () => startWatchRun(id));
+  }
+
+  /** "Run again" on an interrupted job: re-submit what it stored. Never automatic. */
+  const interruptedRerun = interrupted ? rerunTarget(interrupted) : null;
+  function onRunAgain() {
+    if (!interruptedRerun) return;
+    if (interruptedRerun.type === "search") {
+      const req = interruptedRerun.request;
+      setForm((f) => requestToForm(req, f));
+      performSearch(req);
+    } else onRunWatch(interruptedRerun.watchId);
   }
 
   async function onWatch() {
@@ -327,6 +408,7 @@ function FlightScout() {
       </header>
 
       <main className="container">
+        {wakingSince !== null && <WakeBanner since={wakingSince} />}
         {run && tab !== "search" && (
           <button className="live-banner" onClick={() => go("search")}>
             <span className="agent-dot" aria-hidden="true" /> {run.title}… <span className="live-banner-cta">View live</span>
@@ -345,6 +427,9 @@ function FlightScout() {
             onPickRecent={onPickRecent}
             onOpenHistory={() => go("history")}
             priceRef={priceRef}
+            interrupted={interrupted}
+            onRunAgain={interruptedRerun ? onRunAgain : undefined}
+            onDismissInterrupted={() => setInterrupted(null)}
           />
         )}
         {tab === "history" && (

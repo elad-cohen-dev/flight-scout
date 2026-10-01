@@ -3,7 +3,7 @@ import { formatPrice, timeAgo } from "../lib/format";
 import { insightsLine, priceLevelTone } from "../lib/providers";
 import type { QueryGroup } from "../lib/history";
 import type { SearchForm as Form } from "../lib/search";
-import type { SearchMeta, StoredDeal } from "../types";
+import type { Job, SearchMeta, StoredDeal } from "../types";
 import AgentConsole from "./AgentConsole";
 import DealList from "./DealList";
 import Icon from "./Icon";
@@ -35,6 +35,9 @@ export default function SearchTab({
   onPickRecent,
   onOpenHistory,
   priceRef,
+  interrupted = null,
+  onRunAgain,
+  onDismissInterrupted,
 }: {
   form: Form;
   onFormChange: (patch: Partial<Form>) => void;
@@ -47,12 +50,39 @@ export default function SearchTab({
   onPickRecent: (g: QueryGroup) => void;
   onOpenHistory: () => void;
   priceRef: React.RefObject<HTMLInputElement>;
+  interrupted?: Job | null; // a run the server restart killed — offer to run it again
+  onRunAgain?: () => void; // undefined when it can't be re-run from here
+  onDismissInterrupted?: () => void;
 }) {
   return (
     <div className="tab-search">
       <SearchForm form={form} onChange={onFormChange} onSearch={onSearch} onWatch={onWatch} busy={!!run} priceRef={priceRef} />
 
       {run && <AgentConsole title={run.title} events={run.events} onStop={onStop} stopping={run.stopping} />}
+
+      {!run && interrupted && (
+        <section className="interrupted card" role="alert">
+          <div className="interrupted-head">
+            <Icon name="alert" size={18} />
+            <strong>{interrupted.kind === "search" ? "Search interrupted" : "Watch run interrupted"}</strong>
+          </div>
+          <p className="muted small">{interrupted.query.replace(" -> ", " → ")}</p>
+          <p>{interrupted.error ?? "The server restarted while this was running."}</p>
+          <div className="interrupted-actions">
+            {onRunAgain && (
+              <button className="btn btn-primary btn-sm" onClick={onRunAgain}>
+                <Icon name="refresh" size={14} /> Run again
+              </button>
+            )}
+            <button className="btn btn-ghost btn-sm" onClick={onDismissInterrupted}>
+              Dismiss
+            </button>
+          </div>
+          {onRunAgain && interrupted.kind === "search" && (
+            <p className="muted small">Running again starts a fresh search, which may use a live fare-API credit.</p>
+          )}
+        </section>
+      )}
 
       {!run && lastResult && (
         <section className="results" aria-labelledby="results-title">
