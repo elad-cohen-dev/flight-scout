@@ -81,7 +81,7 @@ Two interchangeable backends behind one module — both speak the sqlite3 DB-API
 | Selected by | `TURSO_DATABASE_URL` unset | `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` set |
 | Why | zero setup | Render free tier has an **ephemeral disk** — a local file would vanish on every deploy/restart |
 
-Two tables: `deals` (every deal from every run, append-only) and `watches`. Schema is created on first connect; lightweight migrations are `ALTER TABLE` statements that fail harmlessly once applied.
+Three tables: `deals` (every deal from every run, append-only), `watches` (alert rules in an `alert_settings` JSON column) and `alert_log` (every alert sent: watch, fare fingerprint, price, rules, score, time). Schema is created on first connect; lightweight migrations are `ALTER TABLE` statements that fail harmlessly once applied.
 
 Performance shape (matters because every Turso statement is a network round trip):
 
@@ -112,11 +112,12 @@ Every morning (05:00 UTC), the GitHub Actions workflow:
 
 1. **Wakes the app** — a retry loop on `GET /api/health`, because the free Render instance sleeps after ~15 idle minutes.
 2. **Triggers the sweep** — `POST /api/watches/run` with the `X-Cron-Secret` header; the API returns `202 {job_id}` and runs the watcher in a background thread.
-3. For **each active watch**, the watcher re-runs the agent with the watch's stored `SearchParams`, saves the results, converts every deal price into the watch's currency, and — if the best converted price is at or below `max_price` — pushes an alert like *"1,009 ILS (~336 USD) on Israir…"* linking to the most pre-filled booking link.
+3. For **each active watch**, the watcher re-runs the agent with the watch's stored `SearchParams`, saves the results, converts every deal price into the watch's currency, and scores the run's best price against the watch's history (`app/alerts.py`): its earlier run-bests of the same fare kind (party, cabin, trip type) give the 30-day low, the typical price (30-day median), the all-time low and a 0–100 deal score, and the alert rules fire on the threshold, a new N-day low, X% under typical, or a big drop vs the previous run. A fare alerted in the last 7 days is suppressed unless it fell another 5% (`alert_log` table). After the last watch, **one digest** goes out — hits first, each with its reasons and the most pre-filled booking link, then a one-liner per other watch. A single-watch "Run now" instead alerts immediately when a rule fires.
 4. **Polls the job** every 30 seconds until done (which conveniently also keeps the instance awake for the duration).
 
 - The **threshold comparison is currency-aware** (`app/currency.py`): deal prices convert into the watch's currency using ECB rates from frankfurter.dev (keyless, cached in-process for 12h) with a static fallback table. Raw-number comparison was the original design and it failed both ways: ₪1,009 vs a $300 threshold never alerted; £95 vs a $100 threshold would have alerted wrongly.
-- Alerts go to **every configured channel**: ntfy (topic-based, zero signup) and/or a Telegram bot.
+- Alerts go to **every configured channel**: ntfy (plain text, topic-based, zero signup) and/or a Telegram bot (HTML).
+- The **Telegram bot** is two-way over a webhook (`app/telegram_bot.py`), not polling, so it costs nothing while idle on the free tier. `POST /api/telegram/webhook/{secret}` checks the secret path and Telegram's secret-token header, answers only `TELEGRAM_CHAT_ID` chats, and returns its reply *as the webhook response* (Telegram executes a `sendMessage` body), so most commands make no outbound call. `/run` starts an ordinary watch-run job with notifications off and messages the chat from the job thread when it finishes.
 - The workflow's wake-then-poll pattern exists because the free Render instance sleeps after ~15 idle minutes.
 
 ## Serving & security

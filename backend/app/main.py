@@ -19,15 +19,17 @@ import uuid
 from pathlib import Path
 from typing import Callable, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from . import agent, storage, watcher
-from .models import RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate, search_label
+from . import agent, alerts, notify, storage, telegram_bot, watcher
+from .models import (
+    AlertRecord, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate, search_label,
+)
 
 app = FastAPI(title="Flight Scout", version="1.0.0")
 
@@ -220,16 +222,22 @@ def get_history() -> list[RouteHistory]:
 
 # --- watches ----------------------------------------------------------------
 
+def _with_stats(watches: list[Watch]) -> list[Watch]:
+    """Attach price stats (30-day low, typical, score...) and the last sent alert."""
+    return alerts.enrich_watches(watches, storage.watch_sightings(), storage.list_alerts())
+
+
 @app.post("/api/watches", response_model=Watch, status_code=201, dependencies=[Depends(require_auth)])
 def create_watch(watch: WatchCreate) -> Watch:
-    return storage.add_watch(watch)
+    return _with_stats([storage.add_watch(watch)])[0]
 
 
 @app.get("/api/watches", response_model=list[Watch], dependencies=[Depends(require_auth)])
 def get_watches() -> list[Watch]:
     """Every watch, paused ones included (active=false). The daily run and
-    "Run now" only ever touch active watches."""
-    return storage.list_watches()
+    "Run now" only ever touch active watches. Each carries `stats` (null before
+    its first comparable run) and `last_alert`."""
+    return _with_stats(storage.list_watches())
 
 
 @app.patch("/api/watches/{watch_id}", response_model=Watch, dependencies=[Depends(require_auth)])
@@ -246,7 +254,7 @@ def patch_watch(watch_id: int, patch: WatchUpdate) -> Watch:
     updated = storage.update_watch(watch_id, fields, active)
     if updated is None:  # deleted in between
         raise HTTPException(status_code=404, detail="No such watch")
-    return updated
+    return _with_stats([updated])[0]
 
 
 @app.delete("/api/watches/{watch_id}", status_code=204, dependencies=[Depends(require_auth)])
@@ -285,6 +293,78 @@ def run_watches(x_cron_secret: str | None = Header(default=None)) -> Job:
     if expected and x_cron_secret != expected:
         raise HTTPException(status_code=401, detail="Bad or missing X-Cron-Secret header")
     return _start_job("watch_run", "scheduled watch run", lambda _job_id: {"summary": watcher.run_watches()})
+
+
+@app.get("/api/alerts", response_model=list[AlertRecord], dependencies=[Depends(require_auth)])
+def get_alerts(watch_id: int | None = None, limit: int = 50) -> list[AlertRecord]:
+    """Sent alerts, newest first (the anti-spam log)."""
+    return storage.list_alerts(watch_id)[:limit]
+
+
+# --- Telegram bot (webhook; see app/telegram_bot.py) -------------------------
+
+def _bot_run(watch_id: int, chat_id: str) -> None:
+    """/run: check one watch in a job, then message the chat with the result."""
+    watch = storage.get_watch(watch_id)
+    query = watcher.watch_label(watch) if watch else f"watch #{watch_id}"
+
+    def work(job_id: str) -> dict:
+        try:
+            summary = watcher.run_watches(only_id=watch_id, notify=False,
+                                          on_event=lambda event: _emit_event(job_id, event))
+            text = telegram_bot.format_run_result(watch_id, summary)
+        except Exception as exc:
+            text = f"⚠️ Check of watch #{watch_id} failed: {exc}"[:500]
+            summary = None
+        try:
+            notify.send_telegram(chat_id, text)
+        except Exception:
+            pass  # the run itself succeeded; the reply is best-effort
+        if summary is None:
+            raise RuntimeError(text)
+        return {"summary": summary}
+
+    _start_job("watch_run", query, work)
+
+
+@app.post("/api/telegram/webhook/{secret}", include_in_schema=False)
+def telegram_webhook(
+    secret: str,
+    update: dict = Body(...),
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+) -> dict:
+    """Telegram delivers bot messages here. Both the path segment and Telegram's
+    secret-token header must equal TELEGRAM_WEBHOOK_SECRET; messages from chats
+    outside TELEGRAM_CHAT_ID are acknowledged (so Telegram doesn't retry) but
+    ignored. The reply, if any, is returned as a Bot API call in the body."""
+    expected = telegram_bot.webhook_secret()
+    if not expected or not secrets.compare_digest(secret.encode(), expected.encode()):
+        raise HTTPException(status_code=404, detail="Not Found")
+    if not x_telegram_bot_api_secret_token or not secrets.compare_digest(
+            x_telegram_bot_api_secret_token.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Bad secret token")
+    try:
+        return telegram_bot.handle_update(update, run_watch=_bot_run) or {}
+    except Exception:
+        # A 500 makes Telegram re-deliver the same update over and over.
+        return {}
+
+
+class TelegramSetup(BaseModel):
+    base_url: str | None = None
+
+
+@app.post("/api/telegram/setup", dependencies=[Depends(require_auth)])
+def telegram_setup(request: Request, body: TelegramSetup | None = None) -> dict:
+    """Register this deployment as the bot's webhook (Telegram setWebhook) and
+    publish the command menu. Base URL: body.base_url, else PUBLIC_URL, else this
+    request's own host over https."""
+    base = (body.base_url if body else None) or os.environ.get("PUBLIC_URL") or \
+        f"https://{request.headers.get('host', request.url.netloc)}"
+    try:
+        return telegram_bot.register_webhook(base)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/health")

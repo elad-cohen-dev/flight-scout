@@ -93,6 +93,10 @@ class FlightDeal(BaseModel):
         description="verified = exact fare seen for these dates; estimated = computed/approximate; from_price = 'from X' teaser",
     )
     booking_links: list[BookingLink] = Field(default_factory=list, description="Built by booking.build_links, not by the LLM")
+    quality_flags: list[str] = Field(
+        default_factory=list,
+        description="Data-quality issues found by normalize.normalize_deal (see normalize.FLAGS), not by the LLM",
+    )
 
     @field_validator("currency")
     @classmethod
@@ -140,6 +144,50 @@ class RouteHistory(BaseModel):
     points: list[HistoryPoint] = Field(description="Chronological, oldest first")
 
 
+AlertRule = Literal["threshold", "new_low", "under_typical", "big_drop"]
+
+
+class AlertSettings(BaseModel):
+    """When a watch alerts, beyond (or instead of) the absolute max_price.
+
+    Every rule compares the run's best price against this watch's own earlier
+    runs (same party/cabin/trip type, converted into the watch currency); see
+    app/alerts.py. Defaults are on, so existing watches get the smart rules."""
+
+    threshold: bool = Field(default=True, description="Alert when the best price is at or under max_price")
+    new_low: bool = Field(default=True, description="Alert on the lowest price in `new_low_days`")
+    new_low_days: int = Field(default=30, ge=7, le=365)
+    under_typical: bool = Field(default=True, description="Alert when under the median of recent runs by `under_typical_pct`")
+    under_typical_pct: float = Field(default=20, ge=5, le=80)
+    big_drop: bool = Field(default=True, description="Alert when the best price fell `big_drop_pct` vs the previous run")
+    big_drop_pct: float = Field(default=15, ge=5, le=80)
+
+
+class WatchStats(BaseModel):
+    """Price statistics of a watch's runs, in the watch currency (read-only)."""
+
+    currency: str
+    runs: int = Field(description="Runs with a comparable price")
+    last_best: float | None = None
+    last_run_at: datetime | None = None
+    low_30d: float | None = None
+    typical: float | None = Field(default=None, description="Median of the run-bests of the last 30 days")
+    all_time_low: float | None = None
+    score: int | None = Field(default=None, description="0-100 deal score of the last best price vs earlier runs")
+
+
+class AlertRecord(BaseModel):
+    """One sent alert (row of the alert_log table)."""
+
+    watch_id: int
+    fingerprint: str
+    price: float
+    currency: str
+    rule: str = Field(description="Comma-separated AlertRule names that fired")
+    score: int | None = None
+    sent_at: datetime
+
+
 class WatchCreate(SearchParams):
     """A route the user wants monitored for price drops."""
 
@@ -149,6 +197,7 @@ class WatchCreate(SearchParams):
     max_price: float = Field(gt=0, description="Alert when a deal is at or below this price")
     currency: str = Field(default="USD", description="Currency the threshold is expressed in")
     direct_only: bool = Field(default=False, description="Legacy alias for max_stops=0")
+    alerts: AlertSettings = Field(default_factory=AlertSettings, description="Which alert rules apply")
 
     @model_validator(mode="after")
     def _direct_alias(self):
@@ -164,6 +213,9 @@ class Watch(WatchCreate):
     created_at: datetime
     last_run_at: datetime | None = None
     last_best_price: float | None = None
+    # Computed on read by the API (alerts.enrich_watches); never stored.
+    stats: WatchStats | None = None
+    last_alert: AlertRecord | None = None
 
 
 # WatchUpdate fields where an explicit null means something ("any stops", "no
@@ -197,6 +249,7 @@ class WatchUpdate(BaseModel):
     nights_min: int | None = None
     nights_max: int | None = None
     nearby_airports: bool | None = None
+    alerts: AlertSettings | None = Field(default=None, description="Partial: only the rule fields sent change")
 
     @model_validator(mode="after")
     def _no_null_for_required(self):
@@ -211,6 +264,8 @@ class WatchUpdate(BaseModel):
         patch = self.model_dump(exclude_unset=True)
         active = patch.pop("active", watch.active)
         merged = watch.model_dump(include=set(WatchCreate.model_fields))
+        if "alerts" in patch:  # exclude_unset is recursive: merge just the rule fields sent
+            patch["alerts"] = {**merged["alerts"], **patch["alerts"]}
         merged.update(patch)
         if "max_stops" not in patch and "direct_only" in patch:
             if patch["direct_only"]:

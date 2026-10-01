@@ -18,4 +18,5 @@ services:
       - key: APP_PASSWORD
         sync: false
       # Optional: set FLIGHT_SCOUT_MODEL to override the default model,
-      # TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID for Telegram alerts
+      # TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID for Telegram alerts,
+      # TELEGRAM_WEBHOOK_SECRET (+ optional PUBLIC_URL) for the two-way bot

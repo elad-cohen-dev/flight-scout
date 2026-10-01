@@ -1,0 +1,6434 @@
+{
+ "source": "frontend/src/lib/airports-data.ts",
+ "countries": {
+  "IL": {
+   "name": "Israel",
+   "aliases": [
+    "ישראל"
+   ]
+  },
+  "CY": {
+   "name": "Cyprus",
+   "aliases": [
+    "קפריסין"
+   ]
+  },
+  "GR": {
+   "name": "Greece",
+   "aliases": [
+    "יוון"
+   ]
+  },
+  "TR": {
+   "name": "Turkey",
+   "aliases": [
+    "טורקיה",
+    "Türkiye"
+   ]
+  },
+  "GB": {
+   "name": "United Kingdom",
+   "aliases": [
+    "אנגליה",
+    "בריטניה",
+    "UK",
+    "England",
+    "Britain"
+   ]
+  },
+  "IE": {
+   "name": "Ireland",
+   "aliases": [
+    "אירלנד"
+   ]
+  },
+  "FR": {
+   "name": "France",
+   "aliases": [
+    "צרפת"
+   ]
+  },
+  "BE": {
+   "name": "Belgium",
+   "aliases": [
+    "בלגיה"
+   ]
+  },
+  "NL": {
+   "name": "Netherlands",
+   "aliases": [
+    "הולנד",
+    "Holland"
+   ]
+  },
+  "LU": {
+   "name": "Luxembourg",
+   "aliases": [
+    "לוקסמבורג"
+   ]
+  },
+  "DE": {
+   "name": "Germany",
+   "aliases": [
+    "גרמניה"
+   ]
+  },
+  "CH": {
+   "name": "Switzerland",
+   "aliases": [
+    "שוויץ"
+   ]
+  },
+  "AT": {
+   "name": "Austria",
+   "aliases": [
+    "אוסטריה"
+   ]
+  },
+  "IT": {
+   "name": "Italy",
+   "aliases": [
+    "איטליה"
+   ]
+  },
+  "ES": {
+   "name": "Spain",
+   "aliases": [
+    "ספרד"
+   ]
+  },
+  "PT": {
+   "name": "Portugal",
+   "aliases": [
+    "פורטוגל"
+   ]
+  },
+  "MT": {
+   "name": "Malta",
+   "aliases": [
+    "מלטה"
+   ]
+  },
+  "GI": {
+   "name": "Gibraltar",
+   "aliases": []
+  },
+  "DK": {
+   "name": "Denmark",
+   "aliases": [
+    "דנמרק"
+   ]
+  },
+  "SE": {
+   "name": "Sweden",
+   "aliases": [
+    "שוודיה"
+   ]
+  },
+  "NO": {
+   "name": "Norway",
+   "aliases": [
+    "נורבגיה"
+   ]
+  },
+  "FI": {
+   "name": "Finland",
+   "aliases": [
+    "פינלנד"
+   ]
+  },
+  "IS": {
+   "name": "Iceland",
+   "aliases": [
+    "איסלנד"
+   ]
+  },
+  "LT": {
+   "name": "Lithuania",
+   "aliases": [
+    "ליטא"
+   ]
+  },
+  "LV": {
+   "name": "Latvia",
+   "aliases": [
+    "לטביה"
+   ]
+  },
+  "EE": {
+   "name": "Estonia",
+   "aliases": [
+    "אסטוניה"
+   ]
+  },
+  "PL": {
+   "name": "Poland",
+   "aliases": [
+    "פולין"
+   ]
+  },
+  "CZ": {
+   "name": "Czechia",
+   "aliases": [
+    "צכיה",
+    "Czech Republic"
+   ]
+  },
+  "SK": {
+   "name": "Slovakia",
+   "aliases": [
+    "סלובקיה"
+   ]
+  },
+  "HU": {
+   "name": "Hungary",
+   "aliases": [
+    "הונגריה"
+   ]
+  },
+  "RO": {
+   "name": "Romania",
+   "aliases": [
+    "רומניה"
+   ]
+  },
+  "MD": {
+   "name": "Moldova",
+   "aliases": [
+    "מולדובה"
+   ]
+  },
+  "BG": {
+   "name": "Bulgaria",
+   "aliases": [
+    "בולגריה"
+   ]
+  },
+  "RS": {
+   "name": "Serbia",
+   "aliases": [
+    "סרביה"
+   ]
+  },
+  "ME": {
+   "name": "Montenegro",
+   "aliases": [
+    "מונטנגרו"
+   ]
+  },
+  "HR": {
+   "name": "Croatia",
+   "aliases": [
+    "קרואטיה"
+   ]
+  },
+  "SI": {
+   "name": "Slovenia",
+   "aliases": [
+    "סלובניה"
+   ]
+  },
+  "BA": {
+   "name": "Bosnia and Herzegovina",
+   "aliases": [
+    "בוסניה",
+    "Bosnia"
+   ]
+  },
+  "MK": {
+   "name": "North Macedonia",
+   "aliases": [
+    "מקדוניה",
+    "Macedonia"
+   ]
+  },
+  "AL": {
+   "name": "Albania",
+   "aliases": [
+    "אלבניה"
+   ]
+  },
+  "XK": {
+   "name": "Kosovo",
+   "aliases": [
+    "קוסובו"
+   ]
+  },
+  "GE": {
+   "name": "Georgia",
+   "aliases": [
+    "גאורגיה",
+    "גיאורגיה"
+   ]
+  },
+  "AM": {
+   "name": "Armenia",
+   "aliases": [
+    "ארמניה"
+   ]
+  },
+  "AZ": {
+   "name": "Azerbaijan",
+   "aliases": [
+    "אזרבייג'ן"
+   ]
+  },
+  "RU": {
+   "name": "Russia",
+   "aliases": [
+    "רוסיה"
+   ]
+  },
+  "BY": {
+   "name": "Belarus",
+   "aliases": [
+    "בלארוס"
+   ]
+  },
+  "UZ": {
+   "name": "Uzbekistan",
+   "aliases": [
+    "אוזבקיסטן"
+   ]
+  },
+  "KZ": {
+   "name": "Kazakhstan",
+   "aliases": [
+    "קזחסטן"
+   ]
+  },
+  "KG": {
+   "name": "Kyrgyzstan",
+   "aliases": [
+    "קירגיזסטן"
+   ]
+  },
+  "AE": {
+   "name": "United Arab Emirates",
+   "aliases": [
+    "איחוד האמירויות",
+    "UAE",
+    "Emirates"
+   ]
+  },
+  "BH": {
+   "name": "Bahrain",
+   "aliases": [
+    "בחריין"
+   ]
+  },
+  "QA": {
+   "name": "Qatar",
+   "aliases": [
+    "קטאר"
+   ]
+  },
+  "OM": {
+   "name": "Oman",
+   "aliases": [
+    "עומאן"
+   ]
+  },
+  "SA": {
+   "name": "Saudi Arabia",
+   "aliases": [
+    "ערב הסעודית"
+   ]
+  },
+  "KW": {
+   "name": "Kuwait",
+   "aliases": [
+    "כווית"
+   ]
+  },
+  "JO": {
+   "name": "Jordan",
+   "aliases": [
+    "ירדן"
+   ]
+  },
+  "EG": {
+   "name": "Egypt",
+   "aliases": [
+    "מצרים"
+   ]
+  },
+  "MA": {
+   "name": "Morocco",
+   "aliases": [
+    "מרוקו"
+   ]
+  },
+  "TN": {
+   "name": "Tunisia",
+   "aliases": [
+    "תוניסיה"
+   ]
+  },
+  "ZA": {
+   "name": "South Africa",
+   "aliases": [
+    "דרום אפריקה"
+   ]
+  },
+  "KE": {
+   "name": "Kenya",
+   "aliases": [
+    "קניה"
+   ]
+  },
+  "ET": {
+   "name": "Ethiopia",
+   "aliases": [
+    "אתיופיה"
+   ]
+  },
+  "TZ": {
+   "name": "Tanzania",
+   "aliases": [
+    "טנזניה"
+   ]
+  },
+  "MU": {
+   "name": "Mauritius",
+   "aliases": [
+    "מאוריציוס"
+   ]
+  },
+  "SC": {
+   "name": "Seychelles",
+   "aliases": [
+    "סיישל"
+   ]
+  },
+  "NG": {
+   "name": "Nigeria",
+   "aliases": [
+    "ניגריה"
+   ]
+  },
+  "GH": {
+   "name": "Ghana",
+   "aliases": [
+    "גאנה"
+   ]
+  },
+  "RW": {
+   "name": "Rwanda",
+   "aliases": [
+    "רואנדה"
+   ]
+  },
+  "UG": {
+   "name": "Uganda",
+   "aliases": [
+    "אוגנדה"
+   ]
+  },
+  "NA": {
+   "name": "Namibia",
+   "aliases": [
+    "נמיביה"
+   ]
+  },
+  "ZW": {
+   "name": "Zimbabwe",
+   "aliases": [
+    "זימבבואה"
+   ]
+  },
+  "MG": {
+   "name": "Madagascar",
+   "aliases": [
+    "מדגסקר"
+   ]
+  },
+  "SN": {
+   "name": "Senegal",
+   "aliases": [
+    "סנגל"
+   ]
+  },
+  "RE": {
+   "name": "Réunion",
+   "aliases": [
+    "ראוניון"
+   ]
+  },
+  "IN": {
+   "name": "India",
+   "aliases": [
+    "הודו"
+   ]
+  },
+  "LK": {
+   "name": "Sri Lanka",
+   "aliases": [
+    "סרי לנקה"
+   ]
+  },
+  "MV": {
+   "name": "Maldives",
+   "aliases": [
+    "המלדיביים"
+   ]
+  },
+  "NP": {
+   "name": "Nepal",
+   "aliases": [
+    "נפאל"
+   ]
+  },
+  "TH": {
+   "name": "Thailand",
+   "aliases": [
+    "תאילנד"
+   ]
+  },
+  "VN": {
+   "name": "Vietnam",
+   "aliases": [
+    "וייטנאם"
+   ]
+  },
+  "KH": {
+   "name": "Cambodia",
+   "aliases": [
+    "קמבודיה"
+   ]
+  },
+  "LA": {
+   "name": "Laos",
+   "aliases": [
+    "לאוס"
+   ]
+  },
+  "MM": {
+   "name": "Myanmar",
+   "aliases": [
+    "מיאנמר",
+    "Burma"
+   ]
+  },
+  "MY": {
+   "name": "Malaysia",
+   "aliases": [
+    "מלזיה"
+   ]
+  },
+  "SG": {
+   "name": "Singapore",
+   "aliases": [
+    "סינגפור"
+   ]
+  },
+  "ID": {
+   "name": "Indonesia",
+   "aliases": [
+    "אינדונזיה"
+   ]
+  },
+  "PH": {
+   "name": "Philippines",
+   "aliases": [
+    "הפיליפינים"
+   ]
+  },
+  "HK": {
+   "name": "Hong Kong",
+   "aliases": [
+    "הונג קונג"
+   ]
+  },
+  "MO": {
+   "name": "Macau",
+   "aliases": [
+    "מקאו"
+   ]
+  },
+  "TW": {
+   "name": "Taiwan",
+   "aliases": [
+    "טייוואן"
+   ]
+  },
+  "CN": {
+   "name": "China",
+   "aliases": [
+    "סין"
+   ]
+  },
+  "JP": {
+   "name": "Japan",
+   "aliases": [
+    "יפן"
+   ]
+  },
+  "KR": {
+   "name": "South Korea",
+   "aliases": [
+    "קוריאה",
+    "Korea"
+   ]
+  },
+  "MN": {
+   "name": "Mongolia",
+   "aliases": [
+    "מונגוליה"
+   ]
+  },
+  "AU": {
+   "name": "Australia",
+   "aliases": [
+    "אוסטרליה"
+   ]
+  },
+  "NZ": {
+   "name": "New Zealand",
+   "aliases": [
+    "ניו זילנד"
+   ]
+  },
+  "FJ": {
+   "name": "Fiji",
+   "aliases": [
+    "פיג'י"
+   ]
+  },
+  "PF": {
+   "name": "French Polynesia",
+   "aliases": [
+    "טהיטי",
+    "Tahiti"
+   ]
+  },
+  "US": {
+   "name": "United States",
+   "aliases": [
+    "ארצות הברית",
+    "ארהב",
+    "USA",
+    "America"
+   ]
+  },
+  "CA": {
+   "name": "Canada",
+   "aliases": [
+    "קנדה"
+   ]
+  },
+  "MX": {
+   "name": "Mexico",
+   "aliases": [
+    "מקסיקו"
+   ]
+  },
+  "DO": {
+   "name": "Dominican Republic",
+   "aliases": [
+    "הרפובליקה הדומיניקנית"
+   ]
+  },
+  "CU": {
+   "name": "Cuba",
+   "aliases": [
+    "קובה"
+   ]
+  },
+  "JM": {
+   "name": "Jamaica",
+   "aliases": [
+    "ג'מייקה"
+   ]
+  },
+  "BS": {
+   "name": "Bahamas",
+   "aliases": [
+    "איי בהאמה"
+   ]
+  },
+  "AW": {
+   "name": "Aruba",
+   "aliases": [
+    "ארובה"
+   ]
+  },
+  "CW": {
+   "name": "Curaçao",
+   "aliases": [
+    "קוראסאו"
+   ]
+  },
+  "BB": {
+   "name": "Barbados",
+   "aliases": [
+    "ברבדוס"
+   ]
+  },
+  "SX": {
+   "name": "Sint Maarten",
+   "aliases": [
+    "סנט מרטן",
+    "St Maarten"
+   ]
+  },
+  "PR": {
+   "name": "Puerto Rico",
+   "aliases": [
+    "פוארטו ריקו"
+   ]
+  },
+  "PA": {
+   "name": "Panama",
+   "aliases": [
+    "פנמה"
+   ]
+  },
+  "CR": {
+   "name": "Costa Rica",
+   "aliases": [
+    "קוסטה ריקה"
+   ]
+  },
+  "GT": {
+   "name": "Guatemala",
+   "aliases": [
+    "גואטמלה"
+   ]
+  },
+  "SV": {
+   "name": "El Salvador",
+   "aliases": [
+    "אל סלבדור"
+   ]
+  },
+  "CO": {
+   "name": "Colombia",
+   "aliases": [
+    "קולומביה"
+   ]
+  },
+  "PE": {
+   "name": "Peru",
+   "aliases": [
+    "פרו"
+   ]
+  },
+  "CL": {
+   "name": "Chile",
+   "aliases": [
+    "צ'ילה"
+   ]
+  },
+  "AR": {
+   "name": "Argentina",
+   "aliases": [
+    "ארגנטינה"
+   ]
+  },
+  "BR": {
+   "name": "Brazil",
+   "aliases": [
+    "ברזיל"
+   ]
+  },
+  "EC": {
+   "name": "Ecuador",
+   "aliases": [
+    "אקוודור"
+   ]
+  },
+  "UY": {
+   "name": "Uruguay",
+   "aliases": [
+    "אורוגוואי"
+   ]
+  },
+  "PY": {
+   "name": "Paraguay",
+   "aliases": [
+    "פרגוואי"
+   ]
+  },
+  "BO": {
+   "name": "Bolivia",
+   "aliases": [
+    "בוליביה"
+   ]
+  },
+  "VE": {
+   "name": "Venezuela",
+   "aliases": [
+    "ונצואלה"
+   ]
+  }
+ },
+ "airports": [
+  {
+   "code": "TLV",
+   "city": "Tel Aviv",
+   "name": "Ben Gurion",
+   "country": "IL",
+   "aliases": [
+    "תל אביב",
+    "Tel Aviv-Yafo",
+    "נתבג"
+   ],
+   "top": true
+  },
+  {
+   "code": "ETM",
+   "city": "Eilat",
+   "name": "Ramon",
+   "country": "IL",
+   "aliases": [
+    "אילת"
+   ],
+   "top": true
+  },
+  {
+   "code": "HFA",
+   "city": "Haifa",
+   "name": "Haifa",
+   "country": "IL",
+   "aliases": [
+    "חיפה"
+   ],
+   "top": false
+  },
+  {
+   "code": "LCA",
+   "city": "Larnaca",
+   "name": "Larnaca International",
+   "country": "CY",
+   "aliases": [
+    "לרנקה"
+   ],
+   "top": true
+  },
+  {
+   "code": "PFO",
+   "city": "Paphos",
+   "name": "Paphos International",
+   "country": "CY",
+   "aliases": [
+    "פאפוס"
+   ],
+   "top": true
+  },
+  {
+   "code": "ECN",
+   "city": "Nicosia",
+   "name": "Ercan",
+   "country": "CY",
+   "aliases": [
+    "ניקוסיה",
+    "North Cyprus"
+   ],
+   "top": false
+  },
+  {
+   "code": "ATH",
+   "city": "Athens",
+   "name": "Eleftherios Venizelos",
+   "country": "GR",
+   "aliases": [
+    "אתונה"
+   ],
+   "top": true
+  },
+  {
+   "code": "SKG",
+   "city": "Thessaloniki",
+   "name": "Makedonia",
+   "country": "GR",
+   "aliases": [
+    "סלוניקי",
+    "Salonica"
+   ],
+   "top": true
+  },
+  {
+   "code": "HER",
+   "city": "Heraklion",
+   "name": "Nikos Kazantzakis",
+   "country": "GR",
+   "aliases": [
+    "הרקליון",
+    "Crete",
+    "כרתים",
+    "Iraklio"
+   ],
+   "top": true
+  },
+  {
+   "code": "CHQ",
+   "city": "Chania",
+   "name": "Ioannis Daskalogiannis",
+   "country": "GR",
+   "aliases": [
+    "חאניה",
+    "Crete",
+    "כרתים"
+   ],
+   "top": true
+  },
+  {
+   "code": "JSH",
+   "city": "Sitia",
+   "name": "Sitia",
+   "country": "GR",
+   "aliases": [
+    "Crete"
+   ],
+   "top": false
+  },
+  {
+   "code": "RHO",
+   "city": "Rhodes",
+   "name": "Diagoras",
+   "country": "GR",
+   "aliases": [
+    "רודוס",
+    "Rodos"
+   ],
+   "top": true
+  },
+  {
+   "code": "CFU",
+   "city": "Corfu",
+   "name": "Ioannis Kapodistrias",
+   "country": "GR",
+   "aliases": [
+    "קורפו",
+    "Kerkyra"
+   ],
+   "top": true
+  },
+  {
+   "code": "JTR",
+   "city": "Santorini",
+   "name": "Santorini (Thira)",
+   "country": "GR",
+   "aliases": [
+    "סנטוריני",
+    "Thira",
+    "Fira"
+   ],
+   "top": true
+  },
+  {
+   "code": "JMK",
+   "city": "Mykonos",
+   "name": "Mykonos",
+   "country": "GR",
+   "aliases": [
+    "מיקונוס"
+   ],
+   "top": true
+  },
+  {
+   "code": "KGS",
+   "city": "Kos",
+   "name": "Hippocrates",
+   "country": "GR",
+   "aliases": [
+    "קוס"
+   ],
+   "top": true
+  },
+  {
+   "code": "ZTH",
+   "city": "Zakynthos",
+   "name": "Dionysios Solomos",
+   "country": "GR",
+   "aliases": [
+    "זקינתוס",
+    "Zante"
+   ],
+   "top": true
+  },
+  {
+   "code": "EFL",
+   "city": "Kefalonia",
+   "name": "Anna Pollatou",
+   "country": "GR",
+   "aliases": [
+    "קפלוניה",
+    "Cephalonia"
+   ],
+   "top": false
+  },
+  {
+   "code": "PVK",
+   "city": "Preveza",
+   "name": "Aktion (Preveza/Lefkada)",
+   "country": "GR",
+   "aliases": [
+    "Lefkada",
+    "לפקדה"
+   ],
+   "top": false
+  },
+  {
+   "code": "KLX",
+   "city": "Kalamata",
+   "name": "Kalamata",
+   "country": "GR",
+   "aliases": [
+    "קלמטה"
+   ],
+   "top": false
+  },
+  {
+   "code": "JSI",
+   "city": "Skiathos",
+   "name": "Alexandros Papadiamantis",
+   "country": "GR",
+   "aliases": [
+    "סקיאתוס"
+   ],
+   "top": false
+  },
+  {
+   "code": "JNX",
+   "city": "Naxos",
+   "name": "Naxos",
+   "country": "GR",
+   "aliases": [
+    "נקסוס"
+   ],
+   "top": false
+  },
+  {
+   "code": "PAS",
+   "city": "Paros",
+   "name": "Paros",
+   "country": "GR",
+   "aliases": [
+    "פארוס"
+   ],
+   "top": false
+  },
+  {
+   "code": "MLO",
+   "city": "Milos",
+   "name": "Milos",
+   "country": "GR",
+   "aliases": [
+    "מילוס"
+   ],
+   "top": false
+  },
+  {
+   "code": "JSY",
+   "city": "Syros",
+   "name": "Syros",
+   "country": "GR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "MJT",
+   "city": "Mytilene",
+   "name": "Odysseas Elytis",
+   "country": "GR",
+   "aliases": [
+    "Lesbos",
+    "Lesvos",
+    "לסבוס"
+   ],
+   "top": false
+  },
+  {
+   "code": "SMI",
+   "city": "Samos",
+   "name": "Aristarchos of Samos",
+   "country": "GR",
+   "aliases": [
+    "סאמוס"
+   ],
+   "top": false
+  },
+  {
+   "code": "JKH",
+   "city": "Chios",
+   "name": "Chios",
+   "country": "GR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LXS",
+   "city": "Lemnos",
+   "name": "Lemnos",
+   "country": "GR",
+   "aliases": [
+    "Limnos"
+   ],
+   "top": false
+  },
+  {
+   "code": "AOK",
+   "city": "Karpathos",
+   "name": "Karpathos",
+   "country": "GR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KIT",
+   "city": "Kythira",
+   "name": "Kythira",
+   "country": "GR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KVA",
+   "city": "Kavala",
+   "name": "Alexander the Great",
+   "country": "GR",
+   "aliases": [
+    "קוואלה"
+   ],
+   "top": false
+  },
+  {
+   "code": "VOL",
+   "city": "Volos",
+   "name": "Nea Anchialos",
+   "country": "GR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "IOA",
+   "city": "Ioannina",
+   "name": "Ioannina",
+   "country": "GR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "IST",
+   "city": "Istanbul",
+   "name": "Istanbul Airport",
+   "country": "TR",
+   "aliases": [
+    "איסטנבול"
+   ],
+   "top": true
+  },
+  {
+   "code": "SAW",
+   "city": "Istanbul",
+   "name": "Sabiha Gökçen",
+   "country": "TR",
+   "aliases": [
+    "איסטנבול"
+   ],
+   "top": true
+  },
+  {
+   "code": "AYT",
+   "city": "Antalya",
+   "name": "Antalya",
+   "country": "TR",
+   "aliases": [
+    "אנטליה"
+   ],
+   "top": true
+  },
+  {
+   "code": "ADB",
+   "city": "Izmir",
+   "name": "Adnan Menderes",
+   "country": "TR",
+   "aliases": [
+    "איזמיר"
+   ],
+   "top": false
+  },
+  {
+   "code": "ESB",
+   "city": "Ankara",
+   "name": "Esenboğa",
+   "country": "TR",
+   "aliases": [
+    "אנקרה"
+   ],
+   "top": false
+  },
+  {
+   "code": "DLM",
+   "city": "Dalaman",
+   "name": "Dalaman",
+   "country": "TR",
+   "aliases": [
+    "Fethiye",
+    "Marmaris"
+   ],
+   "top": false
+  },
+  {
+   "code": "BJV",
+   "city": "Bodrum",
+   "name": "Milas-Bodrum",
+   "country": "TR",
+   "aliases": [
+    "בודרום"
+   ],
+   "top": false
+  },
+  {
+   "code": "GZP",
+   "city": "Alanya",
+   "name": "Gazipaşa-Alanya",
+   "country": "TR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TZX",
+   "city": "Trabzon",
+   "name": "Trabzon",
+   "country": "TR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NAV",
+   "city": "Nevşehir",
+   "name": "Kapadokya",
+   "country": "TR",
+   "aliases": [
+    "Cappadocia",
+    "קפדוקיה"
+   ],
+   "top": false
+  },
+  {
+   "code": "ASR",
+   "city": "Kayseri",
+   "name": "Erkilet",
+   "country": "TR",
+   "aliases": [
+    "Cappadocia"
+   ],
+   "top": false
+  },
+  {
+   "code": "LHR",
+   "city": "London",
+   "name": "Heathrow",
+   "country": "GB",
+   "aliases": [
+    "לונדון"
+   ],
+   "top": true
+  },
+  {
+   "code": "LGW",
+   "city": "London",
+   "name": "Gatwick",
+   "country": "GB",
+   "aliases": [
+    "לונדון"
+   ],
+   "top": true
+  },
+  {
+   "code": "STN",
+   "city": "London",
+   "name": "Stansted",
+   "country": "GB",
+   "aliases": [
+    "לונדון"
+   ],
+   "top": true
+  },
+  {
+   "code": "LTN",
+   "city": "London",
+   "name": "Luton",
+   "country": "GB",
+   "aliases": [
+    "לונדון"
+   ],
+   "top": true
+  },
+  {
+   "code": "LCY",
+   "city": "London",
+   "name": "London City",
+   "country": "GB",
+   "aliases": [
+    "לונדון"
+   ],
+   "top": false
+  },
+  {
+   "code": "SEN",
+   "city": "London",
+   "name": "Southend",
+   "country": "GB",
+   "aliases": [
+    "לונדון"
+   ],
+   "top": false
+  },
+  {
+   "code": "MAN",
+   "city": "Manchester",
+   "name": "Manchester",
+   "country": "GB",
+   "aliases": [
+    "מנצ'סטר"
+   ],
+   "top": true
+  },
+  {
+   "code": "EDI",
+   "city": "Edinburgh",
+   "name": "Edinburgh",
+   "country": "GB",
+   "aliases": [
+    "אדינבורו"
+   ],
+   "top": false
+  },
+  {
+   "code": "GLA",
+   "city": "Glasgow",
+   "name": "Glasgow",
+   "country": "GB",
+   "aliases": [
+    "גלזגו"
+   ],
+   "top": false
+  },
+  {
+   "code": "PIK",
+   "city": "Prestwick",
+   "name": "Glasgow Prestwick",
+   "country": "GB",
+   "aliases": [
+    "Glasgow"
+   ],
+   "top": false
+  },
+  {
+   "code": "BHX",
+   "city": "Birmingham",
+   "name": "Birmingham",
+   "country": "GB",
+   "aliases": [
+    "ברמינגהאם"
+   ],
+   "top": false
+  },
+  {
+   "code": "BRS",
+   "city": "Bristol",
+   "name": "Bristol",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LPL",
+   "city": "Liverpool",
+   "name": "John Lennon",
+   "country": "GB",
+   "aliases": [
+    "ליברפול"
+   ],
+   "top": false
+  },
+  {
+   "code": "NCL",
+   "city": "Newcastle",
+   "name": "Newcastle",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LBA",
+   "city": "Leeds",
+   "name": "Leeds Bradford",
+   "country": "GB",
+   "aliases": [
+    "Bradford"
+   ],
+   "top": false
+  },
+  {
+   "code": "EMA",
+   "city": "Nottingham",
+   "name": "East Midlands",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BFS",
+   "city": "Belfast",
+   "name": "Belfast International",
+   "country": "GB",
+   "aliases": [
+    "בלפסט",
+    "Northern Ireland"
+   ],
+   "top": false
+  },
+  {
+   "code": "BHD",
+   "city": "Belfast",
+   "name": "George Best Belfast City",
+   "country": "GB",
+   "aliases": [
+    "בלפסט",
+    "Northern Ireland"
+   ],
+   "top": false
+  },
+  {
+   "code": "ABZ",
+   "city": "Aberdeen",
+   "name": "Aberdeen",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "INV",
+   "city": "Inverness",
+   "name": "Inverness",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CWL",
+   "city": "Cardiff",
+   "name": "Cardiff",
+   "country": "GB",
+   "aliases": [
+    "Wales"
+   ],
+   "top": false
+  },
+  {
+   "code": "SOU",
+   "city": "Southampton",
+   "name": "Southampton",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BOH",
+   "city": "Bournemouth",
+   "name": "Bournemouth",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "EXT",
+   "city": "Exeter",
+   "name": "Exeter",
+   "country": "GB",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NQY",
+   "city": "Newquay",
+   "name": "Cornwall Airport Newquay",
+   "country": "GB",
+   "aliases": [
+    "Cornwall"
+   ],
+   "top": false
+  },
+  {
+   "code": "DUB",
+   "city": "Dublin",
+   "name": "Dublin",
+   "country": "IE",
+   "aliases": [
+    "דבלין"
+   ],
+   "top": true
+  },
+  {
+   "code": "ORK",
+   "city": "Cork",
+   "name": "Cork",
+   "country": "IE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SNN",
+   "city": "Shannon",
+   "name": "Shannon",
+   "country": "IE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NOC",
+   "city": "Knock",
+   "name": "Ireland West",
+   "country": "IE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CDG",
+   "city": "Paris",
+   "name": "Charles de Gaulle",
+   "country": "FR",
+   "aliases": [
+    "פריז",
+    "Roissy"
+   ],
+   "top": true
+  },
+  {
+   "code": "ORY",
+   "city": "Paris",
+   "name": "Orly",
+   "country": "FR",
+   "aliases": [
+    "פריז"
+   ],
+   "top": true
+  },
+  {
+   "code": "BVA",
+   "city": "Paris",
+   "name": "Beauvais-Tillé",
+   "country": "FR",
+   "aliases": [
+    "Beauvais",
+    "פריז"
+   ],
+   "top": true
+  },
+  {
+   "code": "NCE",
+   "city": "Nice",
+   "name": "Côte d'Azur",
+   "country": "FR",
+   "aliases": [
+    "ניס",
+    "Cannes",
+    "Monaco"
+   ],
+   "top": true
+  },
+  {
+   "code": "MRS",
+   "city": "Marseille",
+   "name": "Provence",
+   "country": "FR",
+   "aliases": [
+    "מרסיי"
+   ],
+   "top": false
+  },
+  {
+   "code": "LYS",
+   "city": "Lyon",
+   "name": "Saint-Exupéry",
+   "country": "FR",
+   "aliases": [
+    "ליון"
+   ],
+   "top": false
+  },
+  {
+   "code": "TLS",
+   "city": "Toulouse",
+   "name": "Blagnac",
+   "country": "FR",
+   "aliases": [
+    "טולוז"
+   ],
+   "top": false
+  },
+  {
+   "code": "BOD",
+   "city": "Bordeaux",
+   "name": "Mérignac",
+   "country": "FR",
+   "aliases": [
+    "בורדו"
+   ],
+   "top": false
+  },
+  {
+   "code": "NTE",
+   "city": "Nantes",
+   "name": "Atlantique",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "MPL",
+   "city": "Montpellier",
+   "name": "Méditerranée",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BIQ",
+   "city": "Biarritz",
+   "name": "Pays Basque",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "AJA",
+   "city": "Ajaccio",
+   "name": "Napoléon Bonaparte",
+   "country": "FR",
+   "aliases": [
+    "Corsica",
+    "קורסיקה"
+   ],
+   "top": false
+  },
+  {
+   "code": "BIA",
+   "city": "Bastia",
+   "name": "Poretta",
+   "country": "FR",
+   "aliases": [
+    "Corsica",
+    "קורסיקה"
+   ],
+   "top": false
+  },
+  {
+   "code": "FSC",
+   "city": "Figari",
+   "name": "Sud Corse",
+   "country": "FR",
+   "aliases": [
+    "Corsica"
+   ],
+   "top": false
+  },
+  {
+   "code": "CLY",
+   "city": "Calvi",
+   "name": "Sainte-Catherine",
+   "country": "FR",
+   "aliases": [
+    "Corsica"
+   ],
+   "top": false
+  },
+  {
+   "code": "SXB",
+   "city": "Strasbourg",
+   "name": "Strasbourg",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LIL",
+   "city": "Lille",
+   "name": "Lesquin",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "GNB",
+   "city": "Grenoble",
+   "name": "Alpes-Isère",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CMF",
+   "city": "Chambéry",
+   "name": "Savoie Mont Blanc",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TLN",
+   "city": "Toulon",
+   "name": "Hyères",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "FNI",
+   "city": "Nîmes",
+   "name": "Garons",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CCF",
+   "city": "Carcassonne",
+   "name": "Salvaza",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PGF",
+   "city": "Perpignan",
+   "name": "Rivesaltes",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PUF",
+   "city": "Pau",
+   "name": "Pyrénées",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RNS",
+   "city": "Rennes",
+   "name": "Saint-Jacques",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BES",
+   "city": "Brest",
+   "name": "Bretagne",
+   "country": "FR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BRU",
+   "city": "Brussels",
+   "name": "Brussels Airport (Zaventem)",
+   "country": "BE",
+   "aliases": [
+    "בריסל",
+    "Bruxelles"
+   ],
+   "top": true
+  },
+  {
+   "code": "CRL",
+   "city": "Brussels",
+   "name": "Charleroi (Brussels South)",
+   "country": "BE",
+   "aliases": [
+    "Charleroi",
+    "בריסל"
+   ],
+   "top": true
+  },
+  {
+   "code": "LGG",
+   "city": "Liège",
+   "name": "Liège",
+   "country": "BE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ANR",
+   "city": "Antwerp",
+   "name": "Antwerp",
+   "country": "BE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OST",
+   "city": "Ostend",
+   "name": "Ostend-Bruges",
+   "country": "BE",
+   "aliases": [
+    "Bruges"
+   ],
+   "top": false
+  },
+  {
+   "code": "AMS",
+   "city": "Amsterdam",
+   "name": "Schiphol",
+   "country": "NL",
+   "aliases": [
+    "אמסטרדם"
+   ],
+   "top": true
+  },
+  {
+   "code": "EIN",
+   "city": "Eindhoven",
+   "name": "Eindhoven",
+   "country": "NL",
+   "aliases": [
+    "איינדהובן"
+   ],
+   "top": false
+  },
+  {
+   "code": "RTM",
+   "city": "Rotterdam",
+   "name": "Rotterdam The Hague",
+   "country": "NL",
+   "aliases": [
+    "The Hague",
+    "רוטרדם"
+   ],
+   "top": false
+  },
+  {
+   "code": "GRQ",
+   "city": "Groningen",
+   "name": "Eelde",
+   "country": "NL",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "MST",
+   "city": "Maastricht",
+   "name": "Maastricht Aachen",
+   "country": "NL",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LUX",
+   "city": "Luxembourg",
+   "name": "Findel",
+   "country": "LU",
+   "aliases": [
+    "לוקסמבורג"
+   ],
+   "top": false
+  },
+  {
+   "code": "BER",
+   "city": "Berlin",
+   "name": "Brandenburg",
+   "country": "DE",
+   "aliases": [
+    "ברלין"
+   ],
+   "top": true
+  },
+  {
+   "code": "FRA",
+   "city": "Frankfurt",
+   "name": "Frankfurt am Main",
+   "country": "DE",
+   "aliases": [
+    "פרנקפורט"
+   ],
+   "top": true
+  },
+  {
+   "code": "HHN",
+   "city": "Frankfurt-Hahn",
+   "name": "Hahn",
+   "country": "DE",
+   "aliases": [
+    "Hahn"
+   ],
+   "top": false
+  },
+  {
+   "code": "MUC",
+   "city": "Munich",
+   "name": "Franz Josef Strauss",
+   "country": "DE",
+   "aliases": [
+    "מינכן",
+    "München"
+   ],
+   "top": true
+  },
+  {
+   "code": "FMM",
+   "city": "Memmingen",
+   "name": "Memmingen (Munich West)",
+   "country": "DE",
+   "aliases": [
+    "Munich"
+   ],
+   "top": false
+  },
+  {
+   "code": "HAM",
+   "city": "Hamburg",
+   "name": "Hamburg",
+   "country": "DE",
+   "aliases": [
+    "המבורג"
+   ],
+   "top": false
+  },
+  {
+   "code": "DUS",
+   "city": "Düsseldorf",
+   "name": "Düsseldorf",
+   "country": "DE",
+   "aliases": [
+    "דיסלדורף"
+   ],
+   "top": false
+  },
+  {
+   "code": "NRN",
+   "city": "Weeze",
+   "name": "Weeze (Düsseldorf Weeze)",
+   "country": "DE",
+   "aliases": [
+    "Düsseldorf"
+   ],
+   "top": false
+  },
+  {
+   "code": "CGN",
+   "city": "Cologne",
+   "name": "Cologne Bonn",
+   "country": "DE",
+   "aliases": [
+    "קלן",
+    "Köln",
+    "Bonn"
+   ],
+   "top": false
+  },
+  {
+   "code": "STR",
+   "city": "Stuttgart",
+   "name": "Stuttgart",
+   "country": "DE",
+   "aliases": [
+    "שטוטגרט"
+   ],
+   "top": false
+  },
+  {
+   "code": "HAJ",
+   "city": "Hanover",
+   "name": "Hannover",
+   "country": "DE",
+   "aliases": [
+    "Hannover"
+   ],
+   "top": false
+  },
+  {
+   "code": "NUE",
+   "city": "Nuremberg",
+   "name": "Nürnberg",
+   "country": "DE",
+   "aliases": [
+    "Nürnberg"
+   ],
+   "top": false
+  },
+  {
+   "code": "LEJ",
+   "city": "Leipzig",
+   "name": "Leipzig/Halle",
+   "country": "DE",
+   "aliases": [
+    "לייפציג"
+   ],
+   "top": false
+  },
+  {
+   "code": "DRS",
+   "city": "Dresden",
+   "name": "Dresden",
+   "country": "DE",
+   "aliases": [
+    "דרזדן"
+   ],
+   "top": false
+  },
+  {
+   "code": "BRE",
+   "city": "Bremen",
+   "name": "Bremen",
+   "country": "DE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "DTM",
+   "city": "Dortmund",
+   "name": "Dortmund",
+   "country": "DE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "FKB",
+   "city": "Karlsruhe",
+   "name": "Karlsruhe/Baden-Baden",
+   "country": "DE",
+   "aliases": [
+    "Baden-Baden"
+   ],
+   "top": false
+  },
+  {
+   "code": "FDH",
+   "city": "Friedrichshafen",
+   "name": "Bodensee",
+   "country": "DE",
+   "aliases": [
+    "Lake Constance"
+   ],
+   "top": false
+  },
+  {
+   "code": "FMO",
+   "city": "Münster",
+   "name": "Münster Osnabrück",
+   "country": "DE",
+   "aliases": [
+    "Osnabrück"
+   ],
+   "top": false
+  },
+  {
+   "code": "PAD",
+   "city": "Paderborn",
+   "name": "Paderborn Lippstadt",
+   "country": "DE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SCN",
+   "city": "Saarbrücken",
+   "name": "Saarbrücken",
+   "country": "DE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ZRH",
+   "city": "Zürich",
+   "name": "Zürich",
+   "country": "CH",
+   "aliases": [
+    "ציריך",
+    "Zurich"
+   ],
+   "top": true
+  },
+  {
+   "code": "GVA",
+   "city": "Geneva",
+   "name": "Geneva",
+   "country": "CH",
+   "aliases": [
+    "ז'נבה",
+    "Genève"
+   ],
+   "top": true
+  },
+  {
+   "code": "BSL",
+   "city": "Basel",
+   "name": "EuroAirport Basel-Mulhouse-Freiburg",
+   "country": "CH",
+   "aliases": [
+    "באזל",
+    "Mulhouse"
+   ],
+   "top": false
+  },
+  {
+   "code": "BRN",
+   "city": "Bern",
+   "name": "Bern",
+   "country": "CH",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LUG",
+   "city": "Lugano",
+   "name": "Lugano",
+   "country": "CH",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "VIE",
+   "city": "Vienna",
+   "name": "Vienna International",
+   "country": "AT",
+   "aliases": [
+    "וינה",
+    "Wien"
+   ],
+   "top": true
+  },
+  {
+   "code": "SZG",
+   "city": "Salzburg",
+   "name": "W. A. Mozart",
+   "country": "AT",
+   "aliases": [
+    "זלצבורג"
+   ],
+   "top": false
+  },
+  {
+   "code": "INN",
+   "city": "Innsbruck",
+   "name": "Innsbruck",
+   "country": "AT",
+   "aliases": [
+    "אינסברוק"
+   ],
+   "top": false
+  },
+  {
+   "code": "GRZ",
+   "city": "Graz",
+   "name": "Graz",
+   "country": "AT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LNZ",
+   "city": "Linz",
+   "name": "Linz",
+   "country": "AT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KLU",
+   "city": "Klagenfurt",
+   "name": "Klagenfurt",
+   "country": "AT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "FCO",
+   "city": "Rome",
+   "name": "Fiumicino (Leonardo da Vinci)",
+   "country": "IT",
+   "aliases": [
+    "רומא",
+    "Roma"
+   ],
+   "top": true
+  },
+  {
+   "code": "CIA",
+   "city": "Rome",
+   "name": "Ciampino",
+   "country": "IT",
+   "aliases": [
+    "רומא",
+    "Roma"
+   ],
+   "top": true
+  },
+  {
+   "code": "MXP",
+   "city": "Milan",
+   "name": "Malpensa",
+   "country": "IT",
+   "aliases": [
+    "מילאנו",
+    "Milano"
+   ],
+   "top": true
+  },
+  {
+   "code": "LIN",
+   "city": "Milan",
+   "name": "Linate",
+   "country": "IT",
+   "aliases": [
+    "מילאנו",
+    "Milano"
+   ],
+   "top": false
+  },
+  {
+   "code": "BGY",
+   "city": "Milan",
+   "name": "Bergamo (Orio al Serio)",
+   "country": "IT",
+   "aliases": [
+    "Bergamo",
+    "מילאנו"
+   ],
+   "top": true
+  },
+  {
+   "code": "VCE",
+   "city": "Venice",
+   "name": "Marco Polo",
+   "country": "IT",
+   "aliases": [
+    "ונציה",
+    "Venezia"
+   ],
+   "top": true
+  },
+  {
+   "code": "TSF",
+   "city": "Venice",
+   "name": "Treviso",
+   "country": "IT",
+   "aliases": [
+    "Treviso",
+    "ונציה"
+   ],
+   "top": false
+  },
+  {
+   "code": "NAP",
+   "city": "Naples",
+   "name": "Capodichino",
+   "country": "IT",
+   "aliases": [
+    "נאפולי",
+    "Napoli",
+    "Amalfi"
+   ],
+   "top": true
+  },
+  {
+   "code": "QSR",
+   "city": "Salerno",
+   "name": "Costa d'Amalfi",
+   "country": "IT",
+   "aliases": [
+    "Amalfi"
+   ],
+   "top": false
+  },
+  {
+   "code": "CTA",
+   "city": "Catania",
+   "name": "Fontanarossa",
+   "country": "IT",
+   "aliases": [
+    "קטניה",
+    "Sicily",
+    "סיציליה"
+   ],
+   "top": true
+  },
+  {
+   "code": "PMO",
+   "city": "Palermo",
+   "name": "Falcone-Borsellino",
+   "country": "IT",
+   "aliases": [
+    "פלרמו",
+    "Sicily",
+    "סיציליה"
+   ],
+   "top": true
+  },
+  {
+   "code": "TPS",
+   "city": "Trapani",
+   "name": "Birgi",
+   "country": "IT",
+   "aliases": [
+    "Sicily"
+   ],
+   "top": false
+  },
+  {
+   "code": "CIY",
+   "city": "Comiso",
+   "name": "Comiso",
+   "country": "IT",
+   "aliases": [
+    "Sicily"
+   ],
+   "top": false
+  },
+  {
+   "code": "BLQ",
+   "city": "Bologna",
+   "name": "Guglielmo Marconi",
+   "country": "IT",
+   "aliases": [
+    "בולוניה"
+   ],
+   "top": true
+  },
+  {
+   "code": "FLR",
+   "city": "Florence",
+   "name": "Peretola",
+   "country": "IT",
+   "aliases": [
+    "פירנצה",
+    "Firenze"
+   ],
+   "top": true
+  },
+  {
+   "code": "PSA",
+   "city": "Pisa",
+   "name": "Galileo Galilei",
+   "country": "IT",
+   "aliases": [
+    "פיזה",
+    "Florence"
+   ],
+   "top": true
+  },
+  {
+   "code": "TRN",
+   "city": "Turin",
+   "name": "Caselle",
+   "country": "IT",
+   "aliases": [
+    "טורינו",
+    "Torino"
+   ],
+   "top": false
+  },
+  {
+   "code": "GOA",
+   "city": "Genoa",
+   "name": "Cristoforo Colombo",
+   "country": "IT",
+   "aliases": [
+    "גנואה",
+    "Genova"
+   ],
+   "top": false
+  },
+  {
+   "code": "VRN",
+   "city": "Verona",
+   "name": "Villafranca",
+   "country": "IT",
+   "aliases": [
+    "ורונה",
+    "Lake Garda"
+   ],
+   "top": false
+  },
+  {
+   "code": "BRI",
+   "city": "Bari",
+   "name": "Karol Wojtyła",
+   "country": "IT",
+   "aliases": [
+    "בארי",
+    "Puglia"
+   ],
+   "top": true
+  },
+  {
+   "code": "BDS",
+   "city": "Brindisi",
+   "name": "Salento",
+   "country": "IT",
+   "aliases": [
+    "Puglia"
+   ],
+   "top": false
+  },
+  {
+   "code": "CAG",
+   "city": "Cagliari",
+   "name": "Elmas",
+   "country": "IT",
+   "aliases": [
+    "Sardinia",
+    "סרדיניה"
+   ],
+   "top": false
+  },
+  {
+   "code": "OLB",
+   "city": "Olbia",
+   "name": "Costa Smeralda",
+   "country": "IT",
+   "aliases": [
+    "Sardinia",
+    "סרדיניה"
+   ],
+   "top": false
+  },
+  {
+   "code": "AHO",
+   "city": "Alghero",
+   "name": "Fertilia",
+   "country": "IT",
+   "aliases": [
+    "Sardinia"
+   ],
+   "top": false
+  },
+  {
+   "code": "SUF",
+   "city": "Lamezia Terme",
+   "name": "Lamezia Terme",
+   "country": "IT",
+   "aliases": [
+    "Calabria"
+   ],
+   "top": false
+  },
+  {
+   "code": "REG",
+   "city": "Reggio Calabria",
+   "name": "Tito Minniti",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PSR",
+   "city": "Pescara",
+   "name": "Abruzzo",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "AOI",
+   "city": "Ancona",
+   "name": "Falconara",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TRS",
+   "city": "Trieste",
+   "name": "Friuli Venezia Giulia",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PEG",
+   "city": "Perugia",
+   "name": "San Francesco d'Assisi",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RMI",
+   "city": "Rimini",
+   "name": "Federico Fellini",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PMF",
+   "city": "Parma",
+   "name": "Parma",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CUF",
+   "city": "Cuneo",
+   "name": "Levaldigi",
+   "country": "IT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "MAD",
+   "city": "Madrid",
+   "name": "Barajas",
+   "country": "ES",
+   "aliases": [
+    "מדריד"
+   ],
+   "top": true
+  },
+  {
+   "code": "BCN",
+   "city": "Barcelona",
+   "name": "El Prat",
+   "country": "ES",
+   "aliases": [
+    "ברצלונה"
+   ],
+   "top": true
+  },
+  {
+   "code": "GRO",
+   "city": "Girona",
+   "name": "Girona-Costa Brava",
+   "country": "ES",
+   "aliases": [
+    "Barcelona"
+   ],
+   "top": false
+  },
+  {
+   "code": "REU",
+   "city": "Reus",
+   "name": "Reus",
+   "country": "ES",
+   "aliases": [
+    "Barcelona",
+    "Tarragona"
+   ],
+   "top": false
+  },
+  {
+   "code": "AGP",
+   "city": "Málaga",
+   "name": "Costa del Sol",
+   "country": "ES",
+   "aliases": [
+    "מלגה",
+    "Marbella"
+   ],
+   "top": true
+  },
+  {
+   "code": "ALC",
+   "city": "Alicante",
+   "name": "Alicante-Elche",
+   "country": "ES",
+   "aliases": [
+    "אליקנטה"
+   ],
+   "top": false
+  },
+  {
+   "code": "VLC",
+   "city": "Valencia",
+   "name": "Valencia",
+   "country": "ES",
+   "aliases": [
+    "ולנסיה"
+   ],
+   "top": true
+  },
+  {
+   "code": "SVQ",
+   "city": "Seville",
+   "name": "San Pablo",
+   "country": "ES",
+   "aliases": [
+    "סביליה",
+    "Sevilla"
+   ],
+   "top": false
+  },
+  {
+   "code": "PMI",
+   "city": "Palma de Mallorca",
+   "name": "Palma de Mallorca",
+   "country": "ES",
+   "aliases": [
+    "Mallorca",
+    "Majorca",
+    "מיורקה"
+   ],
+   "top": true
+  },
+  {
+   "code": "IBZ",
+   "city": "Ibiza",
+   "name": "Ibiza",
+   "country": "ES",
+   "aliases": [
+    "איביזה"
+   ],
+   "top": true
+  },
+  {
+   "code": "MAH",
+   "city": "Menorca",
+   "name": "Menorca (Mahón)",
+   "country": "ES",
+   "aliases": [
+    "Mahon"
+   ],
+   "top": false
+  },
+  {
+   "code": "TFS",
+   "city": "Tenerife",
+   "name": "Tenerife South",
+   "country": "ES",
+   "aliases": [
+    "טנריף",
+    "Canary Islands"
+   ],
+   "top": false
+  },
+  {
+   "code": "TFN",
+   "city": "Tenerife",
+   "name": "Tenerife North",
+   "country": "ES",
+   "aliases": [
+    "טנריף",
+    "Canary Islands"
+   ],
+   "top": false
+  },
+  {
+   "code": "LPA",
+   "city": "Gran Canaria",
+   "name": "Gran Canaria",
+   "country": "ES",
+   "aliases": [
+    "Las Palmas",
+    "Canary Islands"
+   ],
+   "top": false
+  },
+  {
+   "code": "ACE",
+   "city": "Lanzarote",
+   "name": "César Manrique-Lanzarote",
+   "country": "ES",
+   "aliases": [
+    "Canary Islands"
+   ],
+   "top": false
+  },
+  {
+   "code": "FUE",
+   "city": "Fuerteventura",
+   "name": "Fuerteventura",
+   "country": "ES",
+   "aliases": [
+    "Canary Islands"
+   ],
+   "top": false
+  },
+  {
+   "code": "SPC",
+   "city": "La Palma",
+   "name": "La Palma",
+   "country": "ES",
+   "aliases": [
+    "Canary Islands"
+   ],
+   "top": false
+  },
+  {
+   "code": "BIO",
+   "city": "Bilbao",
+   "name": "Bilbao",
+   "country": "ES",
+   "aliases": [
+    "בילבאו"
+   ],
+   "top": false
+  },
+  {
+   "code": "EAS",
+   "city": "San Sebastián",
+   "name": "San Sebastián",
+   "country": "ES",
+   "aliases": [
+    "Donostia"
+   ],
+   "top": false
+  },
+  {
+   "code": "SCQ",
+   "city": "Santiago de Compostela",
+   "name": "Rosalía de Castro",
+   "country": "ES",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "VGO",
+   "city": "Vigo",
+   "name": "Peinador",
+   "country": "ES",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OVD",
+   "city": "Asturias",
+   "name": "Asturias",
+   "country": "ES",
+   "aliases": [
+    "Oviedo"
+   ],
+   "top": false
+  },
+  {
+   "code": "SDR",
+   "city": "Santander",
+   "name": "Seve Ballesteros",
+   "country": "ES",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ZAZ",
+   "city": "Zaragoza",
+   "name": "Zaragoza",
+   "country": "ES",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "GRX",
+   "city": "Granada",
+   "name": "Federico García Lorca",
+   "country": "ES",
+   "aliases": [
+    "גרנדה"
+   ],
+   "top": false
+  },
+  {
+   "code": "XRY",
+   "city": "Jerez",
+   "name": "Jerez",
+   "country": "ES",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RMU",
+   "city": "Murcia",
+   "name": "Región de Murcia",
+   "country": "ES",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LEI",
+   "city": "Almería",
+   "name": "Almería",
+   "country": "ES",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LIS",
+   "city": "Lisbon",
+   "name": "Humberto Delgado",
+   "country": "PT",
+   "aliases": [
+    "ליסבון",
+    "Lisboa"
+   ],
+   "top": true
+  },
+  {
+   "code": "OPO",
+   "city": "Porto",
+   "name": "Francisco Sá Carneiro",
+   "country": "PT",
+   "aliases": [
+    "פורטו",
+    "Oporto"
+   ],
+   "top": true
+  },
+  {
+   "code": "FAO",
+   "city": "Faro",
+   "name": "Faro",
+   "country": "PT",
+   "aliases": [
+    "פארו",
+    "Algarve"
+   ],
+   "top": false
+  },
+  {
+   "code": "FNC",
+   "city": "Funchal",
+   "name": "Madeira",
+   "country": "PT",
+   "aliases": [
+    "Madeira",
+    "מדיירה"
+   ],
+   "top": false
+  },
+  {
+   "code": "PXO",
+   "city": "Porto Santo",
+   "name": "Porto Santo",
+   "country": "PT",
+   "aliases": [
+    "Madeira"
+   ],
+   "top": false
+  },
+  {
+   "code": "PDL",
+   "city": "Ponta Delgada",
+   "name": "João Paulo II",
+   "country": "PT",
+   "aliases": [
+    "Azores",
+    "האיים האזוריים"
+   ],
+   "top": false
+  },
+  {
+   "code": "TER",
+   "city": "Terceira",
+   "name": "Lajes",
+   "country": "PT",
+   "aliases": [
+    "Azores"
+   ],
+   "top": false
+  },
+  {
+   "code": "MLA",
+   "city": "Malta",
+   "name": "Malta International",
+   "country": "MT",
+   "aliases": [
+    "מלטה",
+    "Valletta"
+   ],
+   "top": true
+  },
+  {
+   "code": "GIB",
+   "city": "Gibraltar",
+   "name": "Gibraltar",
+   "country": "GI",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CPH",
+   "city": "Copenhagen",
+   "name": "Kastrup",
+   "country": "DK",
+   "aliases": [
+    "קופנהגן",
+    "København"
+   ],
+   "top": true
+  },
+  {
+   "code": "BLL",
+   "city": "Billund",
+   "name": "Billund",
+   "country": "DK",
+   "aliases": [
+    "Legoland"
+   ],
+   "top": false
+  },
+  {
+   "code": "AAL",
+   "city": "Aalborg",
+   "name": "Aalborg",
+   "country": "DK",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "AAR",
+   "city": "Aarhus",
+   "name": "Aarhus",
+   "country": "DK",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ARN",
+   "city": "Stockholm",
+   "name": "Arlanda",
+   "country": "SE",
+   "aliases": [
+    "שטוקהולם"
+   ],
+   "top": true
+  },
+  {
+   "code": "BMA",
+   "city": "Stockholm",
+   "name": "Bromma",
+   "country": "SE",
+   "aliases": [
+    "שטוקהולם"
+   ],
+   "top": false
+  },
+  {
+   "code": "NYO",
+   "city": "Stockholm",
+   "name": "Skavsta",
+   "country": "SE",
+   "aliases": [
+    "Nyköping"
+   ],
+   "top": false
+  },
+  {
+   "code": "VST",
+   "city": "Stockholm",
+   "name": "Västerås",
+   "country": "SE",
+   "aliases": [
+    "Västerås"
+   ],
+   "top": false
+  },
+  {
+   "code": "GOT",
+   "city": "Gothenburg",
+   "name": "Landvetter",
+   "country": "SE",
+   "aliases": [
+    "Göteborg",
+    "גטבורג"
+   ],
+   "top": false
+  },
+  {
+   "code": "MMX",
+   "city": "Malmö",
+   "name": "Malmö",
+   "country": "SE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OSL",
+   "city": "Oslo",
+   "name": "Gardermoen",
+   "country": "NO",
+   "aliases": [
+    "אוסלו"
+   ],
+   "top": true
+  },
+  {
+   "code": "TRF",
+   "city": "Oslo",
+   "name": "Torp Sandefjord",
+   "country": "NO",
+   "aliases": [
+    "Sandefjord",
+    "Torp"
+   ],
+   "top": false
+  },
+  {
+   "code": "BGO",
+   "city": "Bergen",
+   "name": "Flesland",
+   "country": "NO",
+   "aliases": [
+    "ברגן"
+   ],
+   "top": false
+  },
+  {
+   "code": "TRD",
+   "city": "Trondheim",
+   "name": "Værnes",
+   "country": "NO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SVG",
+   "city": "Stavanger",
+   "name": "Sola",
+   "country": "NO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TOS",
+   "city": "Tromsø",
+   "name": "Tromsø",
+   "country": "NO",
+   "aliases": [
+    "טרומסו",
+    "Northern lights"
+   ],
+   "top": false
+  },
+  {
+   "code": "BOO",
+   "city": "Bodø",
+   "name": "Bodø",
+   "country": "NO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "HEL",
+   "city": "Helsinki",
+   "name": "Helsinki-Vantaa",
+   "country": "FI",
+   "aliases": [
+    "הלסינקי"
+   ],
+   "top": true
+  },
+  {
+   "code": "RVN",
+   "city": "Rovaniemi",
+   "name": "Rovaniemi",
+   "country": "FI",
+   "aliases": [
+    "רובניימי",
+    "Lapland",
+    "לפלנד"
+   ],
+   "top": false
+  },
+  {
+   "code": "KTT",
+   "city": "Kittilä",
+   "name": "Kittilä",
+   "country": "FI",
+   "aliases": [
+    "Lapland",
+    "Levi"
+   ],
+   "top": false
+  },
+  {
+   "code": "OUL",
+   "city": "Oulu",
+   "name": "Oulu",
+   "country": "FI",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TMP",
+   "city": "Tampere",
+   "name": "Tampere-Pirkkala",
+   "country": "FI",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TKU",
+   "city": "Turku",
+   "name": "Turku",
+   "country": "FI",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KEF",
+   "city": "Reykjavik",
+   "name": "Keflavík",
+   "country": "IS",
+   "aliases": [
+    "רייקיאוויק",
+    "Iceland"
+   ],
+   "top": false
+  },
+  {
+   "code": "RKV",
+   "city": "Reykjavik",
+   "name": "Reykjavík Domestic",
+   "country": "IS",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "VNO",
+   "city": "Vilnius",
+   "name": "Vilnius",
+   "country": "LT",
+   "aliases": [
+    "וילנה"
+   ],
+   "top": true
+  },
+  {
+   "code": "KUN",
+   "city": "Kaunas",
+   "name": "Kaunas",
+   "country": "LT",
+   "aliases": [
+    "קובנה"
+   ],
+   "top": false
+  },
+  {
+   "code": "PLQ",
+   "city": "Palanga",
+   "name": "Palanga",
+   "country": "LT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RIX",
+   "city": "Riga",
+   "name": "Riga",
+   "country": "LV",
+   "aliases": [
+    "ריגה"
+   ],
+   "top": true
+  },
+  {
+   "code": "TLL",
+   "city": "Tallinn",
+   "name": "Lennart Meri",
+   "country": "EE",
+   "aliases": [
+    "טאלין"
+   ],
+   "top": true
+  },
+  {
+   "code": "WAW",
+   "city": "Warsaw",
+   "name": "Chopin",
+   "country": "PL",
+   "aliases": [
+    "ורשה",
+    "Warszawa"
+   ],
+   "top": true
+  },
+  {
+   "code": "WMI",
+   "city": "Warsaw",
+   "name": "Modlin",
+   "country": "PL",
+   "aliases": [
+    "ורשה",
+    "Modlin"
+   ],
+   "top": false
+  },
+  {
+   "code": "KRK",
+   "city": "Kraków",
+   "name": "John Paul II",
+   "country": "PL",
+   "aliases": [
+    "קרקוב",
+    "Krakow",
+    "Cracow"
+   ],
+   "top": true
+  },
+  {
+   "code": "KTW",
+   "city": "Katowice",
+   "name": "Katowice",
+   "country": "PL",
+   "aliases": [
+    "קטוביץ"
+   ],
+   "top": false
+  },
+  {
+   "code": "GDN",
+   "city": "Gdańsk",
+   "name": "Lech Wałęsa",
+   "country": "PL",
+   "aliases": [
+    "גדנסק"
+   ],
+   "top": false
+  },
+  {
+   "code": "WRO",
+   "city": "Wrocław",
+   "name": "Copernicus",
+   "country": "PL",
+   "aliases": [
+    "ורוצלב"
+   ],
+   "top": false
+  },
+  {
+   "code": "POZ",
+   "city": "Poznań",
+   "name": "Ławica",
+   "country": "PL",
+   "aliases": [
+    "פוזנן"
+   ],
+   "top": false
+  },
+  {
+   "code": "LCJ",
+   "city": "Łódź",
+   "name": "Władysław Reymont",
+   "country": "PL",
+   "aliases": [
+    "לודז"
+   ],
+   "top": false
+  },
+  {
+   "code": "RZE",
+   "city": "Rzeszów",
+   "name": "Jasionka",
+   "country": "PL",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SZZ",
+   "city": "Szczecin",
+   "name": "Goleniów",
+   "country": "PL",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LUZ",
+   "city": "Lublin",
+   "name": "Lublin",
+   "country": "PL",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BZG",
+   "city": "Bydgoszcz",
+   "name": "Ignacy Jan Paderewski",
+   "country": "PL",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PRG",
+   "city": "Prague",
+   "name": "Václav Havel",
+   "country": "CZ",
+   "aliases": [
+    "פראג",
+    "Praha"
+   ],
+   "top": true
+  },
+  {
+   "code": "BRQ",
+   "city": "Brno",
+   "name": "Tuřany",
+   "country": "CZ",
+   "aliases": [
+    "ברנו"
+   ],
+   "top": false
+  },
+  {
+   "code": "OSR",
+   "city": "Ostrava",
+   "name": "Leoš Janáček",
+   "country": "CZ",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BTS",
+   "city": "Bratislava",
+   "name": "M. R. Štefánik",
+   "country": "SK",
+   "aliases": [
+    "ברטיסלבה"
+   ],
+   "top": true
+  },
+  {
+   "code": "KSC",
+   "city": "Košice",
+   "name": "Košice",
+   "country": "SK",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BUD",
+   "city": "Budapest",
+   "name": "Ferenc Liszt",
+   "country": "HU",
+   "aliases": [
+    "בודפשט"
+   ],
+   "top": true
+  },
+  {
+   "code": "DEB",
+   "city": "Debrecen",
+   "name": "Debrecen",
+   "country": "HU",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OTP",
+   "city": "Bucharest",
+   "name": "Henri Coandă",
+   "country": "RO",
+   "aliases": [
+    "בוקרשט",
+    "Otopeni"
+   ],
+   "top": true
+  },
+  {
+   "code": "CLJ",
+   "city": "Cluj-Napoca",
+   "name": "Avram Iancu",
+   "country": "RO",
+   "aliases": [
+    "קלוז'",
+    "Cluj"
+   ],
+   "top": false
+  },
+  {
+   "code": "IAS",
+   "city": "Iași",
+   "name": "Iași",
+   "country": "RO",
+   "aliases": [
+    "יאשי"
+   ],
+   "top": false
+  },
+  {
+   "code": "TSR",
+   "city": "Timișoara",
+   "name": "Traian Vuia",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SBZ",
+   "city": "Sibiu",
+   "name": "Sibiu",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CND",
+   "city": "Constanța",
+   "name": "Mihail Kogălniceanu",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SCV",
+   "city": "Suceava",
+   "name": "Ștefan cel Mare",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CRA",
+   "city": "Craiova",
+   "name": "Craiova",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OMR",
+   "city": "Oradea",
+   "name": "Oradea",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BCM",
+   "city": "Bacău",
+   "name": "George Enescu",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TGM",
+   "city": "Târgu Mureș",
+   "name": "Transilvania",
+   "country": "RO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RMO",
+   "city": "Chișinău",
+   "name": "Chișinău",
+   "country": "MD",
+   "aliases": [
+    "קישינב",
+    "Kishinev"
+   ],
+   "top": false
+  },
+  {
+   "code": "SOF",
+   "city": "Sofia",
+   "name": "Vasil Levski",
+   "country": "BG",
+   "aliases": [
+    "סופיה"
+   ],
+   "top": true
+  },
+  {
+   "code": "VAR",
+   "city": "Varna",
+   "name": "Varna",
+   "country": "BG",
+   "aliases": [
+    "ורנה"
+   ],
+   "top": true
+  },
+  {
+   "code": "BOJ",
+   "city": "Burgas",
+   "name": "Burgas",
+   "country": "BG",
+   "aliases": [
+    "בורגס",
+    "Sunny Beach"
+   ],
+   "top": true
+  },
+  {
+   "code": "PDV",
+   "city": "Plovdiv",
+   "name": "Plovdiv",
+   "country": "BG",
+   "aliases": [
+    "פלובדיב"
+   ],
+   "top": false
+  },
+  {
+   "code": "BEG",
+   "city": "Belgrade",
+   "name": "Nikola Tesla",
+   "country": "RS",
+   "aliases": [
+    "בלגרד",
+    "Beograd"
+   ],
+   "top": true
+  },
+  {
+   "code": "INI",
+   "city": "Niš",
+   "name": "Constantine the Great",
+   "country": "RS",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TGD",
+   "city": "Podgorica",
+   "name": "Podgorica",
+   "country": "ME",
+   "aliases": [
+    "פודגוריצה"
+   ],
+   "top": true
+  },
+  {
+   "code": "TIV",
+   "city": "Tivat",
+   "name": "Tivat",
+   "country": "ME",
+   "aliases": [
+    "טיבט",
+    "Kotor",
+    "Budva"
+   ],
+   "top": true
+  },
+  {
+   "code": "ZAG",
+   "city": "Zagreb",
+   "name": "Franjo Tuđman",
+   "country": "HR",
+   "aliases": [
+    "זאגרב"
+   ],
+   "top": true
+  },
+  {
+   "code": "DBV",
+   "city": "Dubrovnik",
+   "name": "Čilipi",
+   "country": "HR",
+   "aliases": [
+    "דוברובניק"
+   ],
+   "top": true
+  },
+  {
+   "code": "SPU",
+   "city": "Split",
+   "name": "Split",
+   "country": "HR",
+   "aliases": [
+    "ספליט"
+   ],
+   "top": true
+  },
+  {
+   "code": "ZAD",
+   "city": "Zadar",
+   "name": "Zadar",
+   "country": "HR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PUY",
+   "city": "Pula",
+   "name": "Pula",
+   "country": "HR",
+   "aliases": [
+    "Istria"
+   ],
+   "top": false
+  },
+  {
+   "code": "RJK",
+   "city": "Rijeka",
+   "name": "Krk",
+   "country": "HR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OSI",
+   "city": "Osijek",
+   "name": "Osijek",
+   "country": "HR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BWK",
+   "city": "Brač",
+   "name": "Bol",
+   "country": "HR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LJU",
+   "city": "Ljubljana",
+   "name": "Jože Pučnik",
+   "country": "SI",
+   "aliases": [
+    "ליובליאנה",
+    "Lake Bled"
+   ],
+   "top": true
+  },
+  {
+   "code": "SJJ",
+   "city": "Sarajevo",
+   "name": "Sarajevo",
+   "country": "BA",
+   "aliases": [
+    "סרייבו"
+   ],
+   "top": false
+  },
+  {
+   "code": "TZL",
+   "city": "Tuzla",
+   "name": "Tuzla",
+   "country": "BA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BNX",
+   "city": "Banja Luka",
+   "name": "Banja Luka",
+   "country": "BA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OMO",
+   "city": "Mostar",
+   "name": "Mostar",
+   "country": "BA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SKP",
+   "city": "Skopje",
+   "name": "Skopje",
+   "country": "MK",
+   "aliases": [
+    "סקופיה"
+   ],
+   "top": false
+  },
+  {
+   "code": "OHD",
+   "city": "Ohrid",
+   "name": "St. Paul the Apostle",
+   "country": "MK",
+   "aliases": [
+    "אוחריד"
+   ],
+   "top": false
+  },
+  {
+   "code": "TIA",
+   "city": "Tirana",
+   "name": "Nënë Tereza",
+   "country": "AL",
+   "aliases": [
+    "טירנה"
+   ],
+   "top": true
+  },
+  {
+   "code": "PRN",
+   "city": "Pristina",
+   "name": "Adem Jashari",
+   "country": "XK",
+   "aliases": [
+    "פרישטינה"
+   ],
+   "top": false
+  },
+  {
+   "code": "TBS",
+   "city": "Tbilisi",
+   "name": "Shota Rustaveli",
+   "country": "GE",
+   "aliases": [
+    "טביליסי"
+   ],
+   "top": true
+  },
+  {
+   "code": "BUS",
+   "city": "Batumi",
+   "name": "Batumi",
+   "country": "GE",
+   "aliases": [
+    "בטומי"
+   ],
+   "top": true
+  },
+  {
+   "code": "KUT",
+   "city": "Kutaisi",
+   "name": "David the Builder",
+   "country": "GE",
+   "aliases": [
+    "קוטאיסי"
+   ],
+   "top": true
+  },
+  {
+   "code": "EVN",
+   "city": "Yerevan",
+   "name": "Zvartnots",
+   "country": "AM",
+   "aliases": [
+    "ירוואן"
+   ],
+   "top": true
+  },
+  {
+   "code": "LWN",
+   "city": "Gyumri",
+   "name": "Shirak",
+   "country": "AM",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "GYD",
+   "city": "Baku",
+   "name": "Heydar Aliyev",
+   "country": "AZ",
+   "aliases": [
+    "באקו"
+   ],
+   "top": true
+  },
+  {
+   "code": "SVO",
+   "city": "Moscow",
+   "name": "Sheremetyevo",
+   "country": "RU",
+   "aliases": [
+    "מוסקבה"
+   ],
+   "top": false
+  },
+  {
+   "code": "DME",
+   "city": "Moscow",
+   "name": "Domodedovo",
+   "country": "RU",
+   "aliases": [
+    "מוסקבה"
+   ],
+   "top": false
+  },
+  {
+   "code": "VKO",
+   "city": "Moscow",
+   "name": "Vnukovo",
+   "country": "RU",
+   "aliases": [
+    "מוסקבה"
+   ],
+   "top": false
+  },
+  {
+   "code": "LED",
+   "city": "Saint Petersburg",
+   "name": "Pulkovo",
+   "country": "RU",
+   "aliases": [
+    "סנט פטרסבורג",
+    "St Petersburg"
+   ],
+   "top": false
+  },
+  {
+   "code": "MSQ",
+   "city": "Minsk",
+   "name": "Minsk National",
+   "country": "BY",
+   "aliases": [
+    "מינסק"
+   ],
+   "top": false
+  },
+  {
+   "code": "TAS",
+   "city": "Tashkent",
+   "name": "Islam Karimov",
+   "country": "UZ",
+   "aliases": [
+    "טשקנט"
+   ],
+   "top": false
+  },
+  {
+   "code": "SKD",
+   "city": "Samarkand",
+   "name": "Samarkand",
+   "country": "UZ",
+   "aliases": [
+    "סמרקנד"
+   ],
+   "top": false
+  },
+  {
+   "code": "ALA",
+   "city": "Almaty",
+   "name": "Almaty",
+   "country": "KZ",
+   "aliases": [
+    "אלמטי"
+   ],
+   "top": false
+  },
+  {
+   "code": "NQZ",
+   "city": "Astana",
+   "name": "Nursultan Nazarbayev",
+   "country": "KZ",
+   "aliases": [
+    "אסטנה"
+   ],
+   "top": false
+  },
+  {
+   "code": "FRU",
+   "city": "Bishkek",
+   "name": "Manas",
+   "country": "KG",
+   "aliases": [
+    "בישקק"
+   ],
+   "top": false
+  },
+  {
+   "code": "DXB",
+   "city": "Dubai",
+   "name": "Dubai International",
+   "country": "AE",
+   "aliases": [
+    "דובאי"
+   ],
+   "top": true
+  },
+  {
+   "code": "DWC",
+   "city": "Dubai",
+   "name": "Al Maktoum",
+   "country": "AE",
+   "aliases": [
+    "דובאי",
+    "Dubai World Central"
+   ],
+   "top": false
+  },
+  {
+   "code": "AUH",
+   "city": "Abu Dhabi",
+   "name": "Zayed International",
+   "country": "AE",
+   "aliases": [
+    "אבו דאבי"
+   ],
+   "top": true
+  },
+  {
+   "code": "SHJ",
+   "city": "Sharjah",
+   "name": "Sharjah",
+   "country": "AE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RKT",
+   "city": "Ras Al Khaimah",
+   "name": "Ras Al Khaimah",
+   "country": "AE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BAH",
+   "city": "Bahrain",
+   "name": "Bahrain International",
+   "country": "BH",
+   "aliases": [
+    "בחריין",
+    "Manama"
+   ],
+   "top": false
+  },
+  {
+   "code": "DOH",
+   "city": "Doha",
+   "name": "Hamad",
+   "country": "QA",
+   "aliases": [
+    "דוחא"
+   ],
+   "top": false
+  },
+  {
+   "code": "MCT",
+   "city": "Muscat",
+   "name": "Muscat",
+   "country": "OM",
+   "aliases": [
+    "מוסקט"
+   ],
+   "top": false
+  },
+  {
+   "code": "SLL",
+   "city": "Salalah",
+   "name": "Salalah",
+   "country": "OM",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RUH",
+   "city": "Riyadh",
+   "name": "King Khalid",
+   "country": "SA",
+   "aliases": [
+    "ריאד"
+   ],
+   "top": false
+  },
+  {
+   "code": "JED",
+   "city": "Jeddah",
+   "name": "King Abdulaziz",
+   "country": "SA",
+   "aliases": [
+    "ג'דה"
+   ],
+   "top": false
+  },
+  {
+   "code": "DMM",
+   "city": "Dammam",
+   "name": "King Fahd",
+   "country": "SA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "MED",
+   "city": "Medina",
+   "name": "Prince Mohammad bin Abdulaziz",
+   "country": "SA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ULH",
+   "city": "AlUla",
+   "name": "AlUla",
+   "country": "SA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KWI",
+   "city": "Kuwait City",
+   "name": "Kuwait International",
+   "country": "KW",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "AMM",
+   "city": "Amman",
+   "name": "Queen Alia",
+   "country": "JO",
+   "aliases": [
+    "עמאן"
+   ],
+   "top": false
+  },
+  {
+   "code": "AQJ",
+   "city": "Aqaba",
+   "name": "King Hussein",
+   "country": "JO",
+   "aliases": [
+    "עקבה",
+    "Petra"
+   ],
+   "top": false
+  },
+  {
+   "code": "CAI",
+   "city": "Cairo",
+   "name": "Cairo International",
+   "country": "EG",
+   "aliases": [
+    "קהיר"
+   ],
+   "top": false
+  },
+  {
+   "code": "SPX",
+   "city": "Cairo",
+   "name": "Sphinx (Giza)",
+   "country": "EG",
+   "aliases": [
+    "Giza"
+   ],
+   "top": false
+  },
+  {
+   "code": "SSH",
+   "city": "Sharm el-Sheikh",
+   "name": "Sharm el-Sheikh",
+   "country": "EG",
+   "aliases": [
+    "שארם",
+    "Sinai",
+    "סיני"
+   ],
+   "top": true
+  },
+  {
+   "code": "HRG",
+   "city": "Hurghada",
+   "name": "Hurghada",
+   "country": "EG",
+   "aliases": [
+    "הורגדה"
+   ],
+   "top": false
+  },
+  {
+   "code": "RMF",
+   "city": "Marsa Alam",
+   "name": "Marsa Alam",
+   "country": "EG",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LXR",
+   "city": "Luxor",
+   "name": "Luxor",
+   "country": "EG",
+   "aliases": [
+    "לוקסור"
+   ],
+   "top": false
+  },
+  {
+   "code": "TCP",
+   "city": "Taba",
+   "name": "Taba",
+   "country": "EG",
+   "aliases": [
+    "טאבה",
+    "Sinai"
+   ],
+   "top": false
+  },
+  {
+   "code": "HBE",
+   "city": "Alexandria",
+   "name": "Borg El Arab",
+   "country": "EG",
+   "aliases": [
+    "אלכסנדריה"
+   ],
+   "top": false
+  },
+  {
+   "code": "RAK",
+   "city": "Marrakech",
+   "name": "Menara",
+   "country": "MA",
+   "aliases": [
+    "מרקש",
+    "Marrakesh"
+   ],
+   "top": true
+  },
+  {
+   "code": "CMN",
+   "city": "Casablanca",
+   "name": "Mohammed V",
+   "country": "MA",
+   "aliases": [
+    "קזבלנקה"
+   ],
+   "top": false
+  },
+  {
+   "code": "RBA",
+   "city": "Rabat",
+   "name": "Rabat-Salé",
+   "country": "MA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "FEZ",
+   "city": "Fes",
+   "name": "Fès-Saïss",
+   "country": "MA",
+   "aliases": [
+    "פאס",
+    "Fez"
+   ],
+   "top": false
+  },
+  {
+   "code": "TNG",
+   "city": "Tangier",
+   "name": "Ibn Battouta",
+   "country": "MA",
+   "aliases": [
+    "טנג'יר"
+   ],
+   "top": false
+  },
+  {
+   "code": "AGA",
+   "city": "Agadir",
+   "name": "Al Massira",
+   "country": "MA",
+   "aliases": [
+    "אגדיר"
+   ],
+   "top": false
+  },
+  {
+   "code": "ESU",
+   "city": "Essaouira",
+   "name": "Mogador",
+   "country": "MA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TUN",
+   "city": "Tunis",
+   "name": "Carthage",
+   "country": "TN",
+   "aliases": [
+    "תוניס"
+   ],
+   "top": false
+  },
+  {
+   "code": "DJE",
+   "city": "Djerba",
+   "name": "Djerba-Zarzis",
+   "country": "TN",
+   "aliases": [
+    "ג'רבה"
+   ],
+   "top": false
+  },
+  {
+   "code": "MIR",
+   "city": "Monastir",
+   "name": "Habib Bourguiba",
+   "country": "TN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NBE",
+   "city": "Enfidha",
+   "name": "Enfidha-Hammamet",
+   "country": "TN",
+   "aliases": [
+    "Hammamet"
+   ],
+   "top": false
+  },
+  {
+   "code": "JNB",
+   "city": "Johannesburg",
+   "name": "O. R. Tambo",
+   "country": "ZA",
+   "aliases": [
+    "יוהנסבורג"
+   ],
+   "top": false
+  },
+  {
+   "code": "CPT",
+   "city": "Cape Town",
+   "name": "Cape Town",
+   "country": "ZA",
+   "aliases": [
+    "קייפטאון"
+   ],
+   "top": false
+  },
+  {
+   "code": "DUR",
+   "city": "Durban",
+   "name": "King Shaka",
+   "country": "ZA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NBO",
+   "city": "Nairobi",
+   "name": "Jomo Kenyatta",
+   "country": "KE",
+   "aliases": [
+    "ניירובי"
+   ],
+   "top": false
+  },
+  {
+   "code": "MBA",
+   "city": "Mombasa",
+   "name": "Moi",
+   "country": "KE",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ADD",
+   "city": "Addis Ababa",
+   "name": "Bole",
+   "country": "ET",
+   "aliases": [
+    "אדיס אבבה"
+   ],
+   "top": false
+  },
+  {
+   "code": "ZNZ",
+   "city": "Zanzibar",
+   "name": "Abeid Amani Karume",
+   "country": "TZ",
+   "aliases": [
+    "זנזיבר"
+   ],
+   "top": false
+  },
+  {
+   "code": "DAR",
+   "city": "Dar es Salaam",
+   "name": "Julius Nyerere",
+   "country": "TZ",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "JRO",
+   "city": "Kilimanjaro",
+   "name": "Kilimanjaro",
+   "country": "TZ",
+   "aliases": [
+    "קילימנג'רו",
+    "Arusha"
+   ],
+   "top": false
+  },
+  {
+   "code": "MRU",
+   "city": "Mauritius",
+   "name": "Sir Seewoosagur Ramgoolam",
+   "country": "MU",
+   "aliases": [
+    "מאוריציוס"
+   ],
+   "top": false
+  },
+  {
+   "code": "SEZ",
+   "city": "Mahé",
+   "name": "Seychelles International",
+   "country": "SC",
+   "aliases": [
+    "סיישל",
+    "Seychelles"
+   ],
+   "top": false
+  },
+  {
+   "code": "RUN",
+   "city": "Saint-Denis",
+   "name": "Roland Garros",
+   "country": "RE",
+   "aliases": [
+    "Réunion"
+   ],
+   "top": false
+  },
+  {
+   "code": "LOS",
+   "city": "Lagos",
+   "name": "Murtala Muhammed",
+   "country": "NG",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ACC",
+   "city": "Accra",
+   "name": "Kotoka",
+   "country": "GH",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KGL",
+   "city": "Kigali",
+   "name": "Kigali",
+   "country": "RW",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "EBB",
+   "city": "Entebbe",
+   "name": "Entebbe",
+   "country": "UG",
+   "aliases": [
+    "אנטבה",
+    "Kampala"
+   ],
+   "top": false
+  },
+  {
+   "code": "WDH",
+   "city": "Windhoek",
+   "name": "Hosea Kutako",
+   "country": "NA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "VFA",
+   "city": "Victoria Falls",
+   "name": "Victoria Falls",
+   "country": "ZW",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TNR",
+   "city": "Antananarivo",
+   "name": "Ivato",
+   "country": "MG",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NOS",
+   "city": "Nosy Be",
+   "name": "Fascene",
+   "country": "MG",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "DSS",
+   "city": "Dakar",
+   "name": "Blaise Diagne",
+   "country": "SN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "DEL",
+   "city": "Delhi",
+   "name": "Indira Gandhi",
+   "country": "IN",
+   "aliases": [
+    "דלהי",
+    "New Delhi"
+   ],
+   "top": true
+  },
+  {
+   "code": "BOM",
+   "city": "Mumbai",
+   "name": "Chhatrapati Shivaji Maharaj",
+   "country": "IN",
+   "aliases": [
+    "מומבאי",
+    "Bombay"
+   ],
+   "top": true
+  },
+  {
+   "code": "GOI",
+   "city": "Goa",
+   "name": "Dabolim",
+   "country": "IN",
+   "aliases": [
+    "גואה"
+   ],
+   "top": true
+  },
+  {
+   "code": "GOX",
+   "city": "Goa",
+   "name": "Manohar (Mopa)",
+   "country": "IN",
+   "aliases": [
+    "גואה"
+   ],
+   "top": false
+  },
+  {
+   "code": "BLR",
+   "city": "Bengaluru",
+   "name": "Kempegowda",
+   "country": "IN",
+   "aliases": [
+    "Bangalore"
+   ],
+   "top": false
+  },
+  {
+   "code": "MAA",
+   "city": "Chennai",
+   "name": "Chennai",
+   "country": "IN",
+   "aliases": [
+    "Madras"
+   ],
+   "top": false
+  },
+  {
+   "code": "COK",
+   "city": "Kochi",
+   "name": "Cochin",
+   "country": "IN",
+   "aliases": [
+    "Kerala"
+   ],
+   "top": false
+  },
+  {
+   "code": "CCU",
+   "city": "Kolkata",
+   "name": "Netaji Subhas Chandra Bose",
+   "country": "IN",
+   "aliases": [
+    "Calcutta"
+   ],
+   "top": false
+  },
+  {
+   "code": "HYD",
+   "city": "Hyderabad",
+   "name": "Rajiv Gandhi",
+   "country": "IN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "JAI",
+   "city": "Jaipur",
+   "name": "Jaipur",
+   "country": "IN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CMB",
+   "city": "Colombo",
+   "name": "Bandaranaike",
+   "country": "LK",
+   "aliases": [
+    "קולומבו",
+    "Sri Lanka",
+    "סרי לנקה"
+   ],
+   "top": false
+  },
+  {
+   "code": "MLE",
+   "city": "Malé",
+   "name": "Velana",
+   "country": "MV",
+   "aliases": [
+    "Maldives",
+    "המלדיביים"
+   ],
+   "top": false
+  },
+  {
+   "code": "KTM",
+   "city": "Kathmandu",
+   "name": "Tribhuvan",
+   "country": "NP",
+   "aliases": [
+    "קטמנדו"
+   ],
+   "top": false
+  },
+  {
+   "code": "BKK",
+   "city": "Bangkok",
+   "name": "Suvarnabhumi",
+   "country": "TH",
+   "aliases": [
+    "בנגקוק"
+   ],
+   "top": true
+  },
+  {
+   "code": "DMK",
+   "city": "Bangkok",
+   "name": "Don Mueang",
+   "country": "TH",
+   "aliases": [
+    "בנגקוק"
+   ],
+   "top": false
+  },
+  {
+   "code": "HKT",
+   "city": "Phuket",
+   "name": "Phuket",
+   "country": "TH",
+   "aliases": [
+    "פוקט"
+   ],
+   "top": true
+  },
+  {
+   "code": "CNX",
+   "city": "Chiang Mai",
+   "name": "Chiang Mai",
+   "country": "TH",
+   "aliases": [
+    "צ'יאנג מאי"
+   ],
+   "top": false
+  },
+  {
+   "code": "USM",
+   "city": "Koh Samui",
+   "name": "Samui",
+   "country": "TH",
+   "aliases": [
+    "קוסמוי",
+    "Samui"
+   ],
+   "top": false
+  },
+  {
+   "code": "KBV",
+   "city": "Krabi",
+   "name": "Krabi",
+   "country": "TH",
+   "aliases": [
+    "קראבי"
+   ],
+   "top": false
+  },
+  {
+   "code": "SGN",
+   "city": "Ho Chi Minh City",
+   "name": "Tan Son Nhat",
+   "country": "VN",
+   "aliases": [
+    "Saigon",
+    "הו צ'י מין"
+   ],
+   "top": false
+  },
+  {
+   "code": "HAN",
+   "city": "Hanoi",
+   "name": "Noi Bai",
+   "country": "VN",
+   "aliases": [
+    "האנוי"
+   ],
+   "top": false
+  },
+  {
+   "code": "DAD",
+   "city": "Da Nang",
+   "name": "Da Nang",
+   "country": "VN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PQC",
+   "city": "Phu Quoc",
+   "name": "Phu Quoc",
+   "country": "VN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CXR",
+   "city": "Nha Trang",
+   "name": "Cam Ranh",
+   "country": "VN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KTI",
+   "city": "Phnom Penh",
+   "name": "Techo",
+   "country": "KH",
+   "aliases": [
+    "פנום פן"
+   ],
+   "top": false
+  },
+  {
+   "code": "SAI",
+   "city": "Siem Reap",
+   "name": "Siem Reap-Angkor",
+   "country": "KH",
+   "aliases": [
+    "Angkor"
+   ],
+   "top": false
+  },
+  {
+   "code": "VTE",
+   "city": "Vientiane",
+   "name": "Wattay",
+   "country": "LA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RGN",
+   "city": "Yangon",
+   "name": "Yangon",
+   "country": "MM",
+   "aliases": [
+    "Rangoon"
+   ],
+   "top": false
+  },
+  {
+   "code": "KUL",
+   "city": "Kuala Lumpur",
+   "name": "Kuala Lumpur International",
+   "country": "MY",
+   "aliases": [
+    "קואלה לומפור"
+   ],
+   "top": false
+  },
+  {
+   "code": "PEN",
+   "city": "Penang",
+   "name": "Penang",
+   "country": "MY",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LGK",
+   "city": "Langkawi",
+   "name": "Langkawi",
+   "country": "MY",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BKI",
+   "city": "Kota Kinabalu",
+   "name": "Kota Kinabalu",
+   "country": "MY",
+   "aliases": [
+    "Borneo"
+   ],
+   "top": false
+  },
+  {
+   "code": "SIN",
+   "city": "Singapore",
+   "name": "Changi",
+   "country": "SG",
+   "aliases": [
+    "סינגפור"
+   ],
+   "top": false
+  },
+  {
+   "code": "CGK",
+   "city": "Jakarta",
+   "name": "Soekarno-Hatta",
+   "country": "ID",
+   "aliases": [
+    "ג'קרטה"
+   ],
+   "top": false
+  },
+  {
+   "code": "DPS",
+   "city": "Bali",
+   "name": "Ngurah Rai (Denpasar)",
+   "country": "ID",
+   "aliases": [
+    "באלי",
+    "Denpasar"
+   ],
+   "top": false
+  },
+  {
+   "code": "MNL",
+   "city": "Manila",
+   "name": "Ninoy Aquino",
+   "country": "PH",
+   "aliases": [
+    "מנילה"
+   ],
+   "top": false
+  },
+  {
+   "code": "CEB",
+   "city": "Cebu",
+   "name": "Mactan-Cebu",
+   "country": "PH",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "HKG",
+   "city": "Hong Kong",
+   "name": "Hong Kong International",
+   "country": "HK",
+   "aliases": [
+    "הונג קונג"
+   ],
+   "top": false
+  },
+  {
+   "code": "MFM",
+   "city": "Macau",
+   "name": "Macau International",
+   "country": "MO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TPE",
+   "city": "Taipei",
+   "name": "Taoyuan",
+   "country": "TW",
+   "aliases": [
+    "טאיפיי"
+   ],
+   "top": false
+  },
+  {
+   "code": "TSA",
+   "city": "Taipei",
+   "name": "Songshan",
+   "country": "TW",
+   "aliases": [
+    "טאיפיי"
+   ],
+   "top": false
+  },
+  {
+   "code": "PEK",
+   "city": "Beijing",
+   "name": "Capital",
+   "country": "CN",
+   "aliases": [
+    "בייג'ינג",
+    "Peking"
+   ],
+   "top": false
+  },
+  {
+   "code": "PKX",
+   "city": "Beijing",
+   "name": "Daxing",
+   "country": "CN",
+   "aliases": [
+    "בייג'ינג"
+   ],
+   "top": false
+  },
+  {
+   "code": "PVG",
+   "city": "Shanghai",
+   "name": "Pudong",
+   "country": "CN",
+   "aliases": [
+    "שנגחאי"
+   ],
+   "top": false
+  },
+  {
+   "code": "SHA",
+   "city": "Shanghai",
+   "name": "Hongqiao",
+   "country": "CN",
+   "aliases": [
+    "שנגחאי"
+   ],
+   "top": false
+  },
+  {
+   "code": "CAN",
+   "city": "Guangzhou",
+   "name": "Baiyun",
+   "country": "CN",
+   "aliases": [
+    "Canton"
+   ],
+   "top": false
+  },
+  {
+   "code": "SZX",
+   "city": "Shenzhen",
+   "name": "Bao'an",
+   "country": "CN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "TFU",
+   "city": "Chengdu",
+   "name": "Tianfu",
+   "country": "CN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CTU",
+   "city": "Chengdu",
+   "name": "Shuangliu",
+   "country": "CN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CKG",
+   "city": "Chongqing",
+   "name": "Jiangbei",
+   "country": "CN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "XIY",
+   "city": "Xi'an",
+   "name": "Xianyang",
+   "country": "CN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "HGH",
+   "city": "Hangzhou",
+   "name": "Xiaoshan",
+   "country": "CN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "KMG",
+   "city": "Kunming",
+   "name": "Changshui",
+   "country": "CN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NRT",
+   "city": "Tokyo",
+   "name": "Narita",
+   "country": "JP",
+   "aliases": [
+    "טוקיו"
+   ],
+   "top": true
+  },
+  {
+   "code": "HND",
+   "city": "Tokyo",
+   "name": "Haneda",
+   "country": "JP",
+   "aliases": [
+    "טוקיו"
+   ],
+   "top": true
+  },
+  {
+   "code": "KIX",
+   "city": "Osaka",
+   "name": "Kansai",
+   "country": "JP",
+   "aliases": [
+    "אוסקה",
+    "Kyoto"
+   ],
+   "top": false
+  },
+  {
+   "code": "ITM",
+   "city": "Osaka",
+   "name": "Itami",
+   "country": "JP",
+   "aliases": [
+    "אוסקה"
+   ],
+   "top": false
+  },
+  {
+   "code": "UKB",
+   "city": "Kobe",
+   "name": "Kobe",
+   "country": "JP",
+   "aliases": [
+    "Osaka"
+   ],
+   "top": false
+  },
+  {
+   "code": "NGO",
+   "city": "Nagoya",
+   "name": "Chubu Centrair",
+   "country": "JP",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CTS",
+   "city": "Sapporo",
+   "name": "New Chitose",
+   "country": "JP",
+   "aliases": [
+    "Hokkaido"
+   ],
+   "top": false
+  },
+  {
+   "code": "FUK",
+   "city": "Fukuoka",
+   "name": "Fukuoka",
+   "country": "JP",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "OKA",
+   "city": "Okinawa",
+   "name": "Naha",
+   "country": "JP",
+   "aliases": [
+    "Naha"
+   ],
+   "top": false
+  },
+  {
+   "code": "ICN",
+   "city": "Seoul",
+   "name": "Incheon",
+   "country": "KR",
+   "aliases": [
+    "סיאול"
+   ],
+   "top": false
+  },
+  {
+   "code": "GMP",
+   "city": "Seoul",
+   "name": "Gimpo",
+   "country": "KR",
+   "aliases": [
+    "סיאול"
+   ],
+   "top": false
+  },
+  {
+   "code": "PUS",
+   "city": "Busan",
+   "name": "Gimhae",
+   "country": "KR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CJU",
+   "city": "Jeju",
+   "name": "Jeju",
+   "country": "KR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "UBN",
+   "city": "Ulaanbaatar",
+   "name": "Chinggis Khaan",
+   "country": "MN",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SYD",
+   "city": "Sydney",
+   "name": "Kingsford Smith",
+   "country": "AU",
+   "aliases": [
+    "סידני"
+   ],
+   "top": false
+  },
+  {
+   "code": "MEL",
+   "city": "Melbourne",
+   "name": "Tullamarine",
+   "country": "AU",
+   "aliases": [
+    "מלבורן"
+   ],
+   "top": false
+  },
+  {
+   "code": "BNE",
+   "city": "Brisbane",
+   "name": "Brisbane",
+   "country": "AU",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PER",
+   "city": "Perth",
+   "name": "Perth",
+   "country": "AU",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ADL",
+   "city": "Adelaide",
+   "name": "Adelaide",
+   "country": "AU",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "AKL",
+   "city": "Auckland",
+   "name": "Auckland",
+   "country": "NZ",
+   "aliases": [
+    "אוקלנד"
+   ],
+   "top": false
+  },
+  {
+   "code": "CHC",
+   "city": "Christchurch",
+   "name": "Christchurch",
+   "country": "NZ",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "ZQN",
+   "city": "Queenstown",
+   "name": "Queenstown",
+   "country": "NZ",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NAN",
+   "city": "Nadi",
+   "name": "Nadi",
+   "country": "FJ",
+   "aliases": [
+    "Fiji"
+   ],
+   "top": false
+  },
+  {
+   "code": "PPT",
+   "city": "Papeete",
+   "name": "Faa'a",
+   "country": "PF",
+   "aliases": [
+    "Tahiti",
+    "Bora Bora"
+   ],
+   "top": false
+  },
+  {
+   "code": "JFK",
+   "city": "New York",
+   "name": "John F. Kennedy",
+   "country": "US",
+   "aliases": [
+    "ניו יורק",
+    "NYC"
+   ],
+   "top": true
+  },
+  {
+   "code": "EWR",
+   "city": "New York",
+   "name": "Newark Liberty",
+   "country": "US",
+   "aliases": [
+    "Newark",
+    "ניו יורק"
+   ],
+   "top": true
+  },
+  {
+   "code": "LGA",
+   "city": "New York",
+   "name": "LaGuardia",
+   "country": "US",
+   "aliases": [
+    "ניו יורק"
+   ],
+   "top": false
+  },
+  {
+   "code": "LAX",
+   "city": "Los Angeles",
+   "name": "Los Angeles International",
+   "country": "US",
+   "aliases": [
+    "לוס אנג'לס",
+    "LA"
+   ],
+   "top": true
+  },
+  {
+   "code": "SFO",
+   "city": "San Francisco",
+   "name": "San Francisco International",
+   "country": "US",
+   "aliases": [
+    "סן פרנסיסקו"
+   ],
+   "top": true
+  },
+  {
+   "code": "OAK",
+   "city": "Oakland",
+   "name": "Oakland",
+   "country": "US",
+   "aliases": [
+    "San Francisco"
+   ],
+   "top": false
+  },
+  {
+   "code": "SJC",
+   "city": "San Jose",
+   "name": "Mineta San José",
+   "country": "US",
+   "aliases": [
+    "Silicon Valley"
+   ],
+   "top": false
+  },
+  {
+   "code": "MIA",
+   "city": "Miami",
+   "name": "Miami International",
+   "country": "US",
+   "aliases": [
+    "מיאמי"
+   ],
+   "top": true
+  },
+  {
+   "code": "FLL",
+   "city": "Fort Lauderdale",
+   "name": "Fort Lauderdale-Hollywood",
+   "country": "US",
+   "aliases": [
+    "Miami"
+   ],
+   "top": false
+  },
+  {
+   "code": "MCO",
+   "city": "Orlando",
+   "name": "Orlando International",
+   "country": "US",
+   "aliases": [
+    "אורלנדו",
+    "Disney World"
+   ],
+   "top": false
+  },
+  {
+   "code": "TPA",
+   "city": "Tampa",
+   "name": "Tampa",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BOS",
+   "city": "Boston",
+   "name": "Logan",
+   "country": "US",
+   "aliases": [
+    "בוסטון"
+   ],
+   "top": true
+  },
+  {
+   "code": "IAD",
+   "city": "Washington",
+   "name": "Dulles",
+   "country": "US",
+   "aliases": [
+    "וושינגטון"
+   ],
+   "top": false
+  },
+  {
+   "code": "DCA",
+   "city": "Washington",
+   "name": "Ronald Reagan National",
+   "country": "US",
+   "aliases": [
+    "וושינגטון"
+   ],
+   "top": false
+  },
+  {
+   "code": "BWI",
+   "city": "Baltimore",
+   "name": "Baltimore/Washington",
+   "country": "US",
+   "aliases": [
+    "Washington"
+   ],
+   "top": false
+  },
+  {
+   "code": "ORD",
+   "city": "Chicago",
+   "name": "O'Hare",
+   "country": "US",
+   "aliases": [
+    "שיקגו"
+   ],
+   "top": false
+  },
+  {
+   "code": "MDW",
+   "city": "Chicago",
+   "name": "Midway",
+   "country": "US",
+   "aliases": [
+    "שיקגו"
+   ],
+   "top": false
+  },
+  {
+   "code": "ATL",
+   "city": "Atlanta",
+   "name": "Hartsfield-Jackson",
+   "country": "US",
+   "aliases": [
+    "אטלנטה"
+   ],
+   "top": false
+  },
+  {
+   "code": "DFW",
+   "city": "Dallas",
+   "name": "Dallas/Fort Worth",
+   "country": "US",
+   "aliases": [
+    "דאלאס"
+   ],
+   "top": false
+  },
+  {
+   "code": "IAH",
+   "city": "Houston",
+   "name": "George Bush Intercontinental",
+   "country": "US",
+   "aliases": [
+    "יוסטון"
+   ],
+   "top": false
+  },
+  {
+   "code": "HOU",
+   "city": "Houston",
+   "name": "Hobby",
+   "country": "US",
+   "aliases": [
+    "יוסטון"
+   ],
+   "top": false
+  },
+  {
+   "code": "DEN",
+   "city": "Denver",
+   "name": "Denver",
+   "country": "US",
+   "aliases": [
+    "דנבר"
+   ],
+   "top": false
+  },
+  {
+   "code": "SEA",
+   "city": "Seattle",
+   "name": "Seattle-Tacoma",
+   "country": "US",
+   "aliases": [
+    "סיאטל"
+   ],
+   "top": false
+  },
+  {
+   "code": "LAS",
+   "city": "Las Vegas",
+   "name": "Harry Reid",
+   "country": "US",
+   "aliases": [
+    "לאס וגאס"
+   ],
+   "top": false
+  },
+  {
+   "code": "PHX",
+   "city": "Phoenix",
+   "name": "Sky Harbor",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PHL",
+   "city": "Philadelphia",
+   "name": "Philadelphia",
+   "country": "US",
+   "aliases": [
+    "פילדלפיה"
+   ],
+   "top": false
+  },
+  {
+   "code": "DTW",
+   "city": "Detroit",
+   "name": "Detroit Metropolitan",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "MSP",
+   "city": "Minneapolis",
+   "name": "Minneapolis-Saint Paul",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CLT",
+   "city": "Charlotte",
+   "name": "Charlotte Douglas",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SAN",
+   "city": "San Diego",
+   "name": "San Diego",
+   "country": "US",
+   "aliases": [
+    "סן דייגו"
+   ],
+   "top": false
+  },
+  {
+   "code": "AUS",
+   "city": "Austin",
+   "name": "Austin-Bergstrom",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SLC",
+   "city": "Salt Lake City",
+   "name": "Salt Lake City",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PDX",
+   "city": "Portland",
+   "name": "Portland",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "HNL",
+   "city": "Honolulu",
+   "name": "Daniel K. Inouye",
+   "country": "US",
+   "aliases": [
+    "הונולולו",
+    "Hawaii",
+    "הוואי"
+   ],
+   "top": false
+  },
+  {
+   "code": "OGG",
+   "city": "Maui",
+   "name": "Kahului",
+   "country": "US",
+   "aliases": [
+    "Hawaii"
+   ],
+   "top": false
+  },
+  {
+   "code": "ANC",
+   "city": "Anchorage",
+   "name": "Ted Stevens",
+   "country": "US",
+   "aliases": [
+    "Alaska"
+   ],
+   "top": false
+  },
+  {
+   "code": "MSY",
+   "city": "New Orleans",
+   "name": "Louis Armstrong",
+   "country": "US",
+   "aliases": [
+    "ניו אורלינס"
+   ],
+   "top": false
+  },
+  {
+   "code": "BNA",
+   "city": "Nashville",
+   "name": "Nashville",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "RDU",
+   "city": "Raleigh",
+   "name": "Raleigh-Durham",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PIT",
+   "city": "Pittsburgh",
+   "name": "Pittsburgh",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "STL",
+   "city": "St. Louis",
+   "name": "St. Louis Lambert",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SAT",
+   "city": "San Antonio",
+   "name": "San Antonio",
+   "country": "US",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SJU",
+   "city": "San Juan",
+   "name": "Luis Muñoz Marín",
+   "country": "PR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "YYZ",
+   "city": "Toronto",
+   "name": "Pearson",
+   "country": "CA",
+   "aliases": [
+    "טורונטו"
+   ],
+   "top": false
+  },
+  {
+   "code": "YTZ",
+   "city": "Toronto",
+   "name": "Billy Bishop",
+   "country": "CA",
+   "aliases": [
+    "טורונטו"
+   ],
+   "top": false
+  },
+  {
+   "code": "YUL",
+   "city": "Montreal",
+   "name": "Trudeau",
+   "country": "CA",
+   "aliases": [
+    "מונטריאול",
+    "Montréal"
+   ],
+   "top": false
+  },
+  {
+   "code": "YVR",
+   "city": "Vancouver",
+   "name": "Vancouver",
+   "country": "CA",
+   "aliases": [
+    "ונקובר"
+   ],
+   "top": false
+  },
+  {
+   "code": "YYC",
+   "city": "Calgary",
+   "name": "Calgary",
+   "country": "CA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "YEG",
+   "city": "Edmonton",
+   "name": "Edmonton",
+   "country": "CA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "YOW",
+   "city": "Ottawa",
+   "name": "Macdonald-Cartier",
+   "country": "CA",
+   "aliases": [
+    "אוטווה"
+   ],
+   "top": false
+  },
+  {
+   "code": "YQB",
+   "city": "Quebec City",
+   "name": "Jean Lesage",
+   "country": "CA",
+   "aliases": [
+    "Québec"
+   ],
+   "top": false
+  },
+  {
+   "code": "YHZ",
+   "city": "Halifax",
+   "name": "Stanfield",
+   "country": "CA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "YWG",
+   "city": "Winnipeg",
+   "name": "Richardson",
+   "country": "CA",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "MEX",
+   "city": "Mexico City",
+   "name": "Benito Juárez",
+   "country": "MX",
+   "aliases": [
+    "מקסיקו סיטי"
+   ],
+   "top": false
+  },
+  {
+   "code": "NLU",
+   "city": "Mexico City",
+   "name": "Felipe Ángeles",
+   "country": "MX",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CUN",
+   "city": "Cancún",
+   "name": "Cancún",
+   "country": "MX",
+   "aliases": [
+    "קנקון",
+    "Cancun"
+   ],
+   "top": false
+  },
+  {
+   "code": "TQO",
+   "city": "Tulum",
+   "name": "Felipe Carrillo Puerto",
+   "country": "MX",
+   "aliases": [
+    "טולום"
+   ],
+   "top": false
+  },
+  {
+   "code": "PVR",
+   "city": "Puerto Vallarta",
+   "name": "Gustavo Díaz Ordaz",
+   "country": "MX",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SJD",
+   "city": "Los Cabos",
+   "name": "Los Cabos",
+   "country": "MX",
+   "aliases": [
+    "Cabo"
+   ],
+   "top": false
+  },
+  {
+   "code": "GDL",
+   "city": "Guadalajara",
+   "name": "Miguel Hidalgo",
+   "country": "MX",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "PUJ",
+   "city": "Punta Cana",
+   "name": "Punta Cana",
+   "country": "DO",
+   "aliases": [
+    "פונטה קאנה"
+   ],
+   "top": false
+  },
+  {
+   "code": "SDQ",
+   "city": "Santo Domingo",
+   "name": "Las Américas",
+   "country": "DO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "HAV",
+   "city": "Havana",
+   "name": "José Martí",
+   "country": "CU",
+   "aliases": [
+    "הוואנה"
+   ],
+   "top": false
+  },
+  {
+   "code": "MBJ",
+   "city": "Montego Bay",
+   "name": "Sangster",
+   "country": "JM",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "NAS",
+   "city": "Nassau",
+   "name": "Lynden Pindling",
+   "country": "BS",
+   "aliases": [
+    "Bahamas"
+   ],
+   "top": false
+  },
+  {
+   "code": "AUA",
+   "city": "Oranjestad",
+   "name": "Queen Beatrix",
+   "country": "AW",
+   "aliases": [
+    "Aruba"
+   ],
+   "top": false
+  },
+  {
+   "code": "CUR",
+   "city": "Willemstad",
+   "name": "Hato",
+   "country": "CW",
+   "aliases": [
+    "Curaçao"
+   ],
+   "top": false
+  },
+  {
+   "code": "BGI",
+   "city": "Bridgetown",
+   "name": "Grantley Adams",
+   "country": "BB",
+   "aliases": [
+    "Barbados"
+   ],
+   "top": false
+  },
+  {
+   "code": "SXM",
+   "city": "Philipsburg",
+   "name": "Princess Juliana",
+   "country": "SX",
+   "aliases": [
+    "St Maarten",
+    "Saint Martin"
+   ],
+   "top": false
+  },
+  {
+   "code": "PTY",
+   "city": "Panama City",
+   "name": "Tocumen",
+   "country": "PA",
+   "aliases": [
+    "פנמה"
+   ],
+   "top": false
+  },
+  {
+   "code": "SJO",
+   "city": "San José",
+   "name": "Juan Santamaría",
+   "country": "CR",
+   "aliases": [
+    "Costa Rica",
+    "קוסטה ריקה"
+   ],
+   "top": false
+  },
+  {
+   "code": "LIR",
+   "city": "Liberia",
+   "name": "Guanacaste",
+   "country": "CR",
+   "aliases": [
+    "Costa Rica"
+   ],
+   "top": false
+  },
+  {
+   "code": "GUA",
+   "city": "Guatemala City",
+   "name": "La Aurora",
+   "country": "GT",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "SAL",
+   "city": "San Salvador",
+   "name": "El Salvador International",
+   "country": "SV",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BOG",
+   "city": "Bogotá",
+   "name": "El Dorado",
+   "country": "CO",
+   "aliases": [
+    "בוגוטה"
+   ],
+   "top": false
+  },
+  {
+   "code": "MDE",
+   "city": "Medellín",
+   "name": "José María Córdova",
+   "country": "CO",
+   "aliases": [
+    "מדיין"
+   ],
+   "top": false
+  },
+  {
+   "code": "CTG",
+   "city": "Cartagena",
+   "name": "Rafael Núñez",
+   "country": "CO",
+   "aliases": [
+    "קרטחנה"
+   ],
+   "top": false
+  },
+  {
+   "code": "LIM",
+   "city": "Lima",
+   "name": "Jorge Chávez",
+   "country": "PE",
+   "aliases": [
+    "לימה"
+   ],
+   "top": false
+  },
+  {
+   "code": "CUZ",
+   "city": "Cusco",
+   "name": "Alejandro Velasco Astete",
+   "country": "PE",
+   "aliases": [
+    "קוסקו",
+    "Machu Picchu"
+   ],
+   "top": false
+  },
+  {
+   "code": "SCL",
+   "city": "Santiago",
+   "name": "Arturo Merino Benítez",
+   "country": "CL",
+   "aliases": [
+    "סנטיאגו"
+   ],
+   "top": false
+  },
+  {
+   "code": "EZE",
+   "city": "Buenos Aires",
+   "name": "Ezeiza",
+   "country": "AR",
+   "aliases": [
+    "בואנוס איירס"
+   ],
+   "top": false
+  },
+  {
+   "code": "AEP",
+   "city": "Buenos Aires",
+   "name": "Aeroparque Jorge Newbery",
+   "country": "AR",
+   "aliases": [
+    "בואנוס איירס"
+   ],
+   "top": false
+  },
+  {
+   "code": "IGR",
+   "city": "Puerto Iguazú",
+   "name": "Cataratas del Iguazú",
+   "country": "AR",
+   "aliases": [
+    "Iguazu"
+   ],
+   "top": false
+  },
+  {
+   "code": "FTE",
+   "city": "El Calafate",
+   "name": "El Calafate",
+   "country": "AR",
+   "aliases": [
+    "Patagonia"
+   ],
+   "top": false
+  },
+  {
+   "code": "USH",
+   "city": "Ushuaia",
+   "name": "Malvinas Argentinas",
+   "country": "AR",
+   "aliases": [
+    "Patagonia"
+   ],
+   "top": false
+  },
+  {
+   "code": "BRC",
+   "city": "Bariloche",
+   "name": "Teniente Luis Candelaria",
+   "country": "AR",
+   "aliases": [
+    "Patagonia"
+   ],
+   "top": false
+  },
+  {
+   "code": "GRU",
+   "city": "São Paulo",
+   "name": "Guarulhos",
+   "country": "BR",
+   "aliases": [
+    "סאו פאולו"
+   ],
+   "top": false
+  },
+  {
+   "code": "CGH",
+   "city": "São Paulo",
+   "name": "Congonhas",
+   "country": "BR",
+   "aliases": [
+    "סאו פאולו"
+   ],
+   "top": false
+  },
+  {
+   "code": "VCP",
+   "city": "São Paulo",
+   "name": "Viracopos (Campinas)",
+   "country": "BR",
+   "aliases": [
+    "Campinas"
+   ],
+   "top": false
+  },
+  {
+   "code": "GIG",
+   "city": "Rio de Janeiro",
+   "name": "Galeão",
+   "country": "BR",
+   "aliases": [
+    "ריו דה ז'ניירו",
+    "Rio"
+   ],
+   "top": false
+  },
+  {
+   "code": "SDU",
+   "city": "Rio de Janeiro",
+   "name": "Santos Dumont",
+   "country": "BR",
+   "aliases": [
+    "ריו דה ז'ניירו",
+    "Rio"
+   ],
+   "top": false
+  },
+  {
+   "code": "IGU",
+   "city": "Foz do Iguaçu",
+   "name": "Cataratas",
+   "country": "BR",
+   "aliases": [
+    "Iguazu"
+   ],
+   "top": false
+  },
+  {
+   "code": "SSA",
+   "city": "Salvador",
+   "name": "Salvador Bahia",
+   "country": "BR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "REC",
+   "city": "Recife",
+   "name": "Guararapes",
+   "country": "BR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "FLN",
+   "city": "Florianópolis",
+   "name": "Hercílio Luz",
+   "country": "BR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "BSB",
+   "city": "Brasília",
+   "name": "Presidente Juscelino Kubitschek",
+   "country": "BR",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "UIO",
+   "city": "Quito",
+   "name": "Mariscal Sucre",
+   "country": "EC",
+   "aliases": [
+    "קיטו"
+   ],
+   "top": false
+  },
+  {
+   "code": "GYE",
+   "city": "Guayaquil",
+   "name": "José Joaquín de Olmedo",
+   "country": "EC",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "GPS",
+   "city": "Galápagos",
+   "name": "Seymour (Baltra)",
+   "country": "EC",
+   "aliases": [
+    "Galapagos"
+   ],
+   "top": false
+  },
+  {
+   "code": "MVD",
+   "city": "Montevideo",
+   "name": "Carrasco",
+   "country": "UY",
+   "aliases": [
+    "מונטווידאו"
+   ],
+   "top": false
+  },
+  {
+   "code": "ASU",
+   "city": "Asunción",
+   "name": "Silvio Pettirossi",
+   "country": "PY",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "VVI",
+   "city": "Santa Cruz",
+   "name": "Viru Viru",
+   "country": "BO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "LPB",
+   "city": "La Paz",
+   "name": "El Alto",
+   "country": "BO",
+   "aliases": [],
+   "top": false
+  },
+  {
+   "code": "CCS",
+   "city": "Caracas",
+   "name": "Simón Bolívar",
+   "country": "VE",
+   "aliases": [],
+   "top": false
+  }
+ ],
+ "metros": [
+  {
+   "code": "LON",
+   "city": "London",
+   "country": "GB",
+   "members": [
+    "LHR",
+    "LGW",
+    "STN",
+    "LTN",
+    "LCY",
+    "SEN"
+   ],
+   "aliases": [
+    "לונדון"
+   ]
+  },
+  {
+   "code": "PAR",
+   "city": "Paris",
+   "country": "FR",
+   "members": [
+    "CDG",
+    "ORY",
+    "BVA"
+   ],
+   "aliases": [
+    "פריז"
+   ]
+  },
+  {
+   "code": "ROM",
+   "city": "Rome",
+   "country": "IT",
+   "members": [
+    "FCO",
+    "CIA"
+   ],
+   "aliases": [
+    "רומא",
+    "Roma"
+   ]
+  },
+  {
+   "code": "MIL",
+   "city": "Milan",
+   "country": "IT",
+   "members": [
+    "MXP",
+    "LIN",
+    "BGY"
+   ],
+   "aliases": [
+    "מילאנו",
+    "Milano"
+   ]
+  },
+  {
+   "code": "IST/SAW",
+   "city": "Istanbul",
+   "country": "TR",
+   "members": [
+    "IST",
+    "SAW"
+   ],
+   "aliases": [
+    "איסטנבול"
+   ]
+  },
+  {
+   "code": "BRU/CRL",
+   "city": "Brussels",
+   "country": "BE",
+   "members": [
+    "BRU",
+    "CRL"
+   ],
+   "aliases": [
+    "בריסל"
+   ]
+  },
+  {
+   "code": "VCE/TSF",
+   "city": "Venice",
+   "country": "IT",
+   "members": [
+    "VCE",
+    "TSF"
+   ],
+   "aliases": [
+    "ונציה"
+   ]
+  },
+  {
+   "code": "STO",
+   "city": "Stockholm",
+   "country": "SE",
+   "members": [
+    "ARN",
+    "BMA",
+    "NYO",
+    "VST"
+   ],
+   "aliases": [
+    "שטוקהולם"
+   ]
+  },
+  {
+   "code": "OSL/TRF",
+   "city": "Oslo",
+   "country": "NO",
+   "members": [
+    "OSL",
+    "TRF"
+   ],
+   "aliases": [
+    "אוסלו"
+   ]
+  },
+  {
+   "code": "WAW/WMI",
+   "city": "Warsaw",
+   "country": "PL",
+   "members": [
+    "WAW",
+    "WMI"
+   ],
+   "aliases": [
+    "ורשה"
+   ]
+  },
+  {
+   "code": "REK",
+   "city": "Reykjavik",
+   "country": "IS",
+   "members": [
+    "KEF",
+    "RKV"
+   ],
+   "aliases": [
+    "רייקיאוויק"
+   ]
+  },
+  {
+   "code": "TFS/TFN",
+   "city": "Tenerife",
+   "country": "ES",
+   "members": [
+    "TFS",
+    "TFN"
+   ],
+   "aliases": [
+    "טנריף"
+   ]
+  },
+  {
+   "code": "BFS/BHD",
+   "city": "Belfast",
+   "country": "GB",
+   "members": [
+    "BFS",
+    "BHD"
+   ],
+   "aliases": [
+    "בלפסט"
+   ]
+  },
+  {
+   "code": "MOW",
+   "city": "Moscow",
+   "country": "RU",
+   "members": [
+    "SVO",
+    "DME",
+    "VKO"
+   ],
+   "aliases": [
+    "מוסקבה"
+   ]
+  },
+  {
+   "code": "DXB/DWC",
+   "city": "Dubai",
+   "country": "AE",
+   "members": [
+    "DXB",
+    "DWC"
+   ],
+   "aliases": [
+    "דובאי"
+   ]
+  },
+  {
+   "code": "BKK/DMK",
+   "city": "Bangkok",
+   "country": "TH",
+   "members": [
+    "BKK",
+    "DMK"
+   ],
+   "aliases": [
+    "בנגקוק"
+   ]
+  },
+  {
+   "code": "NYC",
+   "city": "New York",
+   "country": "US",
+   "members": [
+    "JFK",
+    "EWR",
+    "LGA"
+   ],
+   "aliases": [
+    "ניו יורק"
+   ]
+  },
+  {
+   "code": "WAS",
+   "city": "Washington",
+   "country": "US",
+   "members": [
+    "IAD",
+    "DCA",
+    "BWI"
+   ],
+   "aliases": [
+    "וושינגטון"
+   ]
+  },
+  {
+   "code": "CHI",
+   "city": "Chicago",
+   "country": "US",
+   "members": [
+    "ORD",
+    "MDW"
+   ],
+   "aliases": [
+    "שיקגו"
+   ]
+  },
+  {
+   "code": "YTO",
+   "city": "Toronto",
+   "country": "CA",
+   "members": [
+    "YYZ",
+    "YTZ"
+   ],
+   "aliases": [
+    "טורונטו"
+   ]
+  },
+  {
+   "code": "TYO",
+   "city": "Tokyo",
+   "country": "JP",
+   "members": [
+    "HND",
+    "NRT"
+   ],
+   "aliases": [
+    "טוקיו"
+   ]
+  },
+  {
+   "code": "OSA",
+   "city": "Osaka",
+   "country": "JP",
+   "members": [
+    "KIX",
+    "ITM",
+    "UKB"
+   ],
+   "aliases": [
+    "אוסקה"
+   ]
+  },
+  {
+   "code": "SEL",
+   "city": "Seoul",
+   "country": "KR",
+   "members": [
+    "ICN",
+    "GMP"
+   ],
+   "aliases": [
+    "סיאול"
+   ]
+  },
+  {
+   "code": "BJS",
+   "city": "Beijing",
+   "country": "CN",
+   "members": [
+    "PEK",
+    "PKX"
+   ],
+   "aliases": [
+    "בייג'ינג"
+   ]
+  },
+  {
+   "code": "PVG/SHA",
+   "city": "Shanghai",
+   "country": "CN",
+   "members": [
+    "PVG",
+    "SHA"
+   ],
+   "aliases": [
+    "שנגחאי"
+   ]
+  },
+  {
+   "code": "TPE/TSA",
+   "city": "Taipei",
+   "country": "TW",
+   "members": [
+    "TPE",
+    "TSA"
+   ],
+   "aliases": [
+    "טאיפיי"
+   ]
+  },
+  {
+   "code": "BUE",
+   "city": "Buenos Aires",
+   "country": "AR",
+   "members": [
+    "EZE",
+    "AEP"
+   ],
+   "aliases": [
+    "בואנוס איירס"
+   ]
+  },
+  {
+   "code": "SAO",
+   "city": "São Paulo",
+   "country": "BR",
+   "members": [
+    "GRU",
+    "CGH",
+    "VCP"
+   ],
+   "aliases": [
+    "סאו פאולו"
+   ]
+  },
+  {
+   "code": "RIO",
+   "city": "Rio de Janeiro",
+   "country": "BR",
+   "members": [
+    "GIG",
+    "SDU"
+   ],
+   "aliases": [
+    "ריו דה ז'ניירו",
+    "Rio"
+   ]
+  }
+ ]
+}

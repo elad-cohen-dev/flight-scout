@@ -65,6 +65,9 @@ export interface StoredDeal {
   compare_price: number | null; // price in compare_currency, for ranking across source currencies
   compare_currency: string; // the run's preferred currency (USD for legacy rows)
   route_key: string; // canonical route id, e.g. "TLV>PRG" (same for "Prague" / "PRG" / "Prague [PRG]")
+  // Data-quality issues from backend normalize.py, e.g. "currency_inferred", "price_too_low",
+  // "destination_mismatch" (full list: normalize.FLAGS). Empty = clean or not yet checked.
+  quality_flags?: string[];
 }
 
 export interface SearchRequest extends Partial<SearchParams> {
@@ -86,6 +89,39 @@ export interface Job {
   error: string | null;
 }
 
+/** Per-watch alert rules (backend AlertSettings). */
+export interface AlertSettings {
+  threshold: boolean; // best price at or under max_price
+  new_low: boolean; // lowest in new_low_days (needs 5 earlier checks)
+  new_low_days: number;
+  under_typical: boolean; // under_typical_pct under the 30-day median
+  under_typical_pct: number;
+  big_drop: boolean; // big_drop_pct cheaper than the previous check
+  big_drop_pct: number;
+}
+
+/** Price stats over a watch's runs, in the watch currency (computed by the API). */
+export interface WatchStats {
+  currency: string;
+  runs: number;
+  last_best: number | null;
+  last_run_at: string | null;
+  low_30d: number | null;
+  typical: number | null; // median of the last 30 days' run-bests
+  all_time_low: number | null;
+  score: number | null; // 0-100 deal score of the last best price
+}
+
+export interface AlertRecord {
+  watch_id: number;
+  fingerprint: string;
+  price: number;
+  currency: string;
+  rule: string; // comma-separated: threshold,new_low,under_typical,big_drop
+  score: number | null;
+  sent_at: string;
+}
+
 export interface Watch extends SearchParams {
   id: number;
   origin: string;
@@ -98,6 +134,9 @@ export interface Watch extends SearchParams {
   created_at: string;
   last_run_at: string | null;
   last_best_price: number | null;
+  alerts?: AlertSettings;
+  stats?: WatchStats | null; // null before the first comparable run
+  last_alert?: AlertRecord | null;
 }
 
 export interface WatchCreate extends Partial<SearchParams> {
@@ -108,6 +147,7 @@ export interface WatchCreate extends Partial<SearchParams> {
   direct_only?: boolean;
   cabin_bag: boolean;
   checked_bag: boolean;
+  alerts?: Partial<AlertSettings>;
 }
 
 /** PATCH /api/watches/{id} body: any subset. The route can't be edited;
@@ -117,6 +157,7 @@ export interface WatchUpdate extends Partial<Omit<SearchParams, "max_price">> {
   max_price?: number;
   direct_only?: boolean;
   active?: boolean;
+  alerts?: Partial<AlertSettings>;
 }
 
 export interface HistoryPoint {

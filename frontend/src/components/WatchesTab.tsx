@@ -1,11 +1,52 @@
 import { useEffect, useState } from "react";
 import { formatPrice, timeAgo } from "../lib/format";
 import { criteriaChips } from "../lib/search";
-import { describeWatch } from "../lib/watches";
+import { alertSettingsOf, describeWatch, ruleChips, ruleHeadline, ruleWords, scoreTone } from "../lib/watches";
 import type { Watch, WatchUpdate } from "../types";
 import Icon from "./Icon";
 import WatchEditor from "./WatchEditor";
 import "./watches.css";
+import "./alerts.css";
+
+/** Last best / 30-day low / typical / deal score, from the API's per-watch stats. */
+function WatchStatsGrid({ watch: w, hit }: { watch: Watch; hit: boolean }) {
+  const s = w.stats ?? null;
+  const price = (n: number | null | undefined) => (n != null ? formatPrice(n, w.currency) : "—");
+  const last = s?.last_best ?? w.last_best_price;
+  const tone = s?.score != null ? scoreTone(s.score) : null;
+  const everLower = s?.all_time_low != null && s.low_30d != null && s.all_time_low < s.low_30d;
+  return (
+    <div className="watch-stats ws-grid watch-dim">
+      <div>
+        <span className="muted small">Last best</span>
+        <strong className={hit ? "text-good" : ""}>{price(last)}</strong>
+        <span className="ws-note">{w.last_run_at ? timeAgo(w.last_run_at) : "Not checked yet"}</span>
+      </div>
+      <div>
+        <span className="muted small">30-day low</span>
+        <strong>{price(s?.low_30d)}</strong>
+        <span className="ws-note">{everLower ? `${price(s!.all_time_low)} all-time` : s ? "lowest so far" : "\u00a0"}</span>
+      </div>
+      <div>
+        <span className="muted small">Typical</span>
+        <strong>{price(s?.typical)}</strong>
+        <span className="ws-note">{s ? `${s.runs} check${s.runs === 1 ? "" : "s"}` : "\u00a0"}</span>
+      </div>
+      <div>
+        <span className="muted small">Deal score</span>
+        {s?.score != null && tone ? (
+          <strong className={`score-pill score-${tone.tone}`} title="How this price compares with every earlier check of this watch">
+            {s.score}
+            <small>/100</small>
+          </strong>
+        ) : (
+          <strong>—</strong>
+        )}
+        <span className="ws-note">{tone ? tone.label : "after 4 checks"}</span>
+      </div>
+    </div>
+  );
+}
 
 /** "#watches/12" deep-links to watch 12's editor (History's "Edit watch" uses it). */
 function editIdFromHash(): number | null {
@@ -41,7 +82,9 @@ function WatchCard({
 }) {
   const chips = criteriaChips(w);
   const words = describeWatch(w);
-  const hit = w.active && w.last_best_price != null && w.last_best_price <= w.max_price;
+  const alerts = alertSettingsOf(w);
+  const rules = ruleChips(alerts);
+  const hit = w.active && alerts.threshold && w.last_best_price != null && w.last_best_price <= w.max_price;
   // how far the last best price sits above the target, capped for the meter
   const ratio = w.last_best_price != null ? Math.min(1, w.max_price / w.last_best_price) : 0;
   const route = `${w.origin} to ${w.destination}`;
@@ -67,7 +110,7 @@ function WatchCard({
       ) : (
         <>
           <p className="watch-words small watch-dim">
-            {words.search} {w.active ? <strong>{words.alert}</strong> : <strong>Paused — not checked daily until you resume it.</strong>}
+            {words.search} {w.active ? <strong>{alerts.threshold ? words.alert : "Smart alerts only."}</strong> : <strong>Paused — not checked daily until you resume it.</strong>}
           </p>
           {chips.length > 0 && (
             <div className="chip-row watch-dim">
@@ -78,20 +121,25 @@ function WatchCard({
               ))}
             </div>
           )}
-          <div className="watch-stats watch-dim">
-            <div>
-              <span className="muted small">Alert at</span>
-              <strong>≤ {formatPrice(w.max_price, w.currency)}</strong>
+          <WatchStatsGrid watch={w} hit={hit} />
+          {rules.length > 0 && (
+            <div className="watch-meta small watch-dim" aria-label="Also alerts on">
+              <span>Also alerts on</span>
+              {rules.map((r) => (
+                <span key={r} className="rule-chip">
+                  {r}
+                </span>
+              ))}
             </div>
-            <div>
-              <span className="muted small">Last best</span>
-              <strong className={hit ? "text-good" : ""}>{w.last_best_price != null ? formatPrice(w.last_best_price, w.currency) : "—"}</strong>
-            </div>
-            <div>
-              <span className="muted small">Checked</span>
-              <strong>{w.last_run_at ? timeAgo(w.last_run_at) : "Not yet"}</strong>
-            </div>
-          </div>
+          )}
+          {w.last_alert && (
+            <p className="last-alert small watch-dim" title={ruleWords(w.last_alert.rule)}>
+              <Icon name="bell" size={14} />
+              <span>
+                Alerted {timeAgo(w.last_alert.sent_at)} · <strong>{formatPrice(w.last_alert.price, w.last_alert.currency)}</strong> · {ruleHeadline(w.last_alert.rule)}
+              </span>
+            </p>
+          )}
           {w.last_best_price != null && (
             <div className="meter watch-dim" title={hit ? "Last run found a price under your target" : "How close the last best price is to your target"}>
               <span style={{ width: `${Math.round(ratio * 100)}%` }} />

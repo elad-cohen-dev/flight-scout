@@ -55,7 +55,10 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 | `GET` / `DELETE` | `/api/watches` / `/api/watches/{id}` | List / delete watches                                                                                                              |
 | `PATCH`          | `/api/watches/{id}`                  | Edit a watch: any subset of `dates_hint`, `max_price`, `currency`, the search criteria, and `active` (`false` pauses, `true` resumes). The route can't change; changing criteria resets `last_best_price` |
 | `POST`           | `/api/watches/{id}/run`              | Run one watch immediately (same check + alert logic as the daily sweep), returns a job                                             |
-| `POST`           | `/api/watches/run`                   | Re-search all watches, alert on threshold hits (requires `X-Cron-Secret` header)                                                   |
+| `POST`           | `/api/watches/run`                   | Re-search all watches and send one daily digest (requires `X-Cron-Secret` header)                                                  |
+| `GET`            | `/api/alerts`                        | Sent alerts, newest first (`watch_id`, `limit` filters) — the anti-spam log                                                        |
+| `POST`           | `/api/telegram/webhook/{secret}`     | Telegram bot webhook (secret path + `X-Telegram-Bot-Api-Secret-Token`; only `TELEGRAM_CHAT_ID` chats are answered)                 |
+| `POST`           | `/api/telegram/setup`                | Register this deployment as the bot's webhook + command menu (`{base_url}` optional; defaults to `PUBLIC_URL` / the request host)  |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
 
 ### Search params
@@ -77,6 +80,8 @@ Searches and watches accept the same criteria. All are optional; the defaults re
 | `cabin_bag` / `checked_bag` | `false` | Prices must include a 10kg cabin trolley / a 20kg+ checked bag per traveller |
 | `nearby_airports` | `false` | Also consider alternate airports near origin and destination |
 
+Watches additionally take `alerts` (see [Smart alerts](#smart-alerts); PATCH may send just the rule fields that change), and every watch returned by the API carries read-only `stats` (`runs`, `last_best`, `low_30d`, `typical`, `all_time_low`, `score`, in the watch currency; `null` before its first run) and `last_alert`.
+
 Each returned deal carries IATA airports, local times, flight numbers, airline code, `price_confidence` (`verified` = exact dated fare seen, `estimated`, `from_price` = "from X" teaser), `booking_links` pre-filled with the search, and the `search_params` of the run that found it.
 
 
@@ -84,12 +89,45 @@ Each returned deal carries IATA airports, local times, flight numbers, airline c
 
 ## Notifications
 
-Watched routes are re-searched daily by the `watch-flights` [GitHub Actions workflow](.github/workflows/watch-flights.yml) (also runnable manually from the Actions tab). When a deal is found at or below a watch's `max_price`, a push notification is sent via every configured channel:
+Watched routes are re-searched daily by the `watch-flights` [GitHub Actions workflow](.github/workflows/watch-flights.yml) (also runnable manually from the Actions tab). The sweep sends **one daily digest** — every watch's best price and deal score, with the watches whose [alert rules](#smart-alerts) fired listed first, each with its reasons and best booking link. A digest with nothing new is sent quietly (ntfy low priority, silent Telegram). **Run now** on a single watch alerts immediately, and only when a rule fires. Channels:
 
-- **ntfy** (default, zero signup): set `NTFY_TOPIC` to a private topic name and subscribe to it in the [ntfy app](https://ntfy.sh/app) or at `https://ntfy.sh/<topic>`.
-- **Telegram** (optional): set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (comma-separate several chat IDs to alert more than one person).
+- **ntfy** (default, zero signup): set `NTFY_TOPIC` to a private topic name and subscribe to it in the [ntfy app](https://ntfy.sh/app) or at `https://ntfy.sh/<topic>`. Gets plain text; tapping opens the top deal's booking link.
+- **Telegram** (optional): set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (comma-separate several chat IDs to alert more than one person). Gets HTML-formatted messages with inline booking links.
 
 The workflow authenticates with the `CRON_SECRET` repo secret, which must match the `CRON_SECRET` env var on the server.
+
+### Smart alerts
+
+Each watch has its own rules (editable under **Alert me when** in the watch editor, or `alerts` in the API). All are on by default; every comparison uses the watch's own earlier runs of the same fare kind (party, cabin, trip type), converted into the watch currency.
+
+| Rule | Field(s) | Default | Fires when the run's best price… |
+| ---- | -------- | ------- | -------------------------------- |
+| Threshold | `threshold` | on | is at or under `max_price` |
+| New low | `new_low`, `new_low_days` | on, 30 days | is lower than every run in the last N days (needs 5+ runs in that window) |
+| Under typical | `under_typical`, `under_typical_pct` | on, 20% | is that far under the median of the last 30 days' run-bests (needs 3+ runs) |
+| Big drop | `big_drop`, `big_drop_pct` | on, 15% | is that much cheaper than the previous run |
+
+**Anti-spam:** the same fare (airline, airports, dates, flight numbers, party) is not re-alerted within 7 days unless it dropped another 5%; sent alerts are logged in the `alert_log` table (`GET /api/alerts`). **Deal score** (0–100, in messages, the bot and on watch cards): 75% percentile against earlier run-bests (ties count half) + 25% distance from their median; 50 = a typical price, 88+ = a new low; shown after 3 earlier runs.
+
+### Telegram bot
+
+With a bot token, the same bot also takes commands — via a webhook, so nothing polls and it works on Render's free tier (a message wakes a sleeping instance; Telegram retries if the first delivery times out):
+
+| Command | Does |
+| ------- | ---- |
+| `/watches` | List watches with last best price, deal score, paused state |
+| `/best 3` | Watch #3's cheapest current fare with its booking link |
+| `/run 3` | Check watch #3 now; the bot replies again when the run finishes |
+| `/pause 3` · `/resume 3` | Pause / resume a watch |
+| `/watch TLV PRG October under 300 direct 2 adults` | Create a watch. Also understands `under €250` / `300 ils`, `max 1 stop`, `1 child`, `one-way`, `business`, `cabin bag`, `checked bag`, `nearby`, `"New York"` (quoted multi-word places); whatever's left is the dates text. A bare price is USD; give a currency as a symbol or code before or after the number (`under ₪900`, `under 300 ILS`, `under eur 250`) |
+| `/help` | Command list |
+
+Setup:
+
+1. Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (the only chats the bot answers) and `TELEGRAM_WEBHOOK_SECRET` (16+ chars of `A-Z a-z 0-9 _ -`, e.g. `openssl rand -hex 24`) on the server.
+2. Register the webhook once per URL, either from the deployed app — `curl -X POST https://<app>/api/telegram/setup -H "Authorization: Bearer $APP_PASSWORD"` — or from a checkout with the same env vars: `cd backend && uv run python -m app.telegram_bot https://<app>`. This calls Telegram's `setWebhook` with `https://<app>/api/telegram/webhook/<secret>` plus the same secret as `secret_token`, and publishes the command menu.
+
+Requests to the webhook need both the secret path and Telegram's `X-Telegram-Bot-Api-Secret-Token` header; messages from other chats are acknowledged and ignored.
 
 ## Configuration
 
@@ -104,7 +142,9 @@ The workflow authenticates with the `CRON_SECRET` repo secret, which must match 
 | `APP_PASSWORD`                            | — (open when unset)              | Locks the app/API behind a shared password (UI shows a lock screen)            |
 | `CRON_SECRET`                             | —                                | Shared secret for `POST /api/watches/run` (set the same value in GitHub Actions) |
 | `NTFY_TOPIC`                              | —                                | ntfy.sh topic for price-drop alerts                                            |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | —                                | Telegram bot alerts; chat ID accepts a comma-separated list of recipients      |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | —                                | Telegram bot alerts; chat ID accepts a comma-separated list of recipients (also the bot's allow-list) |
+| `TELEGRAM_WEBHOOK_SECRET`                 | — (bot off)                      | Enables the two-way bot: webhook path segment + `secret_token`, 16+ chars `A-Za-z0-9_-` |
+| `PUBLIC_URL`                              | request host                     | Public https base URL `POST /api/telegram/setup` registers                     |
 
 
 
@@ -133,7 +173,9 @@ Free-tier notes: the service spins down after ~15 min idle (first request takes 
 - **Baggage-inclusive pricing** — optionally require a 🎒 cabin trolley and/or 🧳 20kg+ checked bag; the agent adds the airline's bag fees to advertised fares (or flags when it can't verify them), so comparisons reflect what the trip actually costs
 - **City & airport autocomplete** — ~550 airports, metro areas ("London — all airports"), countries and regions, accent-insensitive with Hebrew names; free text like "Greece or Cyprus" still works
 - **Price calendar** — best fare per departure date for each route (compared in one currency, stale sightings faded); tap a day to see its fares or pre-fill a search around it
-- **Price watches** — create one from any History card, edit or pause it anytime; routes re-searched daily (GitHub Actions cron), push alert via ntfy/Telegram when a deal drops below your threshold, with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
+- **Price watches** — create one from any History card, edit or pause it anytime; routes re-searched daily (GitHub Actions cron) with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
+- **Smart alerts** — beyond your threshold: a new N-day low, X% under the typical price, a big drop since the last check; a 0–100 deal score; no repeat alerts for the same fare within a week; one clean daily digest via ntfy/Telegram; watch cards show last best, 30-day low, typical price, score and the last alert
+- **Telegram bot** — `/watches`, `/best`, `/run`, `/pause`, `/resume` and `/watch TLV PRG October under 300 direct` from your phone, over a webhook
 - **Price-history chart** per route, built from every search run
 - **De-duplication** of identical deals across runs ("seen 3× since Aug 10")
 - **Access control** — optional shared password (`APP_PASSWORD`) with a lock screen

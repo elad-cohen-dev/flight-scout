@@ -1,4 +1,4 @@
-import type { SearchParams, SearchRequest, Watch, WatchCreate, WatchUpdate } from "../types";
+import type { AlertSettings, SearchParams, SearchRequest, Watch, WatchCreate, WatchUpdate } from "../types";
 import { formatPrice } from "./format";
 import type { QueryGroup } from "./history";
 import { CABIN_LABELS, exactWindowLabel, formToWatch, requestToForm, totalPassengers } from "./search";
@@ -116,4 +116,87 @@ export function describeWatch(w: Criteria & { max_price?: number | null }): { se
       ? `Alerts you when ${who} is at or under ${formatPrice(w.max_price, w.currency ?? "USD")}.`
       : "Set a max price to get alerts.";
   return { search, alert };
+}
+
+// --- smart alerts ---------------------------------------------------------------
+
+/** Mirrors backend AlertSettings defaults (a pre-2.0 server sends no `alerts`). */
+export const DEFAULT_ALERTS: AlertSettings = {
+  threshold: true,
+  new_low: true,
+  new_low_days: 30,
+  under_typical: true,
+  under_typical_pct: 20,
+  big_drop: true,
+  big_drop_pct: 15,
+};
+
+/** Input bounds, matching the backend's validation. */
+export const ALERT_LIMITS = { days: [7, 365], pct: [5, 80] } as const;
+
+export function alertSettingsOf(w: Pick<Watch, "alerts">): AlertSettings {
+  return { ...DEFAULT_ALERTS, ...(w.alerts ?? {}) };
+}
+
+export const RULE_LABELS: Record<string, string> = {
+  threshold: "Under target",
+  new_low: "New low",
+  under_typical: "Under typical",
+  big_drop: "Big drop",
+};
+
+/** The enabled smart rules as short chips, e.g. ["Lowest in 30 days", "20% under typical"]. */
+export function ruleChips(a: AlertSettings): string[] {
+  const chips: string[] = [];
+  if (a.new_low) chips.push(`Lowest in ${a.new_low_days} days`);
+  if (a.under_typical) chips.push(`${a.under_typical_pct}% under typical`);
+  if (a.big_drop) chips.push(`${a.big_drop_pct}% drop`);
+  return chips;
+}
+
+const RULE_PRIORITY = ["new_low", "under_typical", "big_drop", "threshold"];
+
+/** A logged alert's rules, most telling first and folded: "New low +2". */
+export function ruleHeadline(rule: string): string {
+  const rules = rule.split(",").filter(Boolean);
+  if (rules.length === 0) return "";
+  const top = [...rules].sort((a, b) => RULE_PRIORITY.indexOf(a) - RULE_PRIORITY.indexOf(b))[0];
+  return `${RULE_LABELS[top] ?? top}${rules.length > 1 ? ` +${rules.length - 1}` : ""}`;
+}
+
+/** "threshold,new_low" -> "Under target · New low". */
+export function ruleWords(rule: string): string {
+  return rule
+    .split(",")
+    .filter(Boolean)
+    .map((r) => RULE_LABELS[r] ?? r)
+    .join(" · ");
+}
+
+export type ScoreTone = "great" | "good" | "fair" | "poor";
+
+/** Deal score 0-100 -> tone + word, e.g. 92 -> great / "Great deal". */
+export function scoreTone(score: number): { tone: ScoreTone; label: string } {
+  if (score >= 80) return { tone: "great", label: "Great deal" };
+  if (score >= 60) return { tone: "good", label: "Good price" };
+  if (score >= 40) return { tone: "fair", label: "Typical" };
+  return { tone: "poor", label: "Pricey" };
+}
+
+/** The smart rules in one plain sentence; "" when they're all off. */
+export function describeAlertRules(a: AlertSettings): string {
+  const parts: string[] = [];
+  if (a.new_low) parts.push(`the lowest price in ${a.new_low_days} days`);
+  if (a.under_typical) parts.push(`${a.under_typical_pct}% under the typical price`);
+  if (a.big_drop) parts.push(`a ${a.big_drop_pct}% drop since the last check`);
+  if (parts.length === 0) return "";
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} or ${parts[parts.length - 1]}` : parts[0];
+  return `${a.threshold ? "Also on" : "Alerts on"} ${list}.`;
+}
+
+/** Clamp an alert-rule number input to its bounds; NaN/empty -> fallback. */
+export function clampRule(value: string | number, [lo, hi]: readonly [number, number], fallback: number): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || (typeof value === "string" && value.trim() === "")) return fallback;
+  return Math.min(hi, Math.max(lo, Math.round(n)));
 }

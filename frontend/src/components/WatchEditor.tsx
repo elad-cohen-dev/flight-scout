@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
-import { CURRENCIES, currencySymbol } from "../lib/format";
+import { useEffect, useRef, useState } from "react";
 import { CABIN_LABELS, formToRequest } from "../lib/search";
 import type { SearchForm } from "../lib/search";
-import { describeWatch, formToWatchUpdate, watchToForm } from "../lib/watches";
-import type { CabinClass, Watch, WatchUpdate } from "../types";
+import { alertSettingsOf, describeAlertRules, describeWatch, formToWatchUpdate, watchToForm } from "../lib/watches";
+import type { AlertSettings, CabinClass, Watch, WatchUpdate } from "../types";
+import AlertRules from "./AlertRules";
 import Icon from "./Icon";
 import PassengersPicker from "./PassengersPicker";
 import Segmented from "./Segmented";
@@ -23,14 +23,15 @@ export default function WatchEditor({
   onCancel: () => void;
 }) {
   const [form, setForm] = useState<SearchForm>(() => watchToForm(watch));
+  const [alerts, setAlerts] = useState<AlertSettings>(() => alertSettingsOf(watch));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const priceRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLFormElement>(null);
-  const uid = useId();
   const set = (patch: Partial<SearchForm>) => setForm((f) => ({ ...f, ...patch }));
   const roundTrip = form.trip_type === "round_trip";
   const words = describeWatch(formToRequest(form));
+  const ruleWords = describeAlertRules(alerts);
 
   useEffect(() => {
     rootRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -45,7 +46,7 @@ export default function WatchEditor({
     }
     setError(null);
     setSaving(true);
-    const ok = await onSave(patch);
+    const ok = await onSave({ ...patch, alerts });
     setSaving(false);
     if (!ok) setError("Couldn't save — check the values and try again.");
   }
@@ -189,31 +190,6 @@ export default function WatchEditor({
             </button>
           </div>
         </div>
-        <div className="sf-option">
-          <span className="field-label" id={`${uid}-price`}>
-            Alert at or under
-          </span>
-          <div className="price-input">
-            <select aria-label="Currency" value={form.currency} onChange={(e) => set({ currency: e.target.value })}>
-              {CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {currencySymbol(c)} {c}
-                </option>
-              ))}
-            </select>
-            <input
-              ref={priceRef}
-              type="number"
-              min={1}
-              inputMode="numeric"
-              placeholder="Max total"
-              aria-labelledby={`${uid}-price`}
-              aria-invalid={!!error && !formToWatchUpdate(form)}
-              value={form.max_price}
-              onChange={(e) => set({ max_price: e.target.value })}
-            />
-          </div>
-        </div>
         <label className="switch">
           <input type="checkbox" checked={form.nearby_airports} onChange={(e) => set({ nearby_airports: e.target.checked })} />
           <span className="switch-track" aria-hidden="true" />
@@ -221,8 +197,19 @@ export default function WatchEditor({
         </label>
       </div>
 
+      <AlertRules
+        value={alerts}
+        onChange={(patch) => setAlerts((a) => ({ ...a, ...patch }))}
+        maxPrice={form.max_price}
+        currency={form.currency}
+        onMaxPrice={(max_price) => set({ max_price })}
+        onCurrency={(currency) => set({ currency })}
+        priceRef={priceRef}
+        priceInvalid={!!error && !formToWatchUpdate(form)}
+      />
+
       <p className="watch-words small" aria-live="polite">
-        {words.search} <strong>{words.alert}</strong>
+        {words.search} <strong>{alerts.threshold ? words.alert : ""}</strong> {ruleWords}
       </p>
       {error && (
         <p className="we-error small" role="alert">

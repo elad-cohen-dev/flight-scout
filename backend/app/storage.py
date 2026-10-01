@@ -31,10 +31,13 @@ from dotenv import load_dotenv
 
 from collections import Counter, defaultdict
 
+from . import airlines as _airlines
+from . import airports as _airports
 from .currency import convert as _convert_currency
 from .currency import normalize as _normalize_currency
 from .models import (
-    BookingLink, FlightDeal, HistoryPoint, RouteHistory, SearchParams, StoredDeal, Watch, WatchCreate,
+    AlertRecord, BookingLink, FlightDeal, HistoryPoint, RouteHistory, SearchParams, StoredDeal, Watch,
+    WatchCreate,
 )
 
 load_dotenv()
@@ -69,7 +72,8 @@ _SCHEMA = [
         airline_code TEXT NOT NULL DEFAULT '',
         price_per_person REAL,
         price_confidence TEXT NOT NULL DEFAULT 'estimated',
-        search_params TEXT
+        search_params TEXT,
+        quality_flags TEXT NOT NULL DEFAULT ''
     )""",
     "CREATE INDEX IF NOT EXISTS idx_deals_route ON deals (origin, destination)",
     """CREATE TABLE IF NOT EXISTS watches (
@@ -88,6 +92,18 @@ _SCHEMA = [
         last_best_price REAL,
         search_params TEXT
     )""",
+    # One row per alert actually sent; drives anti-spam and "last alert" on cards.
+    """CREATE TABLE IF NOT EXISTS alert_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        watch_id INTEGER NOT NULL,
+        fingerprint TEXT NOT NULL,
+        price REAL NOT NULL,
+        currency TEXT NOT NULL,
+        rule TEXT NOT NULL,
+        score INTEGER,
+        sent_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_alert_log_watch ON alert_log (watch_id, sent_at)",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -107,6 +123,10 @@ _MIGRATIONS = [
     "ALTER TABLE deals ADD COLUMN price_per_person REAL",
     "ALTER TABLE deals ADD COLUMN price_confidence TEXT NOT NULL DEFAULT 'estimated'",
     "ALTER TABLE deals ADD COLUMN search_params TEXT",
+    # v2.0: data-quality flags from normalize.normalize_deal (JSON list; '' = none).
+    "ALTER TABLE deals ADD COLUMN quality_flags TEXT NOT NULL DEFAULT ''",
+    # v2.0: per-watch alert rules (JSON-encoded AlertSettings; NULL = defaults).
+    "ALTER TABLE watches ADD COLUMN alert_settings TEXT",
 ]
 
 # Deal columns written by save_deals, beyond search_query/found_at/search_params.
@@ -311,9 +331,21 @@ def _legacy_params(deal: StoredDeal) -> SearchParams:
     )
 
 
+def _parse_flags(raw) -> list[str]:
+    """Decode a stored quality_flags column ('' / NULL on rows never normalized)."""
+    if not raw:
+        return []
+    try:
+        flags = json.loads(raw)
+    except Exception:
+        return []
+    return [str(f) for f in flags] if isinstance(flags, list) else []
+
+
 def _row_to_deal(row: dict) -> StoredDeal:
     row = dict(row)
     params = _parse_params(row.pop("search_params", None))
+    row["quality_flags"] = _parse_flags(row.get("quality_flags"))
     row["price_confidence"] = row.get("price_confidence") or "estimated"
     deal = StoredDeal(search_params=params, **row)
     # search_params stays None on legacy rows (the UI treats that as "parse the
@@ -347,7 +379,7 @@ def save_deals(search_query: str, deals: list[FlightDeal],
                params: SearchParams | None = None) -> list[StoredDeal]:
     found_at = datetime.now(timezone.utc)
     params_json = params.model_dump_json() if params is not None else None
-    columns = ["search_query", *_DEAL_COLUMNS, "found_at", "search_params"]
+    columns = ["search_query", *_DEAL_COLUMNS, "found_at", "search_params", "quality_flags"]
     sql = (f"INSERT INTO deals ({', '.join(columns)}) "
            f"VALUES ({', '.join('?' for _ in columns)})")
 
@@ -355,7 +387,8 @@ def save_deals(search_query: str, deals: list[FlightDeal],
         stored: list[StoredDeal] = []
         for deal in deals:
             values = [getattr(deal, col) for col in _DEAL_COLUMNS]
-            cur = conn.execute(sql, (search_query, *values, found_at.isoformat(), params_json))
+            cur = conn.execute(sql, (search_query, *values, found_at.isoformat(), params_json,
+                                     json.dumps(deal.quality_flags) if deal.quality_flags else ""))
             item = StoredDeal(
                 id=cur.lastrowid,
                 search_query=search_query,
@@ -384,14 +417,32 @@ def _party_of(raw) -> tuple:
     return (pax.adults, pax.children, pax.infants, params.cabin_class, params.trip_type)
 
 
+def _place_key(text: str) -> str:
+    try:
+        place = _airports.resolve(text)
+    except Exception:
+        place = None
+    return place.code if place else text.strip().lower()
+
+
+def _airline_identity(name: str, code: str, flight_numbers: str) -> str:
+    try:
+        return _airlines.identity(name, code, flight_numbers)
+    except Exception:
+        return name.strip().lower()
+
+
 def _fingerprint(row: dict) -> tuple:
     """Identity of a deal across search runs. A changed price is a *different*
     entry on purpose — repricing is information, not duplication. The party and
-    cabin are part of it: the same total for 1 vs 3 travellers isn't the same deal."""
+    cabin are part of it: the same total for 1 vs 3 travellers isn't the same deal.
+    Places and carriers are compared by code, so 'TLV'/'Tel Aviv' and
+    'EL AL'/'El Al'/'LY' sightings merge even on rows the repair script hasn't
+    normalized."""
     return (
-        row["origin"].strip().lower(),
-        row["destination"].strip().lower(),
-        row["airline"].strip().lower(),
+        _place_key(row["origin"]),
+        _place_key(row["destination"]),
+        _airline_identity(row["airline"], row.get("airline_code") or "", row.get("flight_numbers") or ""),
         row["depart_date"].strip().lower(),
         row["return_date"].strip().lower(),
         _normalize_currency(row["currency"]),  # "₪" and "ILS" are the same deal
@@ -415,12 +466,13 @@ def list_deals(
 
     query = "SELECT * FROM deals WHERE 1=1"
     params: list = []
+    # Normalized rows say "Tel Aviv" + origin_airport "TLV": match either.
     if origin:
-        query += " AND origin LIKE ?"
-        params.append(f"%{origin}%")
+        query += " AND (origin LIKE ? OR origin_airport LIKE ?)"
+        params += [f"%{origin}%", f"%{origin}%"]
     if destination:
-        query += " AND destination LIKE ?"
-        params.append(f"%{destination}%")
+        query += " AND (destination LIKE ? OR destination_airport LIKE ?)"
+        params += [f"%{destination}%", f"%{destination}%"]
     if max_price is not None:
         query += " AND price <= ?"
         params.append(max_price)
@@ -538,6 +590,12 @@ _WATCH_COLUMNS = {"origin", "destination", "dates_hint", "max_price", "currency"
 def _row_to_watch(row: dict) -> Watch:
     row = dict(row)
     raw = row.pop("search_params", None)
+    raw_alerts = row.pop("alert_settings", None)
+    if raw_alerts:
+        try:
+            row["alerts"] = json.loads(raw_alerts)
+        except Exception:
+            logger.warning("watch #%s: ignoring unreadable alert_settings", row.get("id"))
     extra: dict = {}
     if raw:
         try:
@@ -565,12 +623,12 @@ def add_watch(watch: WatchCreate) -> Watch:
         cur = conn.execute(
             """INSERT INTO watches (origin, destination, dates_hint, max_price, currency,
                                     direct_only, cabin_bag, checked_bag, active, created_at,
-                                    search_params)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)""",
+                                    search_params, alert_settings)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)""",
             (watch.origin, watch.destination, watch.dates_hint,
              watch.max_price, watch.currency, int(watch.direct_only),
              int(watch.cabin_bag), int(watch.checked_bag), created_at.isoformat(),
-             params_json),
+             params_json, watch.alerts.model_dump_json()),
         )
         conn.commit()
         return cur.lastrowid
@@ -596,8 +654,8 @@ def update_watch(watch_id: int, watch: WatchCreate, active: bool) -> Watch | Non
     current = get_watch(watch_id)
     if current is None:
         return None
-    same_search = current.model_dump(exclude={"max_price"}, include=set(WatchCreate.model_fields)) == \
-        watch.model_dump(exclude={"max_price"}, include=set(WatchCreate.model_fields))
+    same_search = current.model_dump(exclude={"max_price", "alerts"}, include=set(WatchCreate.model_fields)) == \
+        watch.model_dump(exclude={"max_price", "alerts"}, include=set(WatchCreate.model_fields))
     last_run_at = current.last_run_at.isoformat() if same_search and current.last_run_at else None
     last_best_price = current.last_best_price if same_search else None
 
@@ -605,11 +663,11 @@ def update_watch(watch_id: int, watch: WatchCreate, active: bool) -> Watch | Non
         cur = conn.execute(
             """UPDATE watches SET dates_hint = ?, max_price = ?, currency = ?, direct_only = ?,
                                   cabin_bag = ?, checked_bag = ?, active = ?, search_params = ?,
-                                  last_run_at = ?, last_best_price = ?
+                                  last_run_at = ?, last_best_price = ?, alert_settings = ?
                WHERE id = ?""",
             (watch.dates_hint, watch.max_price, watch.currency, int(watch.direct_only),
              int(watch.cabin_bag), int(watch.checked_bag), int(active), _watch_params_json(watch),
-             last_run_at, last_best_price, watch_id),
+             last_run_at, last_best_price, watch.alerts.model_dump_json(), watch_id),
         )
         conn.commit()
         return cur.rowcount
@@ -662,3 +720,85 @@ def update_watch_run(watch_id: int, best_price: float | None) -> None:
         _with_conn(op)
     finally:
         _invalidate_cache()
+
+
+# --- watch sightings + alert log (smart alerts, see app/alerts.py) -----------
+
+_WATCH_TAG = re.compile(r"\[watch #(\d+)\]\s*$")
+
+
+def watch_sightings() -> dict[int, list[dict]]:
+    """Every stored deal of every watch's runs, as light rows (found_at, price,
+    currency, search_params) keyed by watch id — the input of the price stats.
+    A watch's runs are tagged "[watch #N]" at the end of their search label."""
+    cache_key = ("watch_sightings",)
+    cached, generation = _cache_read(cache_key)
+    if cached is not None:
+        return dict(cached)
+
+    rows = _with_conn(
+        lambda conn: _rows_as_dicts(conn.execute(
+            "SELECT search_query, found_at, price, currency, search_params FROM deals "
+            "WHERE search_query LIKE '%[watch #%'"
+        ))
+    )
+    by_watch: dict[int, list[dict]] = defaultdict(list)
+    for row in rows:
+        m = _WATCH_TAG.search(row["search_query"])
+        if m:
+            by_watch[int(m.group(1))].append(row)
+    # The cache stores lists; a list of pairs round-trips through dict().
+    _cache_store(cache_key, list(by_watch.items()), generation)
+    return dict(by_watch)
+
+
+def watch_run_deals(watch_id: int) -> list[StoredDeal]:
+    """The deals of a watch's most recent run (with booking links)."""
+    rows = _with_conn(
+        lambda conn: _rows_as_dicts(conn.execute(
+            "SELECT * FROM deals WHERE search_query LIKE ? ORDER BY found_at DESC",
+            (f"%[watch #{watch_id}]",),
+        ))
+    )
+    if not rows:
+        return []
+    latest = rows[0]["found_at"]
+    return [_row_to_deal(row) for row in rows if row["found_at"] == latest]
+
+
+def log_alert(record: AlertRecord) -> None:
+    def op(conn) -> None:
+        conn.execute(
+            "INSERT INTO alert_log (watch_id, fingerprint, price, currency, rule, score, sent_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (record.watch_id, record.fingerprint, record.price, record.currency, record.rule,
+             record.score, record.sent_at.isoformat()),
+        )
+        conn.commit()
+
+    try:
+        _with_conn(op)
+    finally:
+        _invalidate_cache()
+
+
+def list_alerts(watch_id: int | None = None, since: datetime | None = None) -> list[AlertRecord]:
+    """Sent alerts, newest first; optionally one watch's and/or since a time."""
+    cache_key = ("alerts", watch_id, since.isoformat() if since else None)
+    cached, generation = _cache_read(cache_key)
+    if cached is not None:
+        return cached
+
+    query = "SELECT watch_id, fingerprint, price, currency, rule, score, sent_at FROM alert_log WHERE 1=1"
+    params: list = []
+    if watch_id is not None:
+        query += " AND watch_id = ?"
+        params.append(watch_id)
+    if since is not None:
+        query += " AND sent_at >= ?"
+        params.append(since.isoformat())
+    query += " ORDER BY sent_at DESC, id DESC"
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(query, params)))
+    alerts = [AlertRecord(**row) for row in rows]
+    _cache_store(cache_key, alerts, generation)
+    return alerts

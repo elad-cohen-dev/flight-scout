@@ -33,6 +33,7 @@ from langgraph.graph import END, START, StateGraph
 
 from .currency import convert as _convert_currency
 from .models import FlightDeal, FlightDealList, SearchParams
+from .normalize import clean as _normalize
 
 load_dotenv()
 
@@ -403,7 +404,8 @@ def postprocess(deals: list[FlightDeal], params: SearchParams, today: date | Non
     """Enforce the search criteria in code and tidy the extracted deals.
 
     One-way fares reported for a round-trip search are doubled (confidence
-    'estimated'). Drops deals that break max_stops, max_price (after currency conversion),
+    'estimated'), then every deal is normalized (normalize.normalize_deal:
+    canonical airline/airport/currency/dates + quality_flags). Drops deals that break max_stops, max_price (after currency conversion),
     the departure window, trip length, trip type, or that depart in the past;
     de-duplicates within the run (keeping the most trustworthy, then cheapest
     sighting) and sorts by price in the preferred currency. Criteria that can't
@@ -418,11 +420,17 @@ def postprocess(deals: list[FlightDeal], params: SearchParams, today: date | Non
             "destination_airport": deal.destination_airport.strip().upper(),
             "airline_code": deal.airline_code.strip().upper(),
             "booking_links": [],  # built by booking.build_links, never by the LLM
+            "quality_flags": [],  # set by normalize, never by the LLM
         })
         if d.price <= 0:
             continue
         if params.trip_type == "round_trip" and _one_way_fare_for_round_trip(d):
             d = _as_round_trip(d)  # before the budget filter, which must see the real total
+        # Canonical names/codes and a sane currency before any filter reads them;
+        # after the doubling so the price sanity check sees the round-trip total.
+        d = _normalize(d, params, today)
+        if d is None:
+            continue
         if params.max_stops is not None and d.stops > params.max_stops:
             continue
         if params.max_price is not None:
