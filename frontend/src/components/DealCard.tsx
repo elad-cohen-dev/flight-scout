@@ -2,6 +2,7 @@ import { useState } from "react";
 import BookingLinks from "../BookingLinks";
 import { bagBadges, bagCheckoutNote, bagTotal, bagWords, directSeller } from "../lib/dealDetails";
 import { comparable, formatPrice, formatTripDate, nightsBetween, shortDate, stopsLabel, timeAgo } from "../lib/format";
+import { isUnconfirmed } from "../lib/ranking";
 import { dealCriteria, totalPassengers } from "../lib/search";
 import type { DealDetails, PriceConfidence, StoredDeal } from "../types";
 import DirectBooking from "./DirectBooking";
@@ -14,8 +15,13 @@ const CONFIDENCE: Record<PriceConfidence, { label: string; tip: string }> = {
   from_price: { label: "From price", tip: "A \"from\" teaser price; the fare for your exact dates may be higher." },
 };
 
-function ConfidenceBadge({ value }: { value: PriceConfidence }) {
-  const c = CONFIDENCE[value] ?? CONFIDENCE.estimated;
+// A live Google Flights fare is exact; it's only marked "estimated" because the
+// requested checked bag isn't in Google's price. Calling that an "Estimate" next
+// to "Google Flights · live" read as a contradiction.
+const FARE_EXCL_BAG = { label: "Fare excl. bag", tip: "Exact live fare — the checked bag you asked for isn't included. Open details for the bag fee." };
+
+function ConfidenceBadge({ value, liveFareWithoutBag = false }: { value: PriceConfidence; liveFareWithoutBag?: boolean }) {
+  const c = liveFareWithoutBag ? FARE_EXCL_BAG : CONFIDENCE[value] ?? CONFIDENCE.estimated;
   return (
     <span className={`badge badge-conf-${value}`} title={c.tip} tabIndex={0} aria-label={`${c.label}: ${c.tip}`}>
       {value === "verified" && <Icon name="check" size={12} />}
@@ -91,7 +97,16 @@ function Leg({
   );
 }
 
-export default function DealCard({ deal, highlight }: { deal: StoredDeal; highlight?: boolean }) {
+export default function DealCard({
+  deal,
+  highlight,
+  onCheckLive,
+}: {
+  deal: StoredDeal;
+  highlight?: boolean;
+  onCheckLive?: (deal: StoredDeal) => void;
+}) {
+  const estimate = isUnconfirmed(deal);
   const criteria = dealCriteria(deal);
   const pax = criteria.passengers ? totalPassengers(criteria.passengers) : 1;
   const from = deal.origin_airport || deal.origin;
@@ -186,7 +201,16 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
       )}
 
       <div className="deal-tags">
-        {withBags == null && <ConfidenceBadge value={deal.price_confidence} />}
+        {withBags == null && (
+          <ConfidenceBadge
+            value={deal.price_confidence}
+            liveFareWithoutBag={
+              deal.source === "google_flights" &&
+              deal.price_confidence === "estimated" &&
+              !!(deal.search_params?.checked_bag)
+            }
+          />
+        )}
         {withBags != null && (
           <span className="badge badge-conf-verified" title="The seller's exact fare plus the exact fees for the bags you asked for">
             <Icon name="check" size={12} />
@@ -211,9 +235,20 @@ export default function DealCard({ deal, highlight }: { deal: StoredDeal; highli
       </div>
 
       <div className="deal-foot">
+        {estimate && onCheckLive && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm deal-check-live"
+            onClick={() => onCheckLive(deal)}
+            title="Search Google Flights for exactly these dates — uses 1 live search"
+          >
+            <Icon name="refresh" size={14} /> Check this date live (1 search)
+          </button>
+        )}
         <BookingLinks
           deal={deal}
           direct={direct ? { label: direct.seller.book_with, url: direct.link.url, bagsNote } : undefined}
+          secondary={estimate}
         />
         {(deal.notes || showSource) && (
           <details className="deal-details">

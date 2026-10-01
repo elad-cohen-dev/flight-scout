@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentEvent } from "../api";
+import { searchTally } from "../lib/providers";
 import Icon from "./Icon";
 
 /** Live "agent console": streams the agent's research prose, web-search calls
@@ -39,7 +40,6 @@ export default function AgentConsole({
       items.push({ type: e.kind, text: e.text });
     }
   }
-  const searches = items.filter((i) => i.type === "search").length;
   const phase = [...items].reverse().find((i) => i.type === "phase")?.text;
 
   return (
@@ -49,7 +49,7 @@ export default function AgentConsole({
         <div className="agent-console-title">
           <strong>{title}</strong>
           <span className="muted">
-            {phase ?? "Starting"} · {searches} web search{searches === 1 ? "" : "es"} · {Math.floor(elapsed / 60)}:
+            {phase ?? "Starting"} · {searchTally(events)} · {Math.floor(elapsed / 60)}:
             {String(elapsed % 60).padStart(2, "0")}
           </span>
         </div>

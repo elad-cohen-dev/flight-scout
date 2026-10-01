@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactAge, insightsLine, priceLevelTone, sourceBadge, usageMeter, usageWarning } from "./providers";
+import { compactAge, insightsLine, pairLabel, priceLevelTone, searchTally, sourceBadge, usageMeter, usageWarning } from "./providers";
 import type { PriceInsights } from "../types";
 
 const NOW = Date.parse("2026-10-01T12:00:00Z");
@@ -39,6 +39,24 @@ describe("source badge", () => {
   });
 });
 
+describe("console search tally", () => {
+  it("counts fare-API calls apart from the agent's web searches", () => {
+    const ev = (source?: "google" | "aviasales") => ({ kind: "search" as const, source });
+    expect(searchTally([ev("google"), ev("google"), { kind: "phase" }])).toBe("2 Google searches");
+    expect(searchTally([ev("google"), ev("aviasales"), ev(), ev(), ev()])).toBe("1 Google search · 1 cached-fare lookup · 3 web searches");
+    expect(searchTally([ev()])).toBe("1 web search");
+    expect(searchTally([])).toBe("no searches yet");
+  });
+});
+
+describe("date pair labels", () => {
+  it("names one pair compactly", () => {
+    expect(pairLabel("2026-11-28", "2026-12-03")).toBe("Nov 28 – Dec 3");
+    expect(pairLabel("2026-11-12", "")).toBe("Nov 12");
+    expect(pairLabel("mid November", "")).toBe("");
+  });
+});
+
 describe("price insights", () => {
   const ins: PriceInsights = {
     route: "TLV>PRG", currency: "USD", lowest_price: 486, price_level: "low",
@@ -46,9 +64,10 @@ describe("price insights", () => {
   };
 
   it("describes the typical range and the level", () => {
-    expect(insightsLine(ins)).toBe("Typical for this route: $540–$760 · this is low");
-    expect(insightsLine({ ...ins, price_level: "" })).toBe("Typical for this route: $540–$760");
-    expect(insightsLine({ ...ins, typical_low: null, typical_high: null, price_level: "high" })).toBe("Google Flights: this is high");
+    expect(insightsLine(ins)).toBe("Typical for Nov 5–9: $540–$760 · this is low");
+    expect(insightsLine({ ...ins, price_level: "" })).toBe("Typical for Nov 5–9: $540–$760");
+    expect(insightsLine({ ...ins, depart_date: "", return_date: "" })).toBe("Typical for this route: $540–$760 · this is low");
+    expect(insightsLine({ ...ins, typical_low: null, typical_high: null, price_level: "high" })).toBe("Google Flights for Nov 5–9: this is high");
     expect(insightsLine(null)).toBeNull();
     expect([priceLevelTone(ins), priceLevelTone({ ...ins, price_level: "high" }), priceLevelTone(null)]).toEqual(["good", "bad", "neutral"]);
   });

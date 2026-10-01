@@ -38,6 +38,7 @@ export default function SearchTab({
   interrupted = null,
   onRunAgain,
   onDismissInterrupted,
+  onCheckLive,
 }: {
   form: Form;
   onFormChange: (patch: Partial<Form>) => void;
@@ -53,6 +54,7 @@ export default function SearchTab({
   interrupted?: Job | null; // a run the server restart killed — offer to run it again
   onRunAgain?: () => void; // undefined when it can't be re-run from here
   onDismissInterrupted?: () => void;
+  onCheckLive?: (deal: StoredDeal) => void; // an estimate's "Check this date live (1 search)"
 }) {
   return (
     <div className="tab-search">
@@ -93,7 +95,7 @@ export default function SearchTab({
                 {lastResult.query.replace(" -> ", " → ")} · {timeAgo(lastResult.finishedAt)}
               </p>
               {insightsLine(lastResult.meta?.price_insights) && (
-                <p className={`insights-line insights-${priceLevelTone(lastResult.meta?.price_insights)}`} title="Google Flights' typical price range for this route and dates, for your whole party">
+                <p className={`insights-line insights-${priceLevelTone(lastResult.meta?.price_insights)}`} title="Google Flights' typical price range for the route on the dates named — one date pair — for your whole party">
                   {insightsLine(lastResult.meta?.price_insights)}
                 </p>
               )}
@@ -113,7 +115,7 @@ export default function SearchTab({
               <span className="muted">Try flexible dates, allowing a stop, or a wider destination like a country.</span>
             </div>
           ) : (
-            <DealList deals={lastResult.deals} />
+            <DealList deals={lastResult.deals} onCheckLive={onCheckLive} />
           )}
         </section>
       )}

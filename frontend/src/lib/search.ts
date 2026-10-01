@@ -228,6 +228,24 @@ export function rerunRequest(deal: StoredDeal): SearchRequest | null {
   };
 }
 
+/** "Check this date live": the search that found `deal`, narrowed to its exact
+ *  date pair (an ISO pair is the exact-dates path: one Google Flights search). */
+export function checkLiveRequest(deal: StoredDeal): SearchRequest | null {
+  const req = rerunRequest(deal);
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (!req || !iso.test(deal.depart_date)) return null;
+  const roundTrip = (req.trip_type ?? "round_trip") === "round_trip";
+  if (roundTrip && !iso.test(deal.return_date)) return null;
+  return {
+    ...req,
+    dates_hint: roundTrip ? `${deal.depart_date} to ${deal.return_date}` : deal.depart_date,
+    depart_from: null,
+    depart_to: null,
+    nights_min: null,
+    nights_max: null,
+  };
+}
+
 /** Effective criteria behind a deal, merging stored params with the legacy label. */
 export function dealCriteria(deal: StoredDeal): Pick<SearchParams, "cabin_bag" | "checked_bag" | "max_stops"> & {
   passengers: Passengers | null;

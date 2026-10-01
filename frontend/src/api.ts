@@ -85,6 +85,9 @@ export async function getJob(jobId: string): Promise<Job> {
 export interface AgentEvent {
   kind: "phase" | "delta" | "search" | "end";
   text: string;
+  // kind=search from a fare API: "google" (SerpApi Flights/Explore) or "aviasales";
+  // absent = the LLM agent's own web search.
+  source?: "google" | "aviasales";
 }
 
 /** Is the server up? A sleeping free instance takes ~1 min to answer, so each

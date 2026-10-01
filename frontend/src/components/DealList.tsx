@@ -1,28 +1,24 @@
 import { useMemo, useState } from "react";
-import { comparable, durationMinutes } from "../lib/format";
+import { rankDeals, type Sort } from "../lib/ranking";
 import type { StoredDeal } from "../types";
 import DealCard from "./DealCard";
 import Segmented from "./Segmented";
 
-type Sort = "price" | "duration" | "depart";
-
-const cmp = (d: StoredDeal) => comparable(d).price;
-
-function sortDeals(deals: StoredDeal[], sort: Sort): StoredDeal[] {
-  const list = [...deals];
-  if (sort === "price") list.sort((a, b) => cmp(a) - cmp(b));
-  if (sort === "duration")
-    list.sort((a, b) => (durationMinutes(a.duration) ?? 1e9) - (durationMinutes(b.duration) ?? 1e9) || cmp(a) - cmp(b));
-  if (sort === "depart")
-    list.sort((a, b) => `${a.depart_date} ${a.depart_time}`.localeCompare(`${b.depart_date} ${b.depart_time}`) || cmp(a) - cmp(b));
-  return list;
-}
-
-/** Deals of one run, sortable; the cheapest gets a highlight when sorted by price. */
-export default function DealList({ deals, sortable = true }: { deals: StoredDeal[]; sortable?: boolean }) {
+/** Deals of one run, sortable. Confirmed fares come first and the cheapest of
+ *  them gets the "Cheapest" ribbon; unconfirmed estimates (Google Explore,
+ *  Aviasales cache) follow in their own group, each offering a live check. */
+export default function DealList({
+  deals,
+  sortable = true,
+  onCheckLive,
+}: {
+  deals: StoredDeal[];
+  sortable?: boolean;
+  onCheckLive?: (deal: StoredDeal) => void; // re-run that exact date pair live (1 search)
+}) {
   const [sort, setSort] = useState<Sort>("price");
-  const sorted = useMemo(() => sortDeals(deals, sort), [deals, sort]);
-  const cheapest = Math.min(...deals.map(cmp));
+  const { confirmed, estimates, cheapestId } = useMemo(() => rankDeals(deals, sort), [deals, sort]);
+  const card = (d: StoredDeal) => <DealCard key={d.id} deal={d} highlight={d.id === cheapestId} onCheckLive={onCheckLive} />;
   return (
     <div className="deal-list">
       {sortable && deals.length > 1 && (
@@ -41,9 +37,14 @@ export default function DealList({ deals, sortable = true }: { deals: StoredDeal
           />
         </div>
       )}
-      {sorted.map((d) => (
-        <DealCard key={d.id} deal={d} highlight={sort === "price" && deals.length > 1 && cmp(d) === cheapest && sorted[0] === d} />
-      ))}
+      {confirmed.map(card)}
+      {estimates.length > 0 && confirmed.length > 0 && (
+        <div className="deal-group-head">
+          <h3>Other dates (estimated, not confirmed)</h3>
+          <p className="muted small">Prices Google Explore or the fare cache showed for other dates — check one live before booking.</p>
+        </div>
+      )}
+      {estimates.map(card)}
     </div>
   );
 }

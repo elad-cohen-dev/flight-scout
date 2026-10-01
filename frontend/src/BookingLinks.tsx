@@ -85,7 +85,9 @@ export interface DirectLink {
   bagsNote?: string | null; // exact bag fees at this seller; replaces the generic "add bags" step
 }
 
-export default function BookingLinks({ deal, direct }: { deal: StoredDeal; direct?: DirectLink }) {
+/** `secondary`: the fare is an unconfirmed estimate, so the links are styled as
+ *  look-ups ("Search on", outlined), never as a confirmed booking. */
+export default function BookingLinks({ deal, direct, secondary = false }: { deal: StoredDeal; direct?: DirectLink; secondary?: boolean }) {
   const [open, setOpen] = useState(false);
   const moreId = useId();
   const found: BookingLink[] = deal.booking_links?.length
@@ -107,7 +109,7 @@ export default function BookingLinks({ deal, direct }: { deal: StoredDeal; direc
   const steps = direct?.bagsNote
     ? [...generic.filter((s) => !(bags && s.startsWith(`Add ${bags} at checkout`))), direct.bagsNote]
     : generic;
-  const verb = direct ? "Book with" : primary.kind === "airline" ? "Book on" : primary.kind === "other" ? "Open" : "Search on";
+  const verb = direct ? "Book with" : secondary ? "Search on" : primary.kind === "airline" ? "Book on" : primary.kind === "other" ? "Open" : "Search on";
 
   return (
     <div className="bl">
@@ -116,7 +118,7 @@ export default function BookingLinks({ deal, direct }: { deal: StoredDeal; direc
           href={primary.url}
           target="_blank"
           rel={direct ? "noopener noreferrer" : "noreferrer"}
-          className="bl-primary"
+          className={secondary ? "bl-primary bl-secondary" : "bl-primary"}
           title={hint ? `Opens with ${hint}` : undefined}
         >
           {verb} {primary.label}

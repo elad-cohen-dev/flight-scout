@@ -48,6 +48,12 @@
   filter: brightness(1.08);
 }
 
+.bl-primary.bl-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border-strong, var(--border));
+}
+
 .bl-more {
   background: transparent;
   color: var(--accent);

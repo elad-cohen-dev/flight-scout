@@ -100,9 +100,15 @@ def _web_agent(origin: str, destination: str, dates_hint: str, params: SearchPar
 
 
 def _emitter(on_event):
-    def emit(text: str, kind: str = "phase") -> None:
+    """emit(text, kind='phase', source=''): a progress event. Fare-API calls are
+    kind 'search' tagged with `source` ('google' = SerpApi, 'aviasales'), so the
+    UI counts them apart from the LLM agent's web searches (untagged)."""
+    def emit(text: str, kind: str = "phase", source: str = "") -> None:
         if on_event:
-            on_event({"kind": kind, "text": text})
+            event = {"kind": kind, "text": text}
+            if source:
+                event["source"] = source
+            on_event(event)
     return emit
 
 
@@ -275,7 +281,7 @@ def _cached_fares(o: _End, d: _End, plan: DatePlan, params: SearchParams, emit, 
                else [FareQuery(o.tp, d.tp, month, "", params) for month in plan.months])
     deals: list[FlightDeal] = []
     for q in queries:
-        emit(f"Aviasales cache: {o.label} → {d.label}, {q.depart_date}", "search")
+        emit(f"Aviasales cache: {o.label} → {d.label}, {q.depart_date}", "search", "aviasales")
         try:
             deals += travelpayouts.search(q).deals
         except ProviderError as exc:
@@ -315,7 +321,7 @@ def _live_fares(o: _End, d: _End, pairs: list[tuple[str, str]], params: SearchPa
     if pairs:
         emit("Checking Google Flights…")
     for dep, ret in pairs:
-        emit(f"Google Flights: {o.label} → {d.label} {dep}" + (f" – {ret}" if ret else ""), "search")
+        emit(f"Google Flights: {o.label} → {d.label} {dep}" + (f" – {ret}" if ret else ""), "search", "google")
         query = FareQuery(o.serp, d.serp, dep, ret, params)
         try:
             result = serpapi.search(query)
@@ -337,7 +343,8 @@ def _live_fares(o: _End, d: _End, pairs: list[tuple[str, str]], params: SearchPa
             token = result.departure_tokens.get(i)
             if not token or serpapi.remaining() <= 0:
                 break
-            emit(f"Google Flights: return flights for {found[i].flight_numbers or found[i].airline}", "search")
+            emit(f"Google Flights: return flights for {found[i].flight_numbers or found[i].airline}", "search",
+                 "google")
             try:
                 found[i], calls = serpapi.with_return_leg(found[i], query, token)
                 meta.live_searches += calls
@@ -417,7 +424,7 @@ def _explore_dates(o: _End, d: _End, dates_hint: str, plan: DatePlan, params: Se
         emit("Finding the cheapest dates on Google…")
     for month in months:
         when = date(today.year + (month < today.month), month, 1).strftime("%b %Y") if month else "next 6 months"
-        emit(f"Google Explore: {o.label} → {d.label}, {when}", "search")
+        emit(f"Google Explore: {o.label} → {d.label}, {when}", "search", "google")
         try:
             result = serpapi.explore(origin, destination, params, month, duration, members)
         except BudgetExhausted:
@@ -493,7 +500,7 @@ def _explore(origin: str, destination: str, dates_hint: str, params: SearchParam
         emit("Checking cached fares (Aviasales) for cheap destinations…")
         found: list[FlightDeal] = []
         for month in plan.months[:2]:
-            emit(f"Aviasales explore: {o.label} → anywhere, {month}", "search")
+            emit(f"Aviasales explore: {o.label} → anywhere, {month}", "search", "aviasales")
             try:
                 found += travelpayouts.search(FareQuery(o.tp, "", month, "", params), explore=True).deals
             except ProviderError as exc:
