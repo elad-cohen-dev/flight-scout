@@ -17,6 +17,15 @@ def offline_rates(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_llm_keys(monkeypatch):
+    """LLM keys and model/price/budget overrides in a developer's .env must never
+    reach a test (and no test may call a model); LLM tests set fakes explicitly."""
+    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "FLIGHT_SCOUT_PROVIDER", "FLIGHT_SCOUT_MODEL",
+                "FLIGHT_SCOUT_EXTRACT_MODEL", "FLIGHT_SCOUT_PRICES_JSON", "FLIGHT_SCOUT_AI_BUDGET_USD"):
+        monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def no_fare_api_keys(monkeypatch):
     """Fare-API keys in a developer's .env must never route tests to the network;
     provider tests set fake keys explicitly."""

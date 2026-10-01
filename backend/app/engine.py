@@ -41,7 +41,7 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
-from . import agent, airports, alerts, storage
+from . import agent, airports, alerts, llm_usage, storage
 from .booking import _MONTH_RE, _parse_date, _parse_month
 from .currency import convert
 from .models import (
@@ -82,6 +82,21 @@ def llm_configured() -> bool:
         return True
     except RuntimeError:
         return False
+
+
+def _web_agent(origin: str, destination: str, dates_hint: str, params: SearchParams, on_event,
+               meta: SearchMeta, leads: str = "") -> list[FlightDeal]:
+    """agent.find_deals, refused (no deals, a message) once the monthly AI
+    budget is spent; at 80% of it the search runs with a warning."""
+    try:
+        _, warning = llm_usage.check_budget()
+    except llm_usage.AIBudgetExceeded as exc:
+        meta.messages.append(str(exc))
+        _emitter(on_event)(str(exc))
+        return []
+    if warning:
+        meta.messages.append(warning)
+    return agent.find_deals(origin, destination, dates_hint, params=params, on_event=on_event, leads=leads)
 
 
 def _emitter(on_event):
@@ -491,8 +506,8 @@ def _explore(origin: str, destination: str, dates_hint: str, params: SearchParam
             shown = leads
     web: list[FlightDeal] = []
     if llm_configured():
-        web = agent.find_deals(origin, destination, dates_hint, params=params, on_event=on_event,
-                               leads="\n".join(_lead_line(x) for x in leads))
+        web = _web_agent(origin, destination, dates_hint, params, on_event, meta,
+                         leads="\n".join(_lead_line(x) for x in leads))
     elif not shown:
         meta.messages.append("Region and 'anywhere' searches need an LLM key (ANTHROPIC_API_KEY or OPENAI_API_KEY).")
     return agent.postprocess(web + shown, params, today) if shown else web
@@ -514,7 +529,7 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
     live_ok, cache_ok = serpapi.configured(), travelpayouts.configured()
 
     if not live_ok and not cache_ok:
-        deals = agent.find_deals(origin, destination, dates_hint, params=params, on_event=on_event)
+        deals = _web_agent(origin, destination, dates_hint, params, on_event, meta)
         meta.sources = ["web"]
         return SearchOutcome(deals, meta)
 
@@ -558,7 +573,7 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
     if not deals:
         if llm_configured():
             emit("No fare-API results for this search — searching the live web…")
-            deals = agent.find_deals(origin, destination, dates_hint, params=params, on_event=on_event)
+            deals = _web_agent(origin, destination, dates_hint, params, on_event, meta)
             meta.sources = ["web"]
         else:
             meta.messages.append("No fares found from the fare APIs, and no LLM key is set for a web search.")
@@ -757,7 +772,12 @@ def usage_report(now: datetime | None = None) -> UsageReport:
     serp_used = storage.provider_calls(serpapi.PROVIDER, now)
     budget = serpapi.monthly_budget()
     projection, warning = watch_projection(storage.list_watches(active_only=True), now.date())
-    return UsageReport(month=now.strftime("%Y-%m"), watch_projection=projection, warning=warning, providers=[
+    try:
+        research, extract = agent.model_for("research"), agent.model_for("extract")
+    except RuntimeError:  # no LLM key (or an unknown FLIGHT_SCOUT_PROVIDER)
+        research = extract = ""
+    ai = llm_usage.spend(llm_configured(), research, extract, now)
+    return UsageReport(month=now.strftime("%Y-%m"), watch_projection=projection, warning=warning, ai=ai, providers=[
         ProviderUsage(provider=serpapi.PROVIDER, configured=serpapi.configured(), used=serp_used,
                       budget=budget, left=max(0, budget - serp_used)),
         ProviderUsage(provider=travelpayouts.PROVIDER, configured=travelpayouts.configured(),

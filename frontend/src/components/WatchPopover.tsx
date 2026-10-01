@@ -1,19 +1,22 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CURRENCIES, currencySymbol, formatPrice } from "../lib/format";
-import type { QueryGroup } from "../lib/history";
+import type { QueryGroup, Run } from "../lib/history";
 import { suggestedThreshold, watchFromRequest } from "../lib/watches";
 import type { WatchCreate } from "../types";
 import Icon from "./Icon";
 import "./watches.css";
 
-/** Inline "watch this search" panel on a History card: the card's latest
- *  criteria, plus an alert price defaulting to ~10% under its latest best. */
+/** What the panel needs: a History card's group, or an Explore destination shaped like one. */
+export type WatchSource = Pick<QueryGroup, "route" | "datesHint" | "chips" | "request"> & { latest: Pick<Run, "minPrice" | "currency"> };
+
+/** Inline "watch this search" panel on a History card (or an Explore
+ *  destination): its criteria, plus an alert price ~10% under its latest best. */
 export default function WatchPopover({
   group,
   onCreate,
   onClose,
 }: {
-  group: QueryGroup;
+  group: WatchSource;
   onCreate: (w: WatchCreate) => Promise<boolean>;
   onClose: () => void;
 }) {

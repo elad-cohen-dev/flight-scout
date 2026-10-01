@@ -1,5 +1,5 @@
 import type { Job, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate } from "./types";
-import type { DealDetails } from "./types";
+import type { DealDetails, ExploreQuote, ExploreRequest, ExploreResult } from "./types";
 
 const PASSWORD_KEY = "fs_app_password";
 
@@ -243,4 +243,26 @@ export async function fetchDealDetails(id: number): Promise<DealDetails> {
 /** Fetch a deal's details live — spends up to 2 live searches of the monthly budget. */
 export async function loadDealDetails(id: number): Promise<DealDetails> {
   return handle(await fetch(`/api/deals/${id}/details`, { method: "POST", headers: authHeaders() }));
+}
+
+/** What running an explore costs now (0 when cached, else 1 live search). Free. */
+export async function quoteExplore(req: ExploreRequest): Promise<ExploreQuote> {
+  return handle(
+    await fetch("/api/explore/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(req),
+    })
+  );
+}
+
+/** Cheapest destinations from an origin — 1 live search unless cached (6h). */
+export async function runExplore(req: ExploreRequest): Promise<ExploreResult> {
+  return handle(
+    await fetch("/api/explore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(req),
+    })
+  );
 }

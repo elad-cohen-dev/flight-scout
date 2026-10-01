@@ -1,15 +1,98 @@
 name: Flight watches
 
+# The daily watch sweep. Default ("direct"): run backend/scripts/run_watches.py
+# right here against the production Turso database — no need to wake the Render
+# app. "render" is the pre-2.3 path (wake the app, POST /api/watches/run, poll
+# the job), kept as a rollback: pick it in "Run workflow", or set the repo
+# Variable WATCH_SWEEP_MODE=render to switch the schedule too.
+
 on:
   schedule:
-    - cron: "0 5 * * *" # daily 05:00 UTC (08:00 Israel time)
-  workflow_dispatch: {} # allow manual runs from the Actions tab
+    - cron: "0 5 * * *"  # daily 05:00 UTC (08:00 Israel time)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "direct = run the sweep in Actions; render = wake the Render app and let it run"
+        type: choice
+        options: [direct, render]
+        default: direct
+      notify:
+        description: "Send the digest (direct mode only)"
+        type: boolean
+        default: true
+
+# Never two sweeps at once (a second one would search — and spend — twice).
+concurrency:
+  group: watch-sweep
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   run-watches:
     runs-on: ubuntu-latest
+    # Render mode keeps its original 30-minute polling window.
+    timeout-minutes: ${{ (inputs.mode || vars.WATCH_SWEEP_MODE || 'direct') == 'render' && 35 || 20 }}
+    env:
+      MODE: ${{ inputs.mode || vars.WATCH_SWEEP_MODE || 'direct' }}
     steps:
+      # --- direct: the sweep runs in this job ---------------------------------
+      - name: Check out
+        if: env.MODE == 'direct'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: env.MODE == 'direct'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        if: env.MODE == 'direct'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install backend dependencies
+        if: env.MODE == 'direct'
+        working-directory: backend
+        run: uv sync --frozen --no-dev
+        env:
+          UV_PYTHON: "3.12"
+
+      - name: Run watches
+        if: env.MODE == 'direct'
+        working-directory: backend
+        run: uv run --no-sync python scripts/run_watches.py $NOTIFY_FLAG
+        env:
+          # Scheduled runs have no inputs (null): they always notify.
+          NOTIFY_FLAG: ${{ github.event_name == 'workflow_dispatch' && !inputs.notify && '--no-notify' || '' }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          TRAVELPAYOUTS_TOKEN: ${{ secrets.TRAVELPAYOUTS_TOKEN }}
+          TRAVELPAYOUTS_MARKER: ${{ secrets.TRAVELPAYOUTS_MARKER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          # Non-secret settings: repo Variables, defaulting to production's values.
+          # Keep them equal to Render's (an unset budget means the default, 230).
+          FLIGHT_SCOUT_MODEL: ${{ vars.FLIGHT_SCOUT_MODEL || 'gpt-5.5' }}
+          FLIGHT_SCOUT_PROVIDER: ${{ vars.FLIGHT_SCOUT_PROVIDER }}
+          FLIGHT_SCOUT_EXTRACT_MODEL: ${{ vars.FLIGHT_SCOUT_EXTRACT_MODEL }}
+          FLIGHT_SCOUT_AI_BUDGET_USD: ${{ vars.FLIGHT_SCOUT_AI_BUDGET_USD }}
+          FLIGHT_SCOUT_PRICES_JSON: ${{ vars.FLIGHT_SCOUT_PRICES_JSON }}
+          SERPAPI_MONTHLY_BUDGET: ${{ vars.SERPAPI_MONTHLY_BUDGET }}
+          SERPAPI_RETURN_LEGS: ${{ vars.SERPAPI_RETURN_LEGS }}
+          PYTHONUNBUFFERED: "1"
+
+      # --- render: the pre-2.3 path (rollback) --------------------------------
       - name: Wake the app (Render free tier sleeps when idle)
+        if: env.MODE == 'render'
         run: |
           for i in $(seq 1 20); do
             if curl -fsS -m 30 "$APP_URL/api/health" > /dev/null; then exit 0; fi
@@ -19,7 +102,8 @@ jobs:
         env:
           APP_URL: ${{ vars.APP_URL || 'https://flight-scout-8k34.onrender.com' }}
 
-      - name: Run watches and wait for completion
+      - name: Run watches on Render and wait for completion
+        if: env.MODE == 'render'
         run: |
           job=$(curl -fsS -X POST "$APP_URL/api/watches/run" -H "X-Cron-Secret: $CRON_SECRET")
           echo "$job"
@@ -38,6 +122,10 @@ jobs:
           done
 
           curl -fsS -m 30 "$APP_URL/api/jobs/$job_id" -H "X-Cron-Secret: $CRON_SECRET" | jq . || true
+          {
+            echo "### Watch sweep (Render): ${st:-unreachable}"
+            echo "Job \`$job_id\` — results in the app's Watches tab."
+          } >> "$GITHUB_STEP_SUMMARY"
           case "$st" in
             done) ;;
             interrupted)

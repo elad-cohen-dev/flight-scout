@@ -25,6 +25,12 @@ services:
         sync: false
       - key: SERPAPI_MONTHLY_BUDGET
         sync: false
+      - key: FLIGHT_SCOUT_EXTRACT_MODEL
+        sync: false
+      - key: FLIGHT_SCOUT_AI_BUDGET_USD
+        sync: false
+      - key: FLIGHT_SCOUT_PRICES_JSON
+        sync: false
       # Optional: set FLIGHT_SCOUT_MODEL to override the default model,
       # TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID for Telegram alerts,
       # TELEGRAM_WEBHOOK_SECRET (+ optional PUBLIC_URL) for the two-way bot

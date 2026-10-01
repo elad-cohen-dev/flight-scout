@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from . import alerts, details, engine, jobs, notify, storage, telegram_bot, watcher
+from . import alerts, details, engine, explore, jobs, notify, storage, telegram_bot, watcher
 from .jobs import Job
 from .models import (
     AlertRecord, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate,
@@ -314,8 +314,30 @@ def telegram_setup(request: Request, body: TelegramSetup | None = None) -> dict:
 @app.get("/api/usage", response_model=UsageReport, dependencies=[Depends(require_auth)])
 def get_usage() -> UsageReport:
     """Fare-API calls this calendar month (UTC) per provider, with the
-    SerpApi budget left — feeds the UI's live-search meter. No network."""
+    SerpApi budget left, plus the estimated AI (LLM) spend (`ai`) — feeds the
+    UI's usage meter. No network."""
     return engine.usage_report()
+
+
+# --- explore: open destinations on a map (app/explore.py) ---------------------
+
+@app.post("/api/explore/quote", response_model=explore.ExploreQuote, dependencies=[Depends(require_auth)])
+def explore_quote(req: explore.ExploreRequest) -> explore.ExploreQuote:
+    """What POST /api/explore would cost now: 0 when cached, else 1 search. No network."""
+    try:
+        return explore.quote(req)
+    except explore.ExploreError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from None
+
+
+@app.post("/api/explore", response_model=explore.ExploreResult, dependencies=[Depends(require_auth)])
+def run_explore(req: explore.ExploreRequest) -> explore.ExploreResult:
+    """The cheapest destinations from an origin (Google Travel Explore): one
+    live search, free for 6h after. 409 = budget used up, 503 = not configured."""
+    try:
+        return explore.explore(req)
+    except explore.ExploreError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from None
 
 
 # --- deal details on demand (app/details.py) ----------------------------------

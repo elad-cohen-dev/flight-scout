@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
   cancelJob,
@@ -28,6 +28,8 @@ import { ToastProvider, useToast } from "./components/Toasts";
 import TrendsTab from "./components/TrendsTab";
 import WakeBanner from "./components/WakeBanner";
 import WatchesTab from "./components/WatchesTab";
+// Explore (with Leaflet) loads on first visit, outside the main bundle.
+const ExploreTab = lazy(() => import("./components/ExploreTab"));
 import { formatPrice } from "./lib/format";
 import { groupHistory } from "./lib/history";
 import type { QueryGroup } from "./lib/history";
@@ -43,6 +45,7 @@ const RESUME_RESULT_MAX_AGE_MS = 6 * 60 * 60_000;
 
 const NAV: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: "search", label: "Search", icon: "search" },
+  { tab: "explore", label: "Explore", icon: "map" },
   { tab: "history", label: "History", icon: "history" },
   { tab: "watches", label: "Watches", icon: "bell" },
   { tab: "trends", label: "Trends", icon: "chart" },
@@ -431,6 +434,20 @@ function FlightScout() {
             onRunAgain={interruptedRerun ? onRunAgain : undefined}
             onDismissInterrupted={() => setInterrupted(null)}
           />
+        )}
+        {tab === "explore" && (
+          <Suspense fallback={<p className="muted small">Loading Explore…</p>}>
+            <ExploreTab
+              busy={!!run}
+              onCheckLive={(req) => {
+                setForm((f) => requestToForm(req, f)); // the Search tab shows exactly what ran
+                go("search");
+                performSearch(req);
+              }}
+              onCreateWatch={onCreateWatchFrom}
+              onError={handleRunError}
+            />
+          </Suspense>
         )}
         {tab === "history" && (
           <HistoryTab

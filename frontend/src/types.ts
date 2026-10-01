@@ -133,6 +133,38 @@ export interface UsageReport {
   providers: ProviderUsage[];
   watch_projection?: number; // live searches the active watches may spend in a month
   warning?: string; // set when that projection exceeds the monthly budget
+  ai?: AISpend | null; // estimated LLM spend this month (backend app/llm_usage.py)
+}
+
+/** One model's LLM usage this month (backend AIModelSpend). */
+export interface AIModelSpend {
+  provider: string;
+  model: string;
+  calls: number;
+  input_tokens: number; // includes cached input
+  cached_input_tokens: number;
+  output_tokens: number;
+  web_searches: number;
+  web_fetches: number;
+  cost_usd: number | null; // null = no price for this model
+  estimated: boolean; // price unverified or unknown
+}
+
+/** Estimated AI spend this month: list prices x reported token counts (backend AISpend). */
+export interface AISpend {
+  configured: boolean;
+  month: string;
+  cost_usd: number;
+  searches: number; // LLM (web agent) searches run this month
+  web_searches: number;
+  models: AIModelSpend[];
+  estimated: boolean;
+  prices_as_of: string;
+  budget_usd: number | null;
+  over_budget: boolean;
+  warning: string; // set at 80% of the budget and when it is used up
+  research_model: string;
+  extract_model: string;
 }
 
 /** What one watch may spend on live searches (an upper bound; backend engine.watch_credits). */
@@ -309,4 +341,79 @@ export interface DealDetails {
   bags_requested: ("carry_on" | "checked")[];
   verified_incl_bags: boolean;
   price_incl_bags: number | null;
+}
+
+// --- Explore mode (backend app/explore.py) ---
+
+export type TravelDuration = "weekend" | "week" | "two_weeks";
+export type ExploreRegion = "europe" | "middle_east" | "africa" | "asia" | "americas" | "oceania";
+
+/** POST /api/explore (and /quote). max_price / region / country are applied after the fetch, so they're free. */
+export interface ExploreRequest {
+  origin: string;
+  month: number; // 1-12 within the next six months; 0 = any of them
+  travel_duration: TravelDuration;
+  trip_type: TripType;
+  max_stops: number | null;
+  passengers: Passengers;
+  cabin_class: CabinClass;
+  cabin_bag: boolean;
+  currency: string;
+  max_price?: number | null;
+  region?: ExploreRegion | null;
+  country?: string;
+  cached_only?: boolean; // 404 instead of spending a search
+}
+
+export interface ExploreDestination {
+  city: string;
+  country: string;
+  country_code: string;
+  region: ExploreRegion | "";
+  destination_id: string;
+  airport: string;
+  search_destination: string; // "London [LON]" — what "Check live" searches
+  lat: number | null;
+  lon: number | null;
+  thumbnail: string;
+  price: number; // party total
+  price_per_person: number;
+  currency: string;
+  depart_date: string;
+  return_date: string;
+  return_estimated: boolean;
+  nights: number | null;
+  airline: string;
+  airline_code: string;
+  stops: number;
+  duration: string;
+  duration_minutes: number | null;
+  source: "google_explore";
+  price_confidence: "estimated";
+  google_url: string;
+  booking_links: BookingLink[];
+}
+
+export interface ExploreResult {
+  origin: string;
+  month: number;
+  travel_duration: TravelDuration;
+  trip_type: TripType;
+  currency: string;
+  destinations: ExploreDestination[];
+  total: number;
+  cached: boolean;
+  live_searches: number;
+  left: number;
+  fetched_at: string;
+  expires_at: string;
+  messages: string[];
+}
+
+export interface ExploreQuote {
+  configured: boolean;
+  cached: boolean;
+  cost: number; // 0 or 1
+  left: number;
+  budget: number;
 }

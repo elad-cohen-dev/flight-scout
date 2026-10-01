@@ -228,9 +228,7 @@ def _evict_finished() -> None:
         _JOB_EVENTS.pop(jid, None)
 
 
-def start_job(kind: JobKind, query: str, work: Callable[[str], dict],
-              request: dict | None = None) -> Job:
-    """Register a job and run `work(job_id)` in a daemon thread; its dict return updates the job."""
+def _register(kind: JobKind, query: str, request: dict | None) -> Job:
     now = _now()
     job = Job(job_id=uuid.uuid4().hex, kind=kind, status="running", query=query,
               request=request, created_at=now, updated_at=now)
@@ -238,30 +236,60 @@ def start_job(kind: JobKind, query: str, work: Callable[[str], dict],
         _JOBS[job.job_id] = job
         _PENDING[job.job_id] = []
     _ensure_flusher()
-
-    def _run() -> None:
-        _persist(job)
-        try:
-            update = {"status": "done", **work(job.job_id)}
-        except agent.SearchCancelled:
-            update = {"status": "cancelled"}
-        except Exception as exc:
-            update = {"status": "error", "error": str(exc)}
-        with _JOBS_LOCK:
-            final = _JOBS.get(job.job_id, job).model_copy(update={**update, "updated_at": _now()})
-        # Durable first, so a client that sees the result in memory can always
-        # find it again after a restart.
-        flush_events(job.job_id)
-        _persist(final)
-        with _JOBS_LOCK:
-            _JOBS[job.job_id] = final
-            _CANCEL_REQUESTED.discard(job.job_id)
-            for table in (_PENDING, _STORED, _BATCHES):
-                table.pop(job.job_id, None)
-            _evict_finished()
-
-    threading.Thread(target=_run, daemon=True).start()
     return job
+
+
+def _finish(job: Job, update: dict) -> Job:
+    with _JOBS_LOCK:
+        final = _JOBS.get(job.job_id, job).model_copy(update={**update, "updated_at": _now()})
+    # Durable first, so a client that sees the result in memory can always
+    # find it again after a restart.
+    flush_events(job.job_id)
+    _persist(final)
+    with _JOBS_LOCK:
+        _JOBS[job.job_id] = final
+        _CANCEL_REQUESTED.discard(job.job_id)
+        for table in (_PENDING, _STORED, _BATCHES):
+            table.pop(job.job_id, None)
+        _evict_finished()
+    return final
+
+
+def _execute(job: Job, work: Callable[[str], dict]) -> Job:
+    _persist(job)
+    try:
+        update = {"status": "done", **work(job.job_id)}
+    except agent.SearchCancelled:
+        update = {"status": "cancelled"}
+    except Exception as exc:
+        update = {"status": "error", "error": str(exc)}
+    return _finish(job, update)
+
+
+def start_job(kind: JobKind, query: str, work: Callable[[str], dict],
+              request: dict | None = None) -> Job:
+    """Register a job and run `work(job_id)` in a daemon thread; its dict return updates the job."""
+    job = _register(kind, query, request)
+    threading.Thread(target=_execute, args=(job, work), daemon=True).start()
+    return job
+
+
+def run_job(kind: JobKind, query: str, work: Callable[[str], dict],
+            request: dict | None = None, interrupted: str | None = None) -> Job:
+    """Run `work(job_id)` in the calling thread and return the finished job —
+    the same rows and events as start_job, without a web server (the scheduled
+    sweep runs as a GitHub Actions script, scripts/run_watches.py).
+
+    A KeyboardInterrupt / SystemExit (the runner cancelling or timing out the
+    step) records the job as "interrupted" with `interrupted` as its error,
+    then propagates."""
+    job = _register(kind, query, request)
+    try:
+        return _execute(job, work)
+    except BaseException:
+        message = interrupted or (WATCH_INTERRUPTED if kind == "watch_run" else SEARCH_INTERRUPTED)
+        _finish(job, {"status": "interrupted", "error": message})
+        raise
 
 
 def get_job(job_id: str) -> Job | None:

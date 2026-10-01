@@ -60,6 +60,8 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 | `POST`           | `/api/telegram/webhook/{secret}`     | Telegram bot webhook (secret path + `X-Telegram-Bot-Api-Secret-Token`; only `TELEGRAM_CHAT_ID` chats are answered)                 |
 | `POST`           | `/api/telegram/setup`                | Register this deployment as the bot's webhook + command menu (`{base_url}` optional; defaults to `PUBLIC_URL` / the request host)  |
 | `GET`            | `/api/usage`                         | Fare-API calls this month per provider: `{month, providers: [{provider, configured, used, budget, left}]}` (feeds the live-search meter) |
+| `POST`           | `/api/explore`                       | Explore mode — cheapest destinations from an origin (Google Travel Explore, no destination): `{origin, month (0 = next 6 months), travel_duration: weekend\|week\|two_weeks, trip_type, max_stops, passengers, cabin_class, cabin_bag, currency, max_price?, region?, country?, cached_only?}` → `{destinations: [{city, country, region, airport, search_destination, lat, lon, thumbnail, price, price_per_person, depart_date, return_date, airline, airline_code, stops, duration, booking_links, ...}], cached, live_searches, left, fetched_at, expires_at}`. 1 live search, cached 6h; `max_price`/`region`/`country` are filtered after the fetch (free). 409 = budget used up, 503 = no SerpApi key, 404 = not cached (`cached_only`) |
+| `POST`           | `/api/explore/quote`                 | What the same body would cost now: `{configured, cached, cost: 0\|1, left, budget}` — no network |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
 
 ### Search params
@@ -97,7 +99,12 @@ Watched routes are re-searched daily by the `watch-flights` [GitHub Actions work
 - **ntfy** (default, zero signup): set `NTFY_TOPIC` to a private topic name and subscribe to it in the [ntfy app](https://ntfy.sh/app) or at `https://ntfy.sh/<topic>`. Gets plain text; tapping opens the top deal's booking link.
 - **Telegram** (optional): set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (comma-separate several chat IDs to alert more than one person). Gets HTML-formatted messages with inline booking links.
 
-The workflow authenticates with the `CRON_SECRET` repo secret, which must match the `CRON_SECRET` env var on the server.
+Since 2.3 the workflow runs the sweep **itself** (`backend/scripts/run_watches.py`, straight against Turso), so the Render app is never woken for it; the run still appears in the app as a `watch_run` job and counts against the same SerpApi budget. Each run's results table is on the workflow run's summary page.
+
+- **Repo secrets** (Settings → Secrets and variables → Actions): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`), `SERPAPI_API_KEY`, `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` and/or `NTFY_TOPIC`, plus `TRAVELPAYOUTS_TOKEN` (+ `TRAVELPAYOUTS_MARKER`) if Render has them. A key missing here but set on Render makes the sweep behave differently: without the Aviasales token, flexible watches pre-screen with Google Explore and spend more live searches.
+- **Repo variables** (optional, non-secret): `FLIGHT_SCOUT_MODEL` (default `gpt-5.5`), `SERPAPI_MONTHLY_BUDGET` (default 230 — set it to Render's value), and `FLIGHT_SCOUT_PROVIDER` / `FLIGHT_SCOUT_EXTRACT_MODEL` / `FLIGHT_SCOUT_AI_BUDGET_USD` / `FLIGHT_SCOUT_PRICES_JSON` / `SERPAPI_RETURN_LEGS`, all mirroring the server env vars. `WATCH_SWEEP_MODE=render` switches the schedule back to the old path.
+- **Manual runs / rollback:** Actions → *Flight watches* → *Run workflow*: `mode` = `direct` (default) or `render` (the old path: wake the Render app, `POST /api/watches/run`, poll the job; that path needs `CRON_SECRET` to match the server's `CRON_SECRET` env var), and `notify` (off = check without sending a digest). Locally: `cd backend && uv run python scripts/run_watches.py [--no-notify] [--strict]`. It targets Turso if `backend/.env` has the Turso vars, so it **spends real credits**.
+- **Exit status:** the step fails if the run errors, every watch fails, or the digest can't be delivered to a configured channel. A single failed watch only shows as a warning.
 
 ### Smart alerts
 
@@ -141,7 +148,10 @@ Requests to the webhook need both the secret path and Telegram's `X-Telegram-Bot
 | ----------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------ |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`    | — (one required)                 | LLM API access; provider auto-detected from the key                            |
 | `FLIGHT_SCOUT_PROVIDER`                   | auto                             | Force `anthropic` or `openai` when both keys are set                           |
-| `FLIGHT_SCOUT_MODEL`                      | `claude-opus-5` / `gpt-5.4-mini` | Model powering the agent (per provider); production runs `gpt-5.5` for accuracy |
+| `FLIGHT_SCOUT_MODEL`                      | `claude-opus-5` / `gpt-5.4-mini` | Research-pass model (web search, per provider); production runs `gpt-5.5` for accuracy |
+| `FLIGHT_SCOUT_EXTRACT_MODEL`              | `claude-haiku-4-5` / `gpt-5.4-mini` | Extract-pass model (structured output only, no tools). The cheap tier is ~6x cheaper than `gpt-5.5`; it may occasionally drop a deal from awkward notes, but `postprocess()` still enforces every criterion. Set it to the research model to undo |
+| `FLIGHT_SCOUT_AI_BUDGET_USD`              | — (no cap)                       | Monthly AI spend cap (estimated, UTC month). Warns at 80%; once reached, web (LLM) searches are refused with a message — fare-API searches still work |
+| `FLIGHT_SCOUT_PRICES_JSON`                | built-in table                   | Override LLM list prices, e.g. `{"models": {"gpt-5.5": {"input": 5, "cached_input": 0.5, "output": 30}}, "web_search_per_1k": {"openai": 10}}` (USD per 1M tokens / per 1k searches). Defaults live in `backend/app/llm_usage.py` |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | —                                | Hosted DB ([Turso](https://turso.tech)); falls back to local SQLite when unset |
 | `STATIC_DIR`                              | `frontend/dist`                  | Directory of built frontend for FastAPI to serve                               |
 | `APP_PASSWORD`                            | — (open when unset)              | Locks the app/API behind a shared password (UI shows a lock screen)            |
@@ -175,7 +185,7 @@ The repo ships a `Dockerfile` (builds the frontend, serves everything from FastA
 Free-tier notes:
 
 - **Sleep / cold start.** The service spins down after ~15 min idle; the next request takes ~1 min while it boots. The page itself comes from that same server, so a *first* visit to a sleeping instance shows the browser's own loading state for that minute — nothing can render before the server answers. Return visits are covered: a small service worker (`frontend/public/sw.js`) caches the app shell, so the page renders at once and shows a "Waking up the server…" banner (elapsed time, rough progress) until `/api/health` answers, then carries on by itself. The same banner appears if you start a search after the tab sat idle long enough for the server to sleep.
-- **No keep-alive pinger, on purpose.** Render's free tier gives 750 instance-hours a month and one always-on instance uses ~744, so pinging it awake is technically possible but spends the whole allowance on idle time (and any second free service on the account would run out). The daily cron already wakes it when it matters.
+- **No keep-alive pinger, on purpose.** Render's free tier gives 750 instance-hours a month and one always-on instance uses ~744, so pinging it awake is technically possible but spends the whole allowance on idle time (and any second free service on the account would run out). Nor does the daily watch sweep need it awake: it runs in GitHub Actions against Turso.
 - **Restarts.** Every deploy or env-var change restarts the instance. Jobs are stored in the DB, so a search or watch run in flight comes back as **interrupted** (never re-run automatically — each run can cost a live fare-API credit or LLM money); the UI offers *Run again* with the same criteria. Reloading the page mid-search re-attaches to it, and a finished result is shown even if the tab was closed.
 
 ## Features

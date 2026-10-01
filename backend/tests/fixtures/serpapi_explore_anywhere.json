@@ -1,0 +1,142 @@
+{
+  "search_metadata": {
+    "id": "explore-anywhere",
+    "status": "Success",
+    "created_at": "2026-10-01 05:00:00 UTC",
+    "google_travel_explore_url": "https://www.google.com/travel/explore?tfs=anywhere&hl=en"
+  },
+  "search_parameters": {"engine": "google_travel_explore", "departure_id": "TLV", "month": "0"},
+  "destinations": [
+    {
+      "destination_id": "/m/04jpl",
+      "name": "London",
+      "country": "United Kingdom",
+      "gps_coordinates": {"latitude": 51.5072178, "longitude": -0.1275862},
+      "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:london",
+      "destination_airport": {"code": "LTN"},
+      "start_date": "2026-11-17",
+      "end_date": "2026-11-24",
+      "flight_price": 401,
+      "flight_duration": 330,
+      "number_of_stops": 0,
+      "airline": "Wizz Air",
+      "airline_code": "W6"
+    },
+    {
+      "destination_id": "/m/04jpl",
+      "name": "London",
+      "country": "United Kingdom",
+      "gps_coordinates": {"latitude": 51.5072178, "longitude": -0.1275862},
+      "destination_airport": {"code": "LHR"},
+      "start_date": "2026-11-10",
+      "end_date": "2026-11-17",
+      "flight_price": 612,
+      "flight_duration": 320,
+      "number_of_stops": 0,
+      "airline": "British Airways",
+      "airline_code": "BA"
+    },
+    {
+      "destination_id": "/m/01v3j6",
+      "name": "Paphos",
+      "country": "Cyprus",
+      "gps_coordinates": {"latitude": 34.7720133, "longitude": 32.4297369},
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:paphos",
+      "destination_airport": {"code": "PFO"},
+      "start_date": "2026-10-23",
+      "flight_price": 89,
+      "flight_duration": 60,
+      "number_of_stops": 0,
+      "airline": "Wizz Air",
+      "airline_code": "W6"
+    },
+    {
+      "destination_id": "/m/0n2z",
+      "name": "Athens",
+      "country": "Greece",
+      "gps_coordinates": {"latitude": 37.9838096, "longitude": 23.7275388},
+      "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:athens",
+      "destination_airport": {"code": "ATH"},
+      "start_date": "2026-11-05",
+      "end_date": "2026-11-12",
+      "flight_price": 158,
+      "flight_duration": 125,
+      "number_of_stops": 0,
+      "airline": "Aegean",
+      "airline_code": "A3"
+    },
+    {
+      "destination_id": "/m/0fn2g",
+      "name": "Bangkok",
+      "country": "Thailand",
+      "gps_coordinates": {"latitude": 13.7563309, "longitude": 100.5017651},
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:bangkok",
+      "destination_airport": {"code": "BKK"},
+      "start_date": "2026-12-02",
+      "end_date": "2026-12-09",
+      "flight_price": 689,
+      "flight_duration": 690,
+      "number_of_stops": 1,
+      "airline": "Etihad",
+      "airline_code": "EY"
+    },
+    {
+      "destination_id": "/m/02_286",
+      "name": "New York",
+      "country": "United States",
+      "gps_coordinates": {"latitude": 40.7127753, "longitude": -74.0059728},
+      "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:nyc",
+      "destination_airport": {"code": "JFK"},
+      "start_date": "2027-01-13",
+      "end_date": "2027-01-20",
+      "flight_price": 742,
+      "flight_duration": 715,
+      "number_of_stops": 0,
+      "airline": "El Al",
+      "airline_code": "LY"
+    },
+    {
+      "destination_id": "/m/01f08r",
+      "name": "Dubai",
+      "country": "United Arab Emirates",
+      "destination_airport": {"code": "DXB"},
+      "start_date": "2026-11-26",
+      "end_date": "2026-12-03",
+      "flight_price": 310,
+      "flight_duration": 205,
+      "number_of_stops": 0,
+      "airline": "flydubai",
+      "airline_code": "FZ"
+    },
+    {
+      "destination_id": "/m/095w_",
+      "name": "Budapest",
+      "country": "Hungary",
+      "gps_coordinates": {"latitude": 47.497912, "longitude": 19.040235},
+      "destination_airport": {"code": "BUD"},
+      "start_date": "2026-11-19",
+      "end_date": "2026-11-26",
+      "flight_price": 199,
+      "flight_duration": 215,
+      "number_of_stops": 0,
+      "airline": "Wizz Air and El Al",
+      "airline_code": "multi"
+    },
+    {
+      "destination_id": "/m/0no_price",
+      "name": "Nowhere",
+      "country": "Unknown",
+      "destination_airport": {"code": "TBS"},
+      "start_date": "2026-11-01",
+      "end_date": "2026-11-08"
+    },
+    {
+      "destination_id": "/m/0bad_date",
+      "name": "Tbilisi",
+      "country": "Georgia",
+      "destination_airport": {"code": "TBS"},
+      "start_date": "soon",
+      "flight_price": 120
+    }
+  ]
+}

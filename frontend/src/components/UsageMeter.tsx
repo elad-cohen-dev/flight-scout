@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { fetchUsage } from "../api";
+import { aiSpendLine } from "../lib/aiSpend";
 import { usageMeter } from "../lib/providers";
 import type { UsageReport } from "../types";
 import "./providers.css";
 
-/** "Live searches this month: 12 / 230" — hidden when live search isn't configured.
+/** "Live searches this month: 12 / 230" — hidden when live search isn't configured —
+ *  and next to it "AI this month: ~$1.84 · 6 web searches" when an LLM is set up.
  *  Re-fetches whenever `refreshKey` changes (e.g. after each search). */
 export default function UsageMeter({ refreshKey }: { refreshKey?: string }) {
   const [report, setReport] = useState<UsageReport | null>(null);
@@ -18,14 +20,24 @@ export default function UsageMeter({ refreshKey }: { refreshKey?: string }) {
     };
   }, [refreshKey]);
   const meter = usageMeter(report);
-  if (!meter) return null;
-  const pct = meter.budget ? Math.min(100, (meter.used / meter.budget) * 100) : 0;
+  const ai = aiSpendLine(report);
+  if (!meter && !ai) return null;
+  const pct = meter?.budget ? Math.min(100, (meter.used / meter.budget) * 100) : 0;
   return (
-    <div className={`usage-meter${meter.low ? " usage-low" : ""}`} title="Live Google Flights searches (SerpApi) used this calendar month. Cached fares and repeats within an hour are free.">
-      <span>{meter.text}</span>
-      <span className="usage-track" role="meter" aria-valuemin={0} aria-valuemax={meter.budget} aria-valuenow={meter.used} aria-label="Live searches used">
-        <span className="usage-fill" style={{ width: `${pct}%` }} />
-      </span>
+    <div className="usage-row">
+      {meter && (
+        <div className={`usage-meter${meter.low ? " usage-low" : ""}`} title="Live Google Flights searches (SerpApi) used this calendar month. Cached fares and repeats within an hour are free.">
+          <span>{meter.text}</span>
+          <span className="usage-track" role="meter" aria-valuemin={0} aria-valuemax={meter.budget} aria-valuenow={meter.used} aria-label="Live searches used">
+            <span className="usage-fill" style={{ width: `${pct}%` }} />
+          </span>
+        </div>
+      )}
+      {ai && (
+        <div className={`usage-meter usage-ai${ai.tone !== "ok" ? " usage-low" : ""}`} title={ai.tip} tabIndex={0}>
+          <span>{ai.text}</span>
+        </div>
+      )}
     </div>
   );
 }

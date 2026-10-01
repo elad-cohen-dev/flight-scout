@@ -17,7 +17,10 @@ bags, date window, budget, currency, nearby airports). Prices are always the
 TOTAL for the whole party including the requested bags.
 
 Works with either Anthropic (ANTHROPIC_API_KEY) or OpenAI (OPENAI_API_KEY); the
-provider is auto-detected from whichever key is set.
+provider is auto-detected from whichever key is set. The two passes use separate
+models: FLIGHT_SCOUT_MODEL researches (web tools, judgement), and
+FLIGHT_SCOUT_EXTRACT_MODEL (default: the provider's cheap tier) only turns
+notes into the schema. Every call's token usage is recorded (app/llm_usage.py).
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from typing import Callable, TypedDict
 from dotenv import load_dotenv
 from langgraph.graph import END, START, StateGraph
 
+from . import llm_usage
 from .currency import convert as _convert_currency
 from .models import FlightDeal, FlightDealList, SearchParams
 from .normalize import clean as _normalize
@@ -59,6 +63,17 @@ DEFAULT_MODELS = {
     "anthropic": "claude-opus-5",
     # mini-tier is plenty for search-and-extract work and far cheaper;
     # override with FLIGHT_SCOUT_MODEL if you want a bigger model.
+    "openai": "gpt-5.4-mini",
+}
+
+# The extract pass is structured output over notes already written — no tools,
+# no browsing, no judgement about sources — so the cheap tier does it at a
+# fraction of the research model's price. The trade-off: a smaller model is
+# likelier to fumble an awkward price breakdown or skip a deal; postprocess()
+# still enforces every criterion, so a slip costs a deal, never a wrong filter.
+# Set FLIGHT_SCOUT_EXTRACT_MODEL to the research model to undo it.
+DEFAULT_EXTRACT_MODELS = {
+    "anthropic": "claude-haiku-4-5",
     "openai": "gpt-5.4-mini",
 }
 
@@ -95,20 +110,32 @@ def _provider() -> str:
     )
 
 
-def _make_llm(flexible: bool = False):
-    """Return (chat model, web tool dicts) for the active provider."""
+def model_for(purpose: str = "research", provider: str | None = None) -> str:
+    """The model id for a pass: 'research' (FLIGHT_SCOUT_MODEL) or 'extract'
+    (FLIGHT_SCOUT_EXTRACT_MODEL)."""
+    provider = provider or _provider()
+    if provider not in DEFAULT_MODELS:
+        raise RuntimeError(f"Unknown FLIGHT_SCOUT_PROVIDER: {provider}")
+    if purpose == "extract":
+        return os.environ.get("FLIGHT_SCOUT_EXTRACT_MODEL") or DEFAULT_EXTRACT_MODELS[provider]
+    return os.environ.get("FLIGHT_SCOUT_MODEL") or DEFAULT_MODELS[provider]
+
+
+def _make_llm(flexible: bool = False, purpose: str = "research"):
+    """Return (chat model, web tool dicts) for the active provider and pass."""
     provider = _provider()
-    model = os.environ.get("FLIGHT_SCOUT_MODEL", DEFAULT_MODELS[provider])
+    model = model_for(purpose, provider)
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
-        return ChatAnthropic(model=model, max_tokens=16000), _web_tools(provider, flexible)
-    if provider == "openai":
-        from langchain_openai import ChatOpenAI
+        return (ChatAnthropic(model=model, max_tokens=16000, stream_usage=True),
+                _web_tools(provider, flexible))
+    # Built-in web search requires OpenAI's Responses API; its stream reports
+    # usage in the final response.completed event.
+    from langchain_openai import ChatOpenAI
 
-        # Built-in web search requires OpenAI's Responses API.
-        return ChatOpenAI(model=model, use_responses_api=True), _web_tools(provider, flexible)
-    raise RuntimeError(f"Unknown FLIGHT_SCOUT_PROVIDER: {provider}")
+    return (ChatOpenAI(model=model, use_responses_api=True, stream_usage=True),
+            _web_tools(provider, flexible))
 
 
 # --- prompts -----------------------------------------------------------------
@@ -533,14 +560,29 @@ def _search_query_of(block: dict) -> str:
     return ""
 
 
-def _stream_research(llm_with_search, messages: list, emit: OnEvent):
+def _stream_research(llm_with_search, messages: list, emit: OnEvent,
+                     on_usage: Callable[[object], None] | None = None):
     """Stream one research turn, emitting text deltas and web-tool events.
-    Returns (text, aggregated message) — the message is needed to continue a paused turn."""
+    Returns (text, aggregated message) — the message is needed to continue a paused turn.
+
+    `on_usage` gets the aggregated message however the stream ends — also on a
+    cancel or an error, so the web searches already run are still counted (the
+    token counts only arrive with the final event)."""
+    holder: list = [None]  # the aggregate so far, kept by _stream_turn
+    try:
+        return _stream_turn(llm_with_search, messages, emit, holder)
+    finally:
+        if on_usage and holder[0] is not None:
+            on_usage(holder[0])
+
+
+def _stream_turn(llm_with_search, messages: list, emit: OnEvent, holder: list):
     parts: list[str] = []
     searches_seen = 0
     full = None
     for chunk in llm_with_search.stream(messages):
         full = chunk if full is None else full + chunk
+        holder[0] = full
         delta = ""
         text = getattr(chunk, "text", None)
         if isinstance(text, str):
@@ -590,6 +632,7 @@ def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
     params = _params_of(state)
     flexible = params.nearby_airports or is_flexible(state["destination"]) or is_flexible(state["origin"])
     llm, web_tools = _make_llm(flexible)
+    provider, model = _provider(), model_for("research")
     llm_with_search = llm.bind_tools(web_tools)
     uses = {t["name"]: t["max_uses"] for t in web_tools if "max_uses" in t}
     budget = (f"about {uses['web_search']} searches and {uses['web_fetch']} page fetches"
@@ -605,7 +648,9 @@ def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
         message = None
         if streaming:
             try:
-                text, message = _stream_research(llm_with_search, messages, on_event)
+                text, message = _stream_research(
+                    llm_with_search, messages, on_event,
+                    on_usage=lambda m: llm_usage.record(provider, model, m))
             except SearchCancelled:
                 raise  # a cancel must never trigger the non-streaming fallback
             except Exception:
@@ -619,6 +664,7 @@ def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
         if message is None:
             message = llm_with_search.invoke(messages)
             text = _text_of(message)
+            llm_usage.record(provider, model, message)
         notes.append(text)
         if not _paused(message):
             break
@@ -631,8 +677,9 @@ def research(state: AgentState, *, on_event: OnEvent | None = None) -> dict:
 
 def extract(state: AgentState) -> dict:
     params = _params_of(state)
-    llm, _ = _make_llm()
-    extractor = llm.with_structured_output(FlightDealList)
+    llm, _ = _make_llm(purpose="extract")
+    # include_raw keeps the AIMessage, whose usage we record before parsing.
+    extractor = llm.with_structured_output(FlightDealList, include_raw=True)
     prompt = EXTRACT_PROMPT.format(
         origin=state["origin"],
         destination=state["destination"],
@@ -642,7 +689,13 @@ def extract(state: AgentState) -> dict:
         cabin=CABIN_NAMES[params.cabin_class],
         notes=state["research_notes"],
     )
-    result: FlightDealList = extractor.invoke(prompt)
+    out = extractor.invoke(prompt)
+    llm_usage.record(_provider(), model_for("extract"), out.get("raw"))
+    if out.get("parsing_error") is not None:
+        raise out["parsing_error"]
+    result: FlightDealList | None = out.get("parsed")
+    if result is None:
+        raise ValueError("the extract model returned no structured deals")
     # Provenance is set in code: whatever the model put there, these came from the web.
     deals = [d.model_copy(update={"source": "web", "seen_at": ""}) for d in result.deals]
     return {"deals": postprocess(deals, params)}
@@ -685,7 +738,11 @@ def find_deals(
 
     `params` carries the full criteria; without it the legacy flags
     (direct_only, currency, bags) build an equivalent SearchParams. `leads`
-    (from app/engine.py) lists cached fares the research pass should verify."""
+    (from app/engine.py) lists cached fares the research pass should verify.
+
+    Raises llm_usage.AIBudgetExceeded, before any model call, once the month's
+    FLIGHT_SCOUT_AI_BUDGET_USD is spent."""
+    llm_usage.check_budget()
     if params is None:
         params = SearchParams(
             max_stops=0 if direct_only else None,
@@ -693,6 +750,7 @@ def find_deals(
             cabin_bag=cabin_bag,
             checked_bag=checked_bag,
         )
+    llm_usage.record_search()
     app = build_graph(on_event)
     final_state = app.invoke(
         {

@@ -137,10 +137,10 @@ def _trim(data: dict) -> dict:
     }
 
 
-def fetch(params: dict, trim=_trim) -> tuple[dict, bool]:
-    """(trimmed response, from_cache) for SerpApi `params`. Raises
-    BudgetExhausted / ProviderError. A "no results" answer is a valid, cached,
-    empty response."""
+def fetch(params: dict, trim=_trim, ttl: float = CACHE_TTL_SECONDS) -> tuple[dict, bool]:
+    """(trimmed response, from_cache) for SerpApi `params`, cached `ttl`
+    seconds. Raises BudgetExhausted / ProviderError. A "no results" answer is
+    a valid, cached, empty response."""
     if not configured():
         raise ProviderError("serpapi: SERPAPI_API_KEY not set")
     data, cached = cached_get(PROVIDER, URL, {**params, "api_key": api_key()}, budget_left=remaining)
@@ -150,7 +150,7 @@ def fetch(params: dict, trim=_trim) -> tuple[dict, bool]:
     if error and not _NO_RESULTS.search(error):
         raise ProviderError(f"serpapi: {error[:200]}")
     trimmed = trim(data)
-    store(PROVIDER, {**params, "api_key": ""}, trimmed, CACHE_TTL_SECONDS)
+    store(PROVIDER, {**params, "api_key": ""}, trimmed, ttl)
     return trimmed, False
 
 
@@ -480,7 +480,8 @@ def explore_request_params(origin: str, destination: str, params: SearchParams, 
 
 
 _DESTINATION_KEYS = ("name", "destination_id", "destination_airport", "start_date", "end_date",
-                     "flight_price", "flight_duration", "number_of_stops", "airline", "airline_code", "link")
+                     "flight_price", "flight_duration", "number_of_stops", "airline", "airline_code", "link",
+                     "country", "gps_coordinates", "thumbnail")  # the last three feed app/explore.py's map
 
 
 def _trim_explore(data: dict) -> dict:

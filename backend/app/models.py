@@ -168,6 +168,40 @@ class UsageReport(BaseModel):
     providers: list[ProviderUsage]
     watch_projection: int = Field(default=0, description="Live searches the active watches may spend in a month (sum of WatchCredits.per_month)")
     warning: str = Field(default="", description="Set when watch_projection exceeds the monthly live-search budget")
+    ai: AISpend | None = Field(default=None, description="Estimated LLM spend this month (app/llm_usage.py)")
+
+
+class AIModelSpend(BaseModel):
+    """One model's LLM usage this month and its estimated cost."""
+
+    provider: str
+    model: str
+    calls: int = 0
+    input_tokens: int = Field(default=0, description="Includes cached input")
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
+    web_searches: int = Field(default=0, description="Paid web-search tool calls")
+    web_fetches: int = 0
+    cost_usd: float | None = Field(default=None, description="Estimate; None = no price for this model")
+    estimated: bool = Field(default=False, description="Price unverified or unknown")
+
+
+class AISpend(BaseModel):
+    """Estimated AI spend this calendar month (UTC): list prices x reported token counts."""
+
+    configured: bool = Field(description="An LLM key is set")
+    month: str
+    cost_usd: float = 0.0
+    searches: int = Field(default=0, description="LLM (web agent) searches run this month")
+    web_searches: int = 0
+    models: list[AIModelSpend] = Field(default_factory=list)
+    estimated: bool = Field(default=False, description="Some model's price is unverified or unknown")
+    prices_as_of: str = ""
+    budget_usd: float | None = Field(default=None, description="FLIGHT_SCOUT_AI_BUDGET_USD; None = no cap")
+    over_budget: bool = False
+    warning: str = Field(default="", description="Set at 80% of the budget and when it is used up")
+    research_model: str = ""
+    extract_model: str = ""
 
 
 class WatchCredits(BaseModel):

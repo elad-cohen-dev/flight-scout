@@ -170,6 +170,20 @@ _SCHEMA = [
         events TEXT NOT NULL,
         PRIMARY KEY (job_id, seq)
     )""",
+    # v2.3: LLM token usage per calendar month and model (app/llm_usage.py).
+    """CREATE TABLE IF NOT EXISTS llm_usage (
+        month TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        calls INTEGER NOT NULL DEFAULT 0,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        web_searches INTEGER NOT NULL DEFAULT 0,
+        web_fetches INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (month, provider, model)
+    )""",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -996,6 +1010,36 @@ def record_provider_call(provider: str, now: datetime | None = None) -> int:
     return _with_conn(op)
 
 
+_LLM_COUNTERS = ("calls", "input_tokens", "cached_input_tokens", "cache_write_tokens",
+                 "output_tokens", "web_searches", "web_fetches")
+
+
+def record_llm_usage(provider: str, model: str, counts: dict, now: datetime | None = None) -> None:
+    """Add one LLM call's token counts (keys from _LLM_COUNTERS; missing = 0)."""
+    values = [int(counts.get(k) or 0) for k in _LLM_COUNTERS]
+    updates = ", ".join(f"{k} = {k} + excluded.{k}" for k in _LLM_COUNTERS)
+
+    def op(conn) -> None:
+        conn.execute(
+            f"INSERT INTO llm_usage (month, provider, model, {', '.join(_LLM_COUNTERS)}) "
+            f"VALUES (?, ?, ?, {', '.join('?' for _ in _LLM_COUNTERS)}) "
+            f"ON CONFLICT (month, provider, model) DO UPDATE SET {updates}",
+            (_month(now), provider, model, *values),
+        )
+        conn.commit()
+
+    _with_conn(op)
+
+
+def llm_usage(now: datetime | None = None) -> list[dict]:
+    """This calendar month's (UTC) LLM usage rows, one per provider + model."""
+    return _with_conn(lambda conn: _rows_as_dicts(conn.execute(
+        f"SELECT provider, model, {', '.join(_LLM_COUNTERS)} FROM llm_usage "
+        "WHERE month = ? ORDER BY provider, model",
+        (_month(now),),
+    )))
+
+
 def cache_get(cache_key: str, now: datetime | None = None) -> dict | None:
     """A provider's cached raw response, or None when missing or expired."""
     now = now or datetime.now(timezone.utc)
@@ -1123,10 +1167,26 @@ def get_job_events(job_id: str) -> list[dict]:
     return events
 
 
+# Jobs run outside the server (scripts/run_watches.py in GitHub Actions) are
+# alive while their runner is, not while this process is: a server restart
+# leaves them alone for this long (> the workflow's 20-minute timeout).
+EXTERNAL_JOB_GRACE = timedelta(minutes=30)
+
+
+def _runs_elsewhere(request: str | None, created_at: str, now: datetime) -> bool:
+    try:
+        external = bool((json.loads(request) if request else {}).get("runner"))
+        return external and datetime.fromisoformat(created_at) > now - EXTERNAL_JOB_GRACE
+    except Exception:
+        return False
+
+
 def interrupt_running_jobs(search_message: str, watch_message: str,
                            now: datetime | None = None, keep_events_days: int = 7,
                            keep_jobs_days: int = 30) -> list[str]:
     """Mark jobs a dead process left "running" as "interrupted"; returns their ids.
+    A recent job of an external runner (request.runner) may still be running
+    and is skipped; one older than EXTERNAL_JOB_GRACE is marked like the rest.
 
     Also trims old history in the same round trip budget: events go after
     `keep_events_days`, job rows after `keep_jobs_days`.
@@ -1136,12 +1196,14 @@ def interrupt_running_jobs(search_message: str, watch_message: str,
     jobs_cutoff = (now - timedelta(days=keep_jobs_days)).isoformat()
 
     def op(conn) -> list[str]:
-        ids = [r[0] for r in conn.execute("SELECT job_id FROM jobs WHERE status = 'running'").fetchall()]
+        rows = conn.execute("SELECT job_id, request, created_at FROM jobs WHERE status = 'running'").fetchall()
+        ids = [job_id for job_id, request, created_at in rows if not _runs_elsewhere(request, created_at, now)]
         if ids:
             conn.execute(
                 "UPDATE jobs SET status = 'interrupted', updated_at = ?, "
-                "error = CASE WHEN kind = 'watch_run' THEN ? ELSE ? END WHERE status = 'running'",
-                (now.isoformat(), watch_message, search_message),
+                "error = CASE WHEN kind = 'watch_run' THEN ? ELSE ? END "
+                f"WHERE status = 'running' AND job_id IN ({', '.join('?' for _ in ids)})",
+                (now.isoformat(), watch_message, search_message, *ids),
             )
         conn.execute("DELETE FROM job_events WHERE job_id IN "
                      "(SELECT job_id FROM jobs WHERE updated_at < ?)", (events_cutoff,))
