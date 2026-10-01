@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-from datetime import date
+from datetime import date, timedelta
 from urllib.parse import parse_qs, urlparse
 
 from . import airlines, airports
@@ -210,10 +210,55 @@ def normalize_date(text: str, today: date | None = None) -> str:
         else:
             d = None  # 10/11: October 11th or 10 November — leave it
         return d.isoformat() if d else s
-    from .booking import _parse_date
-
-    d = _parse_date(s, today)
+    d = _month_name_date(s, today or date.today())
     return d.isoformat() if d else s
+
+
+_MONTHS = {name: i for i, names in enumerate(
+    [("jan", "january"), ("feb", "february"), ("mar", "march"), ("apr", "april"), ("may",),
+     ("jun", "june"), ("jul", "july"), ("aug", "august"), ("sep", "sept", "september"),
+     ("oct", "october"), ("nov", "november"), ("dec", "december")], start=1) for name in names}
+_WEEKDAYS = {name: i for i, names in enumerate(
+    [("mon", "monday"), ("tue", "tues", "tuesday"), ("wed", "wednesday"), ("thu", "thur", "thurs", "thursday"),
+     ("fri", "friday"), ("sat", "saturday"), ("sun", "sunday")]) for name in names}
+_MON = r"([a-z]{3,9})\.?"
+_DAY = r"(\d{1,2})(?:st|nd|rd|th)?"
+_WD = r"(?:([a-z]{3,9})\.?,?\s+)?"
+_YEAR = r"(?:,?\s+(\d{4}))?"
+# The WHOLE string must be one date ("Fri, Oct 2", "14 October 2026"); anything
+# else — "after Oct 11", "mid October", "Oct 12-15" — stays as written.
+_MONTH_FIRST = re.compile(rf"^{_WD}{_MON}\s+{_DAY}{_YEAR}$")
+_DAY_FIRST = re.compile(rf"^{_WD}{_DAY}\s+{_MON}{_YEAR}$")
+_MAX_AHEAD_DAYS = 270  # a year-less date further out than ~9 months is a guess, not a fact
+
+
+def _month_name_date(s: str, today: date) -> date | None:
+    t = re.sub(r"\s+", " ", s.strip().lower())
+    m = _MONTH_FIRST.match(t)
+    if m:
+        wd, mon, day, year = m.groups()
+    else:
+        m = _DAY_FIRST.match(t)
+        if not m:
+            return None
+        wd, day, mon, year = m.groups()
+    month = _MONTHS.get(mon)
+    if month is None or (wd and wd not in _WEEKDAYS):
+        return None
+    if year:
+        d = _mkdate(int(year), month, int(day))
+    else:
+        # Next occurrence, allowing a week of slack for deals found just after
+        # departure — but never a far-future guess (a July date seen in August
+        # is a stale deal, not next July's).
+        d = _mkdate(today.year, month, int(day))
+        if d and d < today - timedelta(days=7):
+            d = _mkdate(today.year + 1, month, int(day))
+        if d and (d - today).days > _MAX_AHEAD_DAYS:
+            return None
+    if d and wd and d.weekday() != _WEEKDAYS[wd]:
+        return None  # "Fri, Oct 3" when Oct 3 is a Saturday: something's off
+    return d
 
 
 _TIME = re.compile(r"^\s*(\d{1,2})[:.hH](\d{2})\s*([AaPp]\.?[Mm]\.?)?\s*$")

@@ -385,3 +385,20 @@ def test_repair_ignores_turso_with_db_flag(temp_db, monkeypatch, capsys):
     monkeypatch.setenv("TURSO_DATABASE_URL", "libsql://must-not-be-used.turso.io")
     assert repair.main(["--db", str(temp_db)]) == 0
     assert f"SQLite {temp_db}" in capsys.readouterr().out
+
+
+def test_normalize_date_rejects_qualified_and_far_guessed_dates():
+    from datetime import date
+
+    from app.normalize import normalize_date
+
+    found = date(2026, 8, 25)
+    assert normalize_date("after Oct 11, 2026", found) == "after Oct 11, 2026"
+    assert normalize_date("around Oct 11", found) == "around Oct 11"
+    assert normalize_date("Jul 23", found) == "Jul 23"          # would be a 2027 guess
+    assert normalize_date("Sep 3", found) == "2026-09-03"
+    assert normalize_date("Aug 20", date(2026, 8, 24)) == "2026-08-20"  # a week of slack
+    assert normalize_date("Fri, Oct 2", found) == "2026-10-02"  # weekday matches
+    assert normalize_date("Sat, Oct 2", found) == "Sat, Oct 2"  # weekday contradicts
+    assert normalize_date("14th October 2026", found) == "2026-10-14"
+    assert normalize_date("Jul 16, 2027", found) == "2027-07-16"  # explicit year is fine
