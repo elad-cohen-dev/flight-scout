@@ -1,6 +1,6 @@
 # Flight Scout — Architecture
 
-End-to-end: a LangGraph agent that searches the live web for flight deals, a FastAPI backend that runs it as background jobs and serves the React UI, a Turso (libSQL) database, and a GitHub Actions cron that re-checks watched routes daily (running the watcher itself, against the same database) and pushes alerts.
+End-to-end: a search engine that gets live Google Flights fares (SerpApi) where it can and falls back to a LangGraph agent that searches the live web, a FastAPI backend that runs searches as background jobs and serves the React UI, a Turso (libSQL) database, and a GitHub Actions cron that re-checks watched routes daily (running the watcher itself, against the same database) and pushes alerts.
 
 ## System overview
 
@@ -8,7 +8,7 @@ End-to-end: a LangGraph agent that searches the live web for flight deals, a Fas
 
 *Diagram source: [docs/architecture.excalidraw](./docs/architecture.excalidraw) — open it at [excalidraw.com](https://excalidraw.com) to edit.*
 
-Everything server-side lives in **one process** on one free Render instance: the API, the agent, the watcher, and the static frontend. There is no queue, no worker fleet, no scraping infrastructure — the design goal is the smallest system that does the job on free tiers.
+Everything interactive lives in **one process** on one free Render instance: the API, the search engine, the agent, on-demand watch runs, and the static frontend. The daily sweep runs the same code in GitHub Actions. There is no queue, no worker fleet, no scraping infrastructure — the design goal is the smallest system that does the job on free tiers.
 
 ## The LangGraph agent (`backend/app/agent.py`)
 

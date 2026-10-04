@@ -6,10 +6,13 @@ An AI agent that hunts the live web for cheap flights, stores what it finds, and
 
 ![Flight Scout system architecture](./docs/architecture.png)
 
-- **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving an LLM with the provider's **server-side web search tool** — no scraping infrastructure or flight-API keys needed. Works with **Anthropic** (Claude) or **OpenAI** (GPT); the provider is auto-detected from whichever API key you set. Two-node graph: a *research* pass that searches the live web, then an *extract* pass that turns the findings into validated structured deals.
-- **Storage**: [Turso](https://turso.tech) (hosted libSQL) in production, a local SQLite file in development — same code path, selected by env var.
-- **API**: FastAPI — searches run as background jobs the UI polls; the built frontend is served from the same port.
-- **App**: React + Vite. Search form → grouped deal cards (price, airline, dates, duration, stops, booking links), price-history chart per route, price watches with daily re-checks.
+- **Search engine** (`engine.py`): routes each search to the best source. Exact routes and dates get **live Google Flights fares** via [SerpApi](https://serpapi.com); flexible dates use **Google Travel Explore** to find the cheapest dates, then confirm them live; regions, "anywhere" and fallbacks go to the LLM agent. A monthly live-search budget and a response cache keep it on SerpApi's free plan.
+- **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving an LLM with the provider's **server-side web search tool**. Works with **Anthropic** (Claude) or **OpenAI** (GPT), auto-detected from the API key. A *research* pass searches the live web, then a cheaper *extract* pass turns the findings into validated structured deals.
+- **Cleanup**: every deal — API or agent — goes through one `postprocess` step: canonical airlines and airports, currency checks, the search criteria enforced in code, dedupe.
+- **Storage**: [Turso](https://turso.tech) (hosted libSQL) in production, a local SQLite file in development — same code path, selected by env var. Jobs, usage counters, the provider cache and the alert log live there too.
+- **API**: FastAPI — searches run as background jobs (persisted, restart-safe) with live progress over SSE; it also serves the built frontend, the Telegram bot webhook and the book-direct redirect.
+- **App**: React + Vite with Search, Explore (map), History, Watches and Trends tabs.
+- **Watches**: a daily GitHub Actions job runs the same watcher code directly against Turso, scores each watch against its price history, and sends one digest to Telegram/ntfy.
 
 **→ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full end-to-end design: agent internals, request flow, storage/caching, the cron + notification pipeline, and the free-tier trade-offs.**
 
