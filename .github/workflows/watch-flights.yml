@@ -50,7 +50,7 @@ jobs:
 
       - name: Set up uv
         if: env.MODE == 'direct'
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
