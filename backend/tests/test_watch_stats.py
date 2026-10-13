@@ -52,7 +52,7 @@ HISTORY = [(ts(29 - i), 300 + (i * 37) % 100) for i in range(30)]
 
 def watch(**kw):
     base = dict(id=1, origin="TLV", destination="London", dates_hint="November", max_price=250,
-                currency="USD", created_at=NOW, max_stops=0, checked_bag=True)
+                currency="USD", created_at=NOW, max_stops=0)  # no bags: prices are fares (see test_bags)
     base.update(kw)
     return Watch(**base)
 
@@ -276,7 +276,11 @@ def test_watch_run_stores_insights_and_stats_use_them(temp_db, live, monkeypatch
                                       max_price=250, max_stops=0, checked_bag=True))
     live.append((324, insights(285, 390, history)))
     [row] = watcher.run_watches()["results"]
-    assert row["stats"]["basis"] == "google" and row["stats"]["typical"] == 337.5
+    # Google's typical range is for the fare; the watch compares prices with its
+    # checked bag, so the range moves up by this run's bag fees.
+    bag_fees = row["best_price"] - 324
+    assert bag_fees > 0
+    assert row["stats"]["basis"] == "google" and row["stats"]["typical"] == round(337.5 + bag_fees, 2)
     [stored] = storage.watch_price_insights()[w.id]
     assert stored["kind"] == alerts.insight_kind(w) and len(stored["price_history"]) == 30
 
@@ -287,4 +291,5 @@ def test_watch_run_stores_insights_and_stats_use_them(temp_db, live, monkeypatch
 
     [body] = TestClient(main.app).get("/api/watches").json()
     s = body["stats"]
-    assert (s["basis"], s["typical_low"], s["typical_high"], s["basis_runs"]) == ("google", 285, 390, 2)
+    assert (s["basis"], s["basis_runs"]) == ("google", 2)
+    assert s["typical_low"] > 285 and s["typical_high"] - s["typical_low"] == 105  # Google's range + bag fees

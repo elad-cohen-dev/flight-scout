@@ -41,7 +41,7 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
-from . import agent, airports, alerts, llm_usage, storage
+from . import agent, airports, alerts, bags, llm_usage, storage
 from .booking import _MONTH_RE, _parse_date, _parse_month
 from .currency import convert
 from .models import (
@@ -591,8 +591,10 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
 
 # --- watches: free pre-screen before a paid live search ----------------------------
 
-def _best_in(deals: list[FlightDeal], currency: str) -> float | None:
-    prices = [p for p in (convert(x.price, x.currency, currency) for x in deals) if p is not None]
+def _best_in(deals: list[FlightDeal], currency: str, params: SearchParams | None = None) -> float | None:
+    """Cheapest price with the requested bags (app/bags.py), in `currency`."""
+    totals = ((bags.price_with_bags(x, params).total, x.currency) for x in deals)
+    prices = [p for p in (convert(t, c, currency) for t, c in totals) if p is not None]
     return round(min(prices), 2) if prices else None
 
 
@@ -686,7 +688,7 @@ def _watch_via_cache(watch, params, prior_rows, o, d, plan, on_event, now) -> Se
     emit("Pre-screening with cached fares (free)…")
     cached = agent.postprocess(_cached_fares(o, d, plan, params, emit, meta, exact=bool(plan.pairs)),
                                params, now.date())
-    live, reason = _decide(watch, _best_in(cached, watch.currency), prior_rows, now, "cached")
+    live, reason = _decide(watch, _best_in(cached, watch.currency, params), prior_rows, now, "cached")
     emit(("Live check: " if live else "Cached fares only: ") + reason)
 
     if live or not cached:
@@ -707,7 +709,7 @@ def _watch_via_explore(watch, params, prior_rows, o, d, plan, on_event, now) -> 
     today = now.date()
     meta = SearchMeta()
     explored, pairs, _ = _explore_dates(o, d, watch.dates_hint, plan, params, emit, meta, today)
-    live, reason = _decide(watch, _best_in(explored, watch.currency), prior_rows, now, "Google Explore")
+    live, reason = _decide(watch, _best_in(explored, watch.currency, params), prior_rows, now, "Google Explore")
     if not pairs:
         live = False
     emit(("Live check: " if live else "Google Explore prices only: ") + reason)

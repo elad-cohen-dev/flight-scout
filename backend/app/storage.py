@@ -33,6 +33,7 @@ from collections import Counter, defaultdict
 
 from . import airlines as _airlines
 from . import airports as _airports
+from . import bags
 from .currency import convert as _convert_currency
 from .currency import normalize as _normalize_currency
 from .models import (
@@ -444,7 +445,7 @@ def _row_to_deal(row: dict) -> StoredDeal:
         except Exception:
             link_params = None
     deal.booking_links = _booking_links(deal, link_params)
-    _set_compare_price(deal)
+    _set_compare_price(deal, link_params)
     deal.route_key = route_key(deal.search_query)
     deal.details_cost = _details_cost(deal)
     return deal
@@ -459,17 +460,26 @@ def _details_cost(deal: FlightDeal) -> int:
     return 2 if deal.departure_token else 0
 
 
-def _set_compare_price(deal: StoredDeal) -> None:
+def _set_compare_price(deal: StoredDeal, params: SearchParams | None = None) -> None:
     """Sources quote whatever currency their page uses, so $600 vs ₪2,123 can't
     be ranked by raw number. Every deal also carries its price in the run's
-    preferred currency; the UI sorts and picks "cheapest" by that."""
+    preferred currency, and its price with the requested bags (app/bags.py) in
+    that currency too; the UI sorts and picks "cheapest" by compare_total."""
     target = deal.search_params.currency if deal.search_params else "USD"
     deal.compare_currency = target
     try:
-        converted = _convert_currency(deal.price, deal.currency, target)
+        deal.bags = bags.price_with_bags(deal, params or deal.search_params)
     except Exception:
-        converted = None
+        logger.exception("deal #%s: price with bags failed", deal.id)
+        deal.bags = None
+    total = deal.bags.total if deal.bags else deal.price
+    try:
+        converted = _convert_currency(deal.price, deal.currency, target)
+        converted_total = _convert_currency(total, deal.currency, target)
+    except Exception:
+        converted = converted_total = None
     deal.compare_price = round(converted, 2) if converted is not None else None
+    deal.compare_total = round(converted_total, 2) if converted_total is not None else None
 
 
 def save_deals(search_query: str, deals: list[FlightDeal],
@@ -494,7 +504,7 @@ def save_deals(search_query: str, deals: list[FlightDeal],
                 **deal.model_dump(exclude={"booking_links"}),
             )
             item.booking_links = _booking_links(item, params)
-            _set_compare_price(item)
+            _set_compare_price(item, params)
             item.route_key = route_key(item.search_query)
             item.departure_token, item.booking_token = deal.departure_token, deal.booking_token
             item.serp_params = deal.serp_params
@@ -854,7 +864,8 @@ _WATCH_TAG = re.compile(r"\[watch #(\d+)\]\s*$")
 
 def watch_sightings() -> dict[int, list[dict]]:
     """Every stored deal of every watch's runs, as light rows (found_at, price,
-    currency, search_params, source) keyed by watch id — the input of the price
+    currency, search_params, source, and the airline fields + return_date that
+    price the requested bags) keyed by watch id — the input of the price
     stats (source decides the row's trust tier).
     A watch's runs are tagged "[watch #N]" at the end of their search label."""
     cache_key = ("watch_sightings",)
@@ -864,7 +875,8 @@ def watch_sightings() -> dict[int, list[dict]]:
 
     rows = _with_conn(
         lambda conn: _rows_as_dicts(conn.execute(
-            "SELECT search_query, found_at, price, currency, search_params, source FROM deals "
+            "SELECT search_query, found_at, price, currency, search_params, source, airline, airline_code, "
+            "flight_numbers, return_date FROM deals "
             "WHERE search_query LIKE '%[watch #%'"
         ))
     )

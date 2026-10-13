@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from app import currency, storage
+from app import bags, currency, storage
 
 
 @pytest.fixture(autouse=True)
@@ -14,6 +14,16 @@ def offline_rates(monkeypatch):
     """Use currency's static fallback table instead of fetching live rates."""
     monkeypatch.setattr(currency, "_fetch_rates", lambda: None)
     monkeypatch.setattr(currency, "_rates", None)
+
+
+@pytest.fixture(autouse=True)
+def no_bag_table(tmp_path, monkeypatch):
+    """Tests don't depend on the shipped bag-fee table (it changes every
+    release): every carrier gets the typical range unless a test sets a table."""
+    monkeypatch.setattr(bags, "TABLE_PATH", tmp_path / "no_bag_fees.json")
+    bags.table.cache_clear()
+    yield
+    bags.table.cache_clear()
 
 
 @pytest.fixture(autouse=True)

@@ -23,10 +23,11 @@ from app.providers import base, serpapi
 FIXTURES = Path(__file__).parent / "fixtures"
 TODAY = date(2026, 10, 1)
 NOW = datetime(2026, 10, 1, 6, 0, tzinfo=timezone.utc)
-# The production watch: TLV -> London, direct, 20kg checked bag, 1 adult.
+# The production watch: TLV -> London, direct, 1 adult (its 20kg checked bag left
+# out here so prices stay plain fares; bag pricing is tested in test_bags).
 LONDON = dict(origin="TLV", destination="London", dates_hint="October - November after October 11th",
-              max_stops=0, checked_bag=True, currency="USD")
-LONDON_PARAMS = SearchParams(max_stops=0, checked_bag=True)
+              max_stops=0, currency="USD")
+LONDON_PARAMS = SearchParams(max_stops=0)
 
 
 def load(name: str) -> dict:

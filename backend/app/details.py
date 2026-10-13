@@ -187,9 +187,22 @@ def _requested_bags(deal: StoredDeal) -> list[str]:
     return [k for k, on in (("carry_on", p.cabin_bag), ("checked", p.checked_bag)) if on]
 
 
-def _seats(deal: StoredDeal) -> int:
+def _bag_counts(deal: StoredDeal, parts: int = 1) -> dict[str, int]:
+    """Bags bought per kind for the whole trip: per-direction count x directions.
+    Google's baggage lines ('1st checked bag: 35') are taken as per passenger,
+    per direction — the airlines' own convention; the price-check log tells us
+    if a seller means otherwise. Separate tickets (one part per direction)
+    already sum their parts' fees (_combine), so they count one direction.
+    Carry-on is 0 when the request already sent Google's bags filter: the
+    seller's price then includes it."""
     p = deal.search_params
-    return base.paying(p) if p is not None else 1
+    if p is None:
+        return {}
+    dirs = 2 if deal.return_date and parts < 2 else 1
+    seats = base.paying(p)
+    carry = 0 if (not p.cabin_bag or _params(deal).get("bags")) else seats
+    checked = p.checked_bags or (seats if p.checked_bag else 0)
+    return {"carry_on": carry * dirs, "checked": checked * dirs}
 
 
 # --- cache + cost --------------------------------------------------------------
@@ -341,12 +354,14 @@ def _seller(deal: StoredDeal, index: int, option: dict, bags: list[str]) -> Sell
     lines = [[str(b) for b in p.get("baggage_prices") or []] for p in parts]
     carry = _combine([parse_bag(l, "carry_on") for l in lines])
     checked = _combine([parse_bag(l, "checked") for l in lines])
+    counts = _bag_counts(deal, len(parts))
     fees = {"carry_on": carry.fee, "checked": checked.fee}
-    known = price is not None and all(fees[b] is not None for b in bags)
-    incl = round(price + sum(fees[b] for b in bags) * _seats(deal), 2) if known else None
+    needed = [b for b in bags if counts.get(b)]
+    known = price is not None and all(fees[b] is not None for b in needed)
+    incl = round(price + sum(fees[b] * counts[b] for b in needed), 2) if known else None
     tops = {"carry_on": carry.max_fee, "checked": checked.max_fee}
-    bounded = price is not None and all(tops[b] is not None for b in bags)
-    top = round(price + sum(tops[b] for b in bags) * _seats(deal), 2) if bounded else None
+    bounded = price is not None and all(tops[b] is not None for b in needed)
+    top = round(price + sum(tops[b] * counts[b] for b in needed), 2) if bounded else None
     names = [p.get("book_with") or "" for p in parts]
     return Seller(
         index=index,

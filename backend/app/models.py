@@ -39,6 +39,9 @@ class SearchParams(BaseModel):
     max_stops: int | None = Field(default=None, ge=0, le=3, description="None = any, 0 = direct only")
     cabin_bag: bool = Field(default=False, description="Prices must include a 10kg cabin trolley bag")
     checked_bag: bool = Field(default=False, description="Prices must include a 20kg+ checked bag")
+    checked_bags: int = Field(
+        default=0, ge=0, le=18,
+        description="Checked 20kg bags for the whole party; 0 with checked_bag = one per seated traveller (legacy)")
     # Optional structured date window; dates_hint (free text) stays the primary/fallback input.
     depart_from: date | None = Field(default=None, description="Earliest departure date")
     depart_to: date | None = Field(default=None, description="Latest departure date")
@@ -52,6 +55,16 @@ class SearchParams(BaseModel):
     @classmethod
     def _iso_currency_param(cls, v: str) -> str:
         return _normalize_currency(v)
+
+    @model_validator(mode="after")
+    def _checked_bag_count(self):
+        # checked_bags is the count; checked_bag stays as the "any checked bag" flag
+        # that older code, labels and stored rows use.
+        if self.checked_bags:
+            self.checked_bag = True
+        elif self.checked_bag:
+            self.checked_bags = self.passengers.adults + self.passengers.children
+        return self
 
 
 class BookingLink(BaseModel):
@@ -220,6 +233,40 @@ class FlightDealList(BaseModel):
     deals: list[FlightDeal] = Field(description="All distinct flight deals found, cheapest first")
 
 
+BagBasis = Literal["google", "table", "typical", "included", "seller"]
+PriceBasis = Literal["none", "as_quoted", "included", "table", "typical", "seller"]
+
+
+class BagLine(BaseModel):
+    """One kind of bag in a deal's price with bags, for the whole party and trip."""
+
+    kind: Literal["trolley", "checked"]
+    count: int = Field(description="Bags per direction, whole party")
+    directions: int = Field(description="1 one-way, 2 round trip")
+    low: float = Field(description="Fee range low end, in the deal currency (all bags, all directions)")
+    high: float
+    basis: BagBasis = Field(description="google = already in Google's fare (bags filter); seller = the seller's own "
+                                        "fee from booking options; table = app/data/bag_fees.json; typical = no entry "
+                                        "for this airline, a typical low-cost range; included = the fare includes it")
+    carrier: str = Field(default="", description="Airline name the fee is for")
+
+
+class BagPricing(BaseModel):
+    """A deal's price with the requested bags (app/bags.py), computed on read so
+    a bag-fee table update re-prices every stored deal."""
+
+    basis: PriceBasis = Field(description="Weakest basis of the bag lines; none = no bags asked; as_quoted = the "
+                                          "source's price already claims to include bags (LLM web results)")
+    fare: float = Field(description="The deal's own price")
+    total: float = Field(description="Best estimate: fare + the middle of the bag-fee range")
+    total_min: float
+    total_max: float
+    currency: str
+    lines: list[BagLine] = Field(default_factory=list)
+    added_at_checkout: bool = Field(default=False, description="Bags are bought at checkout, so the site's first price is lower")
+    as_of: str = Field(default="", description="Month the fee table was checked, e.g. '2026-10'")
+
+
 class StoredDeal(FlightDeal):
     """A deal as returned from the database."""
 
@@ -239,6 +286,9 @@ class StoredDeal(FlightDeal):
         default=0,
         description="Most live searches 'Details & book direct' may spend (1 one-way, 2 round trip); 0 = not available",
     )
+    bags: BagPricing | None = Field(default=None, description="Price with the requested bags (app/bags.py)")
+    compare_total: float | None = Field(
+        default=None, description="bags.total (else price) in compare_currency — what the UI sorts by")
 
 
 class HistoryPoint(BaseModel):
@@ -386,6 +436,7 @@ class WatchUpdate(BaseModel):
     max_stops: int | None = None
     cabin_bag: bool | None = None
     checked_bag: bool | None = None
+    checked_bags: int | None = None
     depart_from: date | None = None
     depart_to: date | None = None
     nights_min: int | None = None
@@ -409,6 +460,8 @@ class WatchUpdate(BaseModel):
         if "alerts" in patch:  # exclude_unset is recursive: merge just the rule fields sent
             patch["alerts"] = {**merged["alerts"], **patch["alerts"]}
         merged.update(patch)
+        if patch.get("checked_bag") is False and "checked_bags" not in patch:
+            merged["checked_bags"] = 0  # else the stored count would switch the flag back on
         if "max_stops" not in patch and "direct_only" in patch:
             if patch["direct_only"]:
                 merged["max_stops"] = 0
@@ -452,6 +505,8 @@ def _criteria_flags(p: SearchParams) -> list[str]:
         flags.append(p.cabin_class.replace("_", " "))
     if p.max_stops is not None and p.max_stops > 0:
         flags.append(f"max {p.max_stops} stop{'s' if p.max_stops != 1 else ''}")
+    if p.checked_bags and p.checked_bags != pax.adults + pax.children:
+        flags.append(f"{p.checked_bags} checked bag{'s' if p.checked_bags != 1 else ''}")
     if p.nearby_airports:
         flags.append("nearby airports")
     if p.max_price is not None:

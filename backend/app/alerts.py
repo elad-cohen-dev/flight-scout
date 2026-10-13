@@ -57,9 +57,10 @@ import hashlib
 import html
 import re
 import statistics
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 
+from . import bags
 from .currency import convert, normalize
 from .models import (
     AlertRecord, AlertRule, AlertSettings, LegacyStats, PriceInsights, SearchParams, StoredDeal, Watch,
@@ -86,8 +87,9 @@ _TIER_ORDER = {VERIFIED: 0, EXPLORE: 1, CACHED: 2, LEGACY: 3}
 @dataclass(frozen=True)
 class RunBest:
     found_at: datetime
-    price: float  # in the watch currency
+    price: float  # in the watch currency, with the requested bags (app/bags.py)
     tier: str = LEGACY
+    bags: float = 0.0  # the bag fees inside `price`
 
 
 def source_tier(source: str | None) -> str:
@@ -133,23 +135,28 @@ def run_bests(rows: list[dict], currency: str, kind: tuple) -> list[RunBest]:
     """One RunBest per run and trust tier (rows grouped by found_at), oldest
     first. Rows are sightings with found_at/price/currency/search_params and
     optionally source; other fare kinds and unconvertible currencies are skipped."""
-    best: dict[tuple[datetime, str], float] = {}
+    best: dict[tuple[datetime, str], tuple[float, float]] = {}
     for row in rows:
         if _row_kind(row.get("search_params")) != kind:
             continue
-        price = convert(row["price"], row["currency"], currency)
+        priced = bags.row_pricing(row)
+        price = convert(priced.total, row["currency"], currency)
         if price is None:
             continue
+        extra = convert(priced.total - priced.fare, row["currency"], currency) or 0.0
         key = (_as_datetime(row["found_at"]), source_tier(row.get("source")))
-        best[key] = min(price, best.get(key, price))
+        if key not in best or price < best[key][0]:
+            best[key] = (price, extra)
     ordered = sorted(best.items(), key=lambda kv: (kv[0][0], _TIER_ORDER[kv[0][1]]))
-    return [RunBest(at, round(p, 2), tier) for (at, tier), p in ordered]
+    return [RunBest(at, round(p, 2), tier, round(extra, 2)) for (at, tier), (p, extra) in ordered]
 
 
 def deal_rows(deals: list[StoredDeal], found_at: datetime) -> list[dict]:
     """A run's stored deals as sighting rows (for run_bests)."""
     return [{"found_at": found_at, "price": d.price, "currency": d.currency,
-             "search_params": d.search_params, "source": d.source} for d in deals]
+             "search_params": d.search_params, "source": d.source, "airline": d.airline,
+             "airline_code": d.airline_code, "flight_numbers": d.flight_numbers,
+             "return_date": d.return_date} for d in deals]
 
 
 def _window(runs: list[RunBest], now: datetime, days: int) -> list[float]:
@@ -168,6 +175,7 @@ class GoogleHistory:
     seen_at: datetime
     depart_date: str = ""
     return_date: str = ""
+    bag_offset: float = 0.0  # bag fees added to Google's fares (shifted)
 
     @property
     def has_range(self) -> bool:
@@ -176,6 +184,16 @@ class GoogleHistory:
     def window(self, now: datetime, days: int) -> list[float]:
         cutoff = now - timedelta(days=days)
         return [p for at, p in self.points if cutoff <= at <= now]
+
+    def shifted(self, offset: float) -> GoogleHistory:
+        """The same insights plus `offset` on every price: Google prices the fare
+        without checked bags, the watch compares prices with them."""
+        if not offset:
+            return self
+        add = lambda v: None if v is None else round(v + offset, 2)  # noqa: E731
+        return replace(self, typical_low=add(self.typical_low), typical_high=add(self.typical_high),
+                       points=tuple((at, round(p + offset, 2)) for at, p in self.points),
+                       bag_offset=round(self.bag_offset + offset, 2))
 
     def typical(self, now: datetime) -> float | None:
         """Middle of Google's typical range, else the median of its last 30 days."""
@@ -248,11 +266,12 @@ class Baseline:
 
     def typical_text(self, currency: str, now: datetime) -> str:
         """'$300', or "$285–390 per Google" on Google's basis."""
+        per = "per Google + bags" if self.google and self.google.bag_offset else "per Google"
         if self.google and self.google.has_range:
-            return f"{fmt_range(self.google.typical_low, self.google.typical_high, currency)} per Google"
+            return f"{fmt_range(self.google.typical_low, self.google.typical_high, currency)} {per}"
         typical = self.typical(now, 1)
         text = fmt_price(typical, currency) if typical is not None else ""
-        return f"{text} per Google" if text and self.google else text
+        return f"{text} {per}" if text and self.google else text
 
 
 def select_baseline(runs: list[RunBest], google: GoogleHistory | None = None) -> Baseline:
@@ -262,7 +281,10 @@ def select_baseline(runs: list[RunBest], google: GoogleHistory | None = None) ->
     if len(verified) >= OWN_RUNS_MIN:
         return Baseline(VERIFIED, verified, legacy=legacy)
     if google is not None:
-        return Baseline("google", verified, google, legacy=legacy)
+        # Google's numbers are fares; add the bag fees of the latest run so they
+        # compare with this watch's prices with bags.
+        offset = runs[-1].bags if runs else 0.0
+        return Baseline("google", verified, google.shifted(offset), legacy=legacy)
     if verified:
         return Baseline(VERIFIED, verified, legacy=legacy)
     if explore:

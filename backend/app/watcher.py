@@ -62,12 +62,14 @@ def best_link_labeled(deal: StoredDeal) -> tuple[str, str] | None:
 
 
 def cheapest(watch: Watch, deals: list[StoredDeal]) -> tuple[float | None, StoredDeal | None]:
-    """Best deal in the watch's currency. Deals come back in whatever currency
-    the source page used, so ₪1,009 must be compared as ~$336 against a $300
-    threshold — a raw number comparison would drop it."""
+    """Best deal in the watch's currency, by its price with the requested bags
+    (app/bags.py) — the threshold is what the family pays, not the bare fare.
+    Deals come back in whatever currency the source page used, so ₪1,009 must
+    be compared as ~$336 against a $300 threshold."""
     candidates = []
     for d in deals:
-        in_watch_ccy = convert(d.price, d.currency, watch.currency)
+        total = d.bags.total if d.bags else d.price
+        in_watch_ccy = convert(total, d.currency, watch.currency)
         if in_watch_ccy is not None:
             candidates.append((in_watch_ccy, d))
         else:
