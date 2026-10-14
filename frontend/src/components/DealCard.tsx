@@ -7,8 +7,10 @@ import { noteBookClick, takeFor } from "../lib/priceCheck";
 import type { PendingCheck } from "../lib/priceCheck";
 import { isUnconfirmed } from "../lib/ranking";
 import { dealCriteria, totalPassengers } from "../lib/search";
+import { tripFromDeal } from "../lib/trips";
 import type { DealDetails, PriceConfidence, StoredDeal } from "../types";
 import BagBreakdown from "./BagBreakdown";
+import AddToTrip from "./AddToTrip";
 import DirectBooking from "./DirectBooking";
 import Icon from "./Icon";
 import PriceCheckPrompt from "./PriceCheckPrompt";
@@ -354,6 +356,7 @@ export default function DealCard({
           </details>
         )}
         <DirectBooking deal={deal} details={details} onDetails={setDetails} onBook={onBook} />
+        <AddToTrip item={{ kind: "deal", ref_id: deal.id }} defaults={() => tripFromDeal(deal)} />
       </div>
     </article>
   );

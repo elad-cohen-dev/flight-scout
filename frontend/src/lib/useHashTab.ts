@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-export const TABS = ["search", "explore", "history", "watches", "trends"] as const;
+export const TABS = ["search", "explore", "history", "watches", "trips", "trends"] as const;
 export type Tab = (typeof TABS)[number];
 
 function fromHash(): Tab {

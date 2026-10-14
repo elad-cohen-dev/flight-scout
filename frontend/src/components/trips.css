@@ -1,0 +1,464 @@
+/* Trips tab + the "Add to trip" picker. Uses the design tokens from styles.css
+   (light + dark); everything fits phone width without page-level horizontal scroll. */
+
+/* ---------- "Add to trip" picker ---------- */
+.att {
+  position: relative;
+  display: inline-flex;
+}
+
+.att-menu {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+
+/* Icon button at a card's right edge (History): the menu drops down, right-aligned. */
+.att-pop .att-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  z-index: 30;
+  width: 260px;
+  max-width: calc(100vw - 3rem);
+  box-shadow: var(--shadow-lg);
+}
+
+/* History cards clip their content; let an open menu out. */
+.query-card:has(.att-menu) {
+  overflow: visible;
+}
+
+/* Text button in a wrapping row (deal cards, watches): the menu opens in place,
+   on its own line, so it can never push past the screen edge. */
+.att-inline.open {
+  flex-basis: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.att-inline .att-menu {
+  width: 100%;
+  max-width: 360px;
+}
+
+.att-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+}
+
+.att-item:hover:not(:disabled),
+.att-item:focus-visible {
+  background: var(--surface-2);
+}
+
+.att-item-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.att-new {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.att-empty {
+  padding: 0.4rem 0.6rem;
+}
+
+.att-form {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.35rem;
+}
+
+.att-form .input {
+  min-height: 36px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.92rem;
+}
+
+/* ---------- list ---------- */
+.trip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.trip-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  box-shadow: var(--shadow);
+}
+
+.trip-card-head,
+.trip-card-foot,
+.trip-link-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.trip-card-foot {
+  align-items: baseline;
+  margin-top: auto;
+  padding-top: 0.4rem;
+}
+
+.trip-name {
+  overflow-wrap: anywhere;
+}
+
+.trip-price {
+  white-space: nowrap;
+}
+
+.trip-price strong {
+  font-size: 1.1rem;
+}
+
+.trip-price-lg strong {
+  font-size: 1.35rem;
+}
+
+.trip-status-planning {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.trip-status-booked {
+  background: var(--good-soft);
+  border-color: transparent;
+  color: var(--green);
+}
+
+/* ---------- forms ---------- */
+.trip-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.trip-form.card {
+  padding: 1rem;
+}
+
+.trip-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.trip-form-pax {
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+}
+
+.trip-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ---------- detail ---------- */
+.trip-back {
+  margin-bottom: 0.5rem;
+  padding-left: 0;
+  text-decoration: none;
+}
+
+.trip-back .flip {
+  transform: rotate(180deg);
+}
+
+.trip-head h2 {
+  overflow-wrap: anywhere;
+}
+
+.trip-head {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.trip-head-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.trip-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.trip-section .section-title {
+  margin-top: 1.5rem;
+}
+
+.trip-section-body {
+  padding: 1rem;
+}
+
+.trip-empty-note {
+  padding: 0.25rem 0.1rem;
+}
+
+.trip-booked,
+.trip-booked-empty {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.trip-booked > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.trip-booked-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* ---------- shortlist compare: deals as columns, attributes as rows ---------- */
+/* The table scrolls inside its own box, never the page. */
+.compare-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  -webkit-overflow-scrolling: touch;
+}
+
+.compare {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.88rem;
+}
+
+.compare th,
+.compare td {
+  min-width: 150px;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare tr:last-child th,
+.compare tr:last-child td {
+  border-bottom: none;
+}
+
+.compare thead th {
+  font-weight: 600;
+}
+
+.compare .compare-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 92px;
+  width: 92px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.compare .compare-best {
+  background: color-mix(in srgb, var(--good-soft) 55%, var(--card));
+}
+
+.compare-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.compare-airline {
+  overflow-wrap: anywhere;
+}
+
+.compare-pin {
+  width: 30px;
+  height: 30px;
+}
+
+.compare-pin.pinned {
+  color: var(--warn);
+}
+
+.compare-pin.pinned svg {
+  fill: currentColor;
+}
+
+.compare-tag {
+  margin-top: 0.3rem;
+}
+
+.compare-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.compare-actions {
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.compare-actions .btn {
+  white-space: normal;
+  text-align: left;
+}
+
+.trip-fresh-fresh {
+  color: var(--green);
+}
+
+.trip-fresh-aging {
+  color: var(--warn);
+}
+
+.trip-fresh-stale {
+  color: var(--bad);
+}
+
+/* ---------- linked searches / watches ---------- */
+.trip-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.trip-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+  min-width: 0;
+}
+
+.trip-link-head > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trip-mini-deals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.trip-mini-deals li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.trip-mini-deals li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trip-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.trip-link-actions .push {
+  margin-left: auto;
+}
+
+.trip-notes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.trip-notes textarea {
+  resize: vertical;
+  font: inherit;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  /* six tabs in the bottom bar (Trips made it six): narrower icon pills so they fit */
+  .tab {
+    min-width: 0;
+  }
+  .tab-icon {
+    padding: 0.2rem 0.7rem;
+  }
+  .trip-grid,
+  .trip-links {
+    grid-template-columns: 1fr;
+  }
+  .compare th,
+  .compare td {
+    min-width: 132px;
+    padding: 0.5rem 0.6rem;
+  }
+  .compare .compare-label {
+    min-width: 72px;
+    width: 72px;
+  }
+}
+
+@media (max-width: 380px) {
+  .tab {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .tab-icon {
+    padding: 0.2rem 0.45rem;
+  }
+  .tab-label {
+    font-size: 0.64rem;
+  }
+}

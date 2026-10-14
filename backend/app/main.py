@@ -15,6 +15,7 @@ import json
 import os
 import secrets
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
@@ -24,11 +25,14 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from . import alerts, details, engine, explore, jobs, notify, pricecheck, storage, telegram_bot, watcher
+from . import alerts, details, engine, explore, jobs, notify, pricecheck, storage, telegram_bot, trips, watcher
 from .jobs import Job
 from .models import (
     AlertRecord, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate,
     search_label,
+)
+from .models import (
+    BookedFlight, Trip, TripCreate, TripDetail, TripItem, TripItemCreate, TripItemUpdate, TripUpdate,
 )
 
 
@@ -243,6 +247,117 @@ def run_watches(x_cron_secret: str | None = Header(default=None)) -> Job:
 def get_alerts(watch_id: int | None = None, limit: int = 50) -> list[AlertRecord]:
     """Sent alerts, newest first (the anti-spam log)."""
     return storage.list_alerts(watch_id)[:limit]
+
+
+# --- trips (3.0; see app/trips.py) ---------------------------------------------
+
+def _trip_or_404(trip_id: int) -> Trip:
+    trip = storage.get_trip(trip_id)
+    if trip is None:
+        raise HTTPException(status_code=404, detail="No such trip")
+    return trip
+
+
+@app.get("/api/trips", response_model=list[Trip], dependencies=[Depends(require_auth)])
+def get_trips() -> list[Trip]:
+    """Every trip, most recently changed first, each with its item count and
+    best price with bags across its searches, watches and shortlist."""
+    return trips.with_best(storage.list_trips())
+
+
+@app.post("/api/trips", response_model=Trip, status_code=201, dependencies=[Depends(require_auth)])
+def create_trip(trip: TripCreate) -> Trip:
+    return storage.add_trip(trip)
+
+
+@app.get("/api/trips/{trip_id}", response_model=TripDetail, dependencies=[Depends(require_auth)])
+def get_trip(trip_id: int) -> TripDetail:
+    """The trip with its links resolved: searches (latest run's cheapest deals),
+    watches (with stats), shortlisted deals and the booked flight."""
+    return trips.detail(_trip_or_404(trip_id))
+
+
+@app.patch("/api/trips/{trip_id}", response_model=Trip, dependencies=[Depends(require_auth)])
+def patch_trip(trip_id: int, patch: TripUpdate) -> Trip:
+    current = _trip_or_404(trip_id)
+    merged = current.model_dump(include=set(TripCreate.model_fields))
+    merged.update(patch.model_dump(exclude_unset=True))
+    try:
+        fields = TripCreate.model_validate(merged)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors(include_url=False)) from exc
+    updated = storage.update_trip(trip_id, fields)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="No such trip")
+    return trips.with_best([updated])[0]
+
+
+@app.delete("/api/trips/{trip_id}", status_code=204, dependencies=[Depends(require_auth)])
+def remove_trip(trip_id: int) -> None:
+    """Delete the trip and its links only — never the deals or watches."""
+    if not storage.delete_trip(trip_id):
+        raise HTTPException(status_code=404, detail="No such trip")
+
+
+@app.post("/api/trips/{trip_id}/items", response_model=TripItem, status_code=201,
+          dependencies=[Depends(require_auth)])
+def add_trip_item(trip_id: int, item: TripItemCreate) -> TripItem:
+    """Link a search, watch or deal; adding the same one twice returns the existing link."""
+    _trip_or_404(trip_id)
+    if item.kind == "deal" and storage.get_deal(item.ref_id) is None:
+        raise HTTPException(status_code=404, detail="No such deal")
+    if item.kind == "watch" and storage.get_watch(item.ref_id) is None:
+        raise HTTPException(status_code=404, detail="No such watch")
+    return storage.add_trip_item(trip_id, item)
+
+
+@app.patch("/api/trips/{trip_id}/items/{item_id}", response_model=TripItem, dependencies=[Depends(require_auth)])
+def patch_trip_item(trip_id: int, item_id: int, patch: TripItemUpdate) -> TripItem:
+    updated = storage.update_trip_item(trip_id, item_id, note=patch.note, pinned=patch.pinned)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="No such trip item")
+    return updated
+
+
+@app.delete("/api/trips/{trip_id}/items/{item_id}", status_code=204, dependencies=[Depends(require_auth)])
+def remove_trip_item(trip_id: int, item_id: int) -> None:
+    """Unlink an item; the search, watch or deal itself stays."""
+    if not storage.delete_trip_item(trip_id, item_id):
+        raise HTTPException(status_code=404, detail="No such trip item")
+
+
+@app.put("/api/trips/{trip_id}/booked", response_model=Trip, dependencies=[Depends(require_auth)])
+def mark_trip_booked(trip_id: int, booked: BookedFlight) -> Trip:
+    """Record the booked flight and mark the trip booked (a "done" trip stays
+    done). With a deal_id, blank fields are filled from that deal — the price
+    with its bags, as the family pays it."""
+    trip = _trip_or_404(trip_id)
+    if booked.deal_id is not None:
+        deal = storage.get_deal(booked.deal_id)
+        if deal is None:
+            raise HTTPException(status_code=404, detail="No such deal")
+        fill = {
+            "airline": booked.airline or deal.airline,
+            "flight_numbers": booked.flight_numbers or deal.flight_numbers,
+            "depart_date": booked.depart_date or deal.depart_date,
+            "return_date": booked.return_date or deal.return_date,
+        }
+        if booked.price is None:
+            fill["price"] = deal.bags.total if deal.bags else deal.price
+            fill["currency"] = deal.bags.currency if deal.bags else deal.currency
+        booked = booked.model_copy(update=fill)
+    if booked.booked_at is None:
+        booked = booked.model_copy(update={"booked_at": datetime.now(timezone.utc)})
+    status = "done" if trip.status == "done" else "booked"
+    return trips.with_best([storage.set_trip_booked(trip_id, booked, status)])[0]
+
+
+@app.delete("/api/trips/{trip_id}/booked", response_model=Trip, dependencies=[Depends(require_auth)])
+def clear_trip_booked(trip_id: int) -> Trip:
+    """Forget the booked flight; a booked trip goes back to planning."""
+    trip = _trip_or_404(trip_id)
+    status = "planning" if trip.status == "booked" else trip.status
+    return trips.with_best([storage.set_trip_booked(trip_id, None, status)])[0]
 
 
 # --- Telegram bot (webhook; see app/telegram_bot.py) -------------------------

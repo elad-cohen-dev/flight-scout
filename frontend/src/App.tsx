@@ -26,6 +26,8 @@ import SearchTab from "./components/SearchTab";
 import type { LastResult, RunState } from "./components/SearchTab";
 import { ToastProvider, useToast } from "./components/Toasts";
 import TrendsTab from "./components/TrendsTab";
+import { TripsProvider } from "./components/TripsContext";
+import TripsTab from "./components/TripsTab";
 import WakeBanner from "./components/WakeBanner";
 import WatchesTab from "./components/WatchesTab";
 // Explore (with Leaflet) loads on first visit, outside the main bundle.
@@ -48,6 +50,7 @@ const NAV: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: "explore", label: "Explore", icon: "map" },
   { tab: "history", label: "History", icon: "history" },
   { tab: "watches", label: "Watches", icon: "bell" },
+  { tab: "trips", label: "Trips", icon: "suitcase" },
   { tab: "trends", label: "Trends", icon: "chart" },
 ];
 
@@ -141,6 +144,14 @@ function FlightScout() {
     if (e instanceof AuthError) lock();
     else toast("error", String(e));
   }
+  // The same, but stable: the Trips tab and pickers refetch when their handlers change.
+  const onTripsError = useCallback(
+    (e: unknown) => {
+      if (e instanceof AuthError) lock();
+      else toast("error", String(e));
+    },
+    [lock, toast]
+  );
 
   const onAgentEvent = (e: AgentEvent) => {
     if (e.kind !== "end") setRun((r) => (r ? { ...r, events: [...r.events, e] } : r));
@@ -281,6 +292,24 @@ function FlightScout() {
     performSearch(req);
   }
 
+  /** A trip's "Re-run" on a linked search: the search behind its latest run's deal. */
+  function onRerunDeal(deal: StoredDeal) {
+    const req = rerunRequest(deal);
+    if (!req) {
+      toast("error", "Couldn't recover this search's criteria.");
+      return;
+    }
+    setForm((f) => requestToForm(req, f));
+    go("search");
+    performSearch(req);
+  }
+
+  /** A trip's "Open" on a linked watch: the Watches tab, scrolled to its card. */
+  function onOpenWatch(id: number) {
+    go("watches");
+    setTimeout(() => document.getElementById(`watch-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+  }
+
   function onPickRecent(group: QueryGroup) {
     const req = rerunRequest(group.latest.deals[0]);
     if (!req) return;
@@ -385,6 +414,7 @@ function FlightScout() {
   const counts: Partial<Record<Tab, number>> = { history: groups.length, watches: watches.length };
 
   return (
+    <TripsProvider onError={onTripsError}>
     <div className="app">
       <header className="app-header">
         <div className="app-header-inner">
@@ -484,6 +514,9 @@ function FlightScout() {
             busy={!!run}
           />
         )}
+        {tab === "trips" && (
+          <TripsTab busy={!!run} onRerunSearch={onRerunDeal} onRunWatch={onRunWatch} onOpenWatch={onOpenWatch} onError={onTripsError} />
+        )}
         {tab === "trends" && (
           <TrendsTab
             history={history}
@@ -500,6 +533,7 @@ function FlightScout() {
         )}
       </main>
     </div>
+    </TripsProvider>
   );
 }
 

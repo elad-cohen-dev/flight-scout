@@ -199,6 +199,35 @@ _SCHEMA = [
         currency TEXT NOT NULL,
         created_at TEXT NOT NULL
     )""",
+    # v3.0: trip plans and what they link to (searches by label, watches, deals).
+    # Items only point at other rows: deleting a trip never deletes deals/watches.
+    """CREATE TABLE IF NOT EXISTS trips (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        origin TEXT NOT NULL DEFAULT '',
+        destination TEXT NOT NULL DEFAULT '',
+        dates_hint TEXT NOT NULL DEFAULT '',
+        depart_from TEXT,
+        depart_to TEXT,
+        passengers TEXT NOT NULL DEFAULT '{}',
+        currency TEXT NOT NULL DEFAULT 'USD',
+        status TEXT NOT NULL DEFAULT 'planning',
+        booked TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS trip_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        ref_id INTEGER,
+        search_query TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        pinned INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_trip_items_trip ON trip_items (trip_id)",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -1267,3 +1296,252 @@ def list_price_checks(limit: int = 1000) -> list[dict]:
         f"SELECT id, {', '.join(_PRICE_CHECK_COLUMNS)} FROM price_checks ORDER BY created_at DESC, id DESC LIMIT ?",
         (limit,))))
     return [{**r, "same": bool(r["same"])} for r in rows]
+
+
+# --- trips (v3.0; resolved into searches/watches/deals by app/trips.py) ----------
+#
+# A trip row holds the plan (route, window, party, status, the booked flight as
+# JSON); trip_items point at a search label, a watch id or a deal id. Reads go
+# through the same 60 s cache as deals/watches, cleared by every write.
+
+from .models import BookedFlight, Trip, TripCreate, TripItem, TripItemCreate  # noqa: E402
+
+_TRIP_FIELDS = ["name", "notes", "origin", "destination", "dates_hint", "depart_from", "depart_to",
+                "passengers", "currency", "status"]
+
+
+def _trip_values(trip: TripCreate) -> list:
+    data = trip.model_dump(mode="json")
+    data["passengers"] = json.dumps(data["passengers"])
+    return [data[f] for f in _TRIP_FIELDS]
+
+
+def _row_to_trip(row: dict, items: int = 0) -> Trip:
+    row = dict(row)
+    try:
+        row["passengers"] = json.loads(row.get("passengers") or "{}")
+    except Exception:
+        row["passengers"] = {}
+    raw_booked = row.pop("booked", None)
+    booked = None
+    if raw_booked:
+        try:
+            booked = BookedFlight.model_validate_json(raw_booked)
+        except Exception:
+            logger.warning("trip #%s: ignoring unreadable booked record", row.get("id"))
+    return Trip(**row, booked=booked, items=items)
+
+
+def _row_to_trip_item(row: dict) -> TripItem:
+    row = dict(row)
+    row["pinned"] = bool(row.get("pinned"))
+    return TripItem(**row)
+
+
+def add_trip(trip: TripCreate) -> Trip:
+    now = datetime.now(timezone.utc).isoformat()
+    columns = [*_TRIP_FIELDS, "created_at", "updated_at"]
+
+    def op(conn) -> int:
+        cur = conn.execute(f"INSERT INTO trips ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",
+                           (*_trip_values(trip), now, now))
+        conn.commit()
+        return cur.lastrowid
+
+    try:
+        trip_id = _with_conn(op)
+    finally:
+        _invalidate_cache()
+    return get_trip(trip_id)
+
+
+def list_trips() -> list[Trip]:
+    """Every trip, newest first, with its item count."""
+    cache_key = ("trips",)
+    cached, generation = _cache_read(cache_key)
+    if cached is not None:
+        return cached
+
+    def op(conn) -> tuple[list[dict], list]:
+        rows = _rows_as_dicts(conn.execute("SELECT * FROM trips ORDER BY updated_at DESC, id DESC"))
+        counts = conn.execute("SELECT trip_id, COUNT(*) FROM trip_items GROUP BY trip_id").fetchall()
+        return rows, counts
+
+    rows, counts = _with_conn(op)
+    by_trip = {int(trip_id): int(n) for trip_id, n in counts}
+    trips = [_row_to_trip(row, by_trip.get(int(row["id"]), 0)) for row in rows]
+    _cache_store(cache_key, trips, generation)
+    return trips
+
+
+def get_trip(trip_id: int) -> Trip | None:
+    return next((t for t in list_trips() if t.id == trip_id), None)
+
+
+def update_trip(trip_id: int, trip: TripCreate) -> Trip | None:
+    """Replace a trip's plan fields; None if it doesn't exist."""
+    sets = ", ".join(f"{f} = ?" for f in _TRIP_FIELDS)
+
+    def op(conn) -> int:
+        cur = conn.execute(f"UPDATE trips SET {sets}, updated_at = ? WHERE id = ?",
+                           (*_trip_values(trip), datetime.now(timezone.utc).isoformat(), trip_id))
+        conn.commit()
+        return cur.rowcount
+
+    try:
+        if not _with_conn(op):
+            return None
+    finally:
+        _invalidate_cache()
+    return get_trip(trip_id)
+
+
+def delete_trip(trip_id: int) -> bool:
+    """Delete a trip and its links. The searches, watches and deals it pointed
+    at stay untouched."""
+    def op(conn) -> bool:
+        cur = conn.execute("DELETE FROM trips WHERE id = ?", (trip_id,))
+        conn.execute("DELETE FROM trip_items WHERE trip_id = ?", (trip_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+    try:
+        return _with_conn(op)
+    finally:
+        _invalidate_cache()
+
+
+def set_trip_booked(trip_id: int, booked: BookedFlight | None, status: str) -> Trip | None:
+    """Store (or clear, with None) the booked flight and set the status."""
+    raw = booked.model_dump_json() if booked is not None else None
+
+    def op(conn) -> int:
+        cur = conn.execute("UPDATE trips SET booked = ?, status = ?, updated_at = ? WHERE id = ?",
+                           (raw, status, datetime.now(timezone.utc).isoformat(), trip_id))
+        conn.commit()
+        return cur.rowcount
+
+    try:
+        if not _with_conn(op):
+            return None
+    finally:
+        _invalidate_cache()
+    return get_trip(trip_id)
+
+
+def list_trip_items(trip_id: int | None = None) -> list[TripItem]:
+    """Items of one trip (or of every trip), oldest first."""
+    cache_key = ("trip_items", trip_id)
+    cached, generation = _cache_read(cache_key)
+    if cached is not None:
+        return cached
+    query = "SELECT * FROM trip_items"
+    params: list = []
+    if trip_id is not None:
+        query += " WHERE trip_id = ?"
+        params.append(trip_id)
+    query += " ORDER BY id"
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(query, params)))
+    items = [_row_to_trip_item(row) for row in rows]
+    _cache_store(cache_key, items, generation)
+    return items
+
+
+def _touch_trip(conn, trip_id: int) -> None:
+    conn.execute("UPDATE trips SET updated_at = ? WHERE id = ?", (datetime.now(timezone.utc).isoformat(), trip_id))
+
+
+def add_trip_item(trip_id: int, item: TripItemCreate) -> TripItem:
+    """Link something to a trip. Adding the same search/watch/deal twice
+    returns the existing link (with the new note, if one was given)."""
+    existing = next((i for i in list_trip_items(trip_id) if i.kind == item.kind and i.ref_id == item.ref_id
+                     and i.search_query == item.search_query), None)
+    if existing is not None:
+        if item.note and item.note != existing.note:
+            return update_trip_item(trip_id, existing.id, note=item.note) or existing
+        return existing
+    now = datetime.now(timezone.utc)
+
+    def op(conn) -> int:
+        cur = conn.execute(
+            "INSERT INTO trip_items (trip_id, kind, ref_id, search_query, note, pinned, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (trip_id, item.kind, item.ref_id, item.search_query, item.note, int(item.pinned), now.isoformat()),
+        )
+        _touch_trip(conn, trip_id)
+        conn.commit()
+        return cur.lastrowid
+
+    try:
+        item_id = _with_conn(op)
+    finally:
+        _invalidate_cache()
+    return TripItem(id=item_id, trip_id=trip_id, created_at=now, **item.model_dump())
+
+
+def update_trip_item(trip_id: int, item_id: int, note: str | None = None,
+                     pinned: bool | None = None) -> TripItem | None:
+    def op(conn) -> int:
+        cur = conn.execute(
+            "UPDATE trip_items SET note = COALESCE(?, note), pinned = COALESCE(?, pinned) "
+            "WHERE id = ? AND trip_id = ?",
+            (note, None if pinned is None else int(pinned), item_id, trip_id),
+        )
+        if cur.rowcount:
+            _touch_trip(conn, trip_id)
+        conn.commit()
+        return cur.rowcount
+
+    try:
+        if not _with_conn(op):
+            return None
+    finally:
+        _invalidate_cache()
+    return next((i for i in list_trip_items(trip_id) if i.id == item_id), None)
+
+
+def delete_trip_item(trip_id: int, item_id: int) -> bool:
+    def op(conn) -> bool:
+        cur = conn.execute("DELETE FROM trip_items WHERE id = ? AND trip_id = ?", (item_id, trip_id))
+        if cur.rowcount:
+            _touch_trip(conn, trip_id)
+        conn.commit()
+        return cur.rowcount > 0
+
+    try:
+        return _with_conn(op)
+    finally:
+        _invalidate_cache()
+
+
+def get_deals(deal_ids: list[int]) -> dict[int, StoredDeal]:
+    """Several deals by id (missing ids are left out)."""
+    ids = sorted({int(i) for i in deal_ids})
+    if not ids:
+        return {}
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(
+        f"SELECT * FROM deals WHERE id IN ({', '.join('?' for _ in ids)})", ids)))
+    return {int(row["id"]): _row_to_deal(row) for row in rows}
+
+
+def search_runs(search_query: str) -> tuple[list[StoredDeal], int]:
+    """The deals of a search's latest run and how many runs it has. A search
+    is its label; a watch's runs of the same search ('<label> [watch #N]') count
+    too, as in the History tab."""
+    cache_key = ("search_runs", search_query)
+    cached, generation = _cache_read(cache_key)
+    if cached is not None:
+        return cached[0], cached[1]
+    # A prefix match by substr, not LIKE: labels may hold '%' / '_', which LIKE
+    # treats as wildcards. Exactly which tagged labels belong is checked below.
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(
+        "SELECT * FROM deals WHERE search_query = ? OR substr(search_query, 1, ?) = ? "
+        "ORDER BY found_at DESC",
+        (search_query, len(search_query) + 1, search_query + " "),
+    )))
+    rows = [r for r in rows if r["search_query"] == search_query
+            or _WATCH_TAG.sub("", r["search_query"]).rstrip() == search_query]
+    runs = len({r["found_at"] for r in rows})
+    latest = [_row_to_deal(r) for r in rows if rows and r["found_at"] == rows[0]["found_at"]]
+    _cache_store(cache_key, [latest, runs], generation)
+    return latest, runs

@@ -41,7 +41,7 @@ export function clearAppPassword(): void {
   }
 }
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   let password = memoryPassword;
   try {
     password ??= localStorage.getItem(PASSWORD_KEY);
@@ -51,7 +51,7 @@ function authHeaders(): Record<string, string> {
   return password ? { Authorization: `Bearer ${password}` } : {};
 }
 
-async function handle<T>(res: Response): Promise<T> {
+export async function handle<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     throw new AuthError();
   }
