@@ -1,0 +1,378 @@
+{
+  "as_of": "2026-10",
+  "note": "Per passenger, per direction, bought online at booking; min = typical low/off-peak online price, max = typical high-season online price on TLV-Europe or intra-Europe routes (airport prices are higher and not included).",
+  "carriers": {
+    "W6": {
+      "name": "Wizz Air",
+      "aliases": [
+        "W4",
+        "W9"
+      ],
+      "currency": "EUR",
+      "trolley": {
+        "min": 10,
+        "max": 60,
+        "included": false
+      },
+      "checked": {
+        "min": 20,
+        "max": 85,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "Basic",
+      "source": "https://www.sendmybag.com/airlines/wizz-air-baggage-allowance/ ; https://loudavymkrokem.cz/en/wizz-air-luggage/ (wizzair.com fee page not machine-readable)",
+      "confidence": "medium",
+      "notes": "Trolley = WIZZ Priority. Fully dynamic; long routes like TLV sit toward the top of the range. Much higher at the airport."
+    },
+    "FR": {
+      "name": "Ryanair",
+      "aliases": [
+        "RK"
+      ],
+      "currency": "EUR",
+      "trolley": {
+        "min": 6,
+        "max": 36,
+        "included": false
+      },
+      "checked": {
+        "min": 19,
+        "max": 60,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "Basic",
+      "source": "https://www.markenkoffer.de/en-eu/blogs/news/ryanair-checked-baggage ; https://loudavymkrokem.cz/en/ryanair-baggage-sizes-fees/ (ryanair.com fee page not machine-readable)",
+      "confidence": "medium",
+      "notes": "Trolley = Priority & 2 Cabin Bags. RK = Ryanair UK; AL (Malta Air) not added since its IATA code is unconfirmed. Gate bag ~EUR 46+, desk bag ~EUR 55+."
+    },
+    "U2": {
+      "name": "easyJet",
+      "aliases": [
+        "EC",
+        "DS"
+      ],
+      "currency": "EUR",
+      "trolley": {
+        "min": 7,
+        "max": 45,
+        "included": false
+      },
+      "checked": {
+        "min": 11,
+        "max": 65,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Standard",
+      "source": "https://www.sendmybag.com/airlines/easyjet-baggage-allowance/ ; https://loudavymkrokem.cz/en/easyjet-baggage-allowance/ (easyjet.com fees page returned 403)",
+      "confidence": "medium",
+      "notes": "Large cabin bag must be bought online (from ~GBP 6). 23 kg hold bag from ~GBP 9.49 on short routes; long/peak routes much higher. Airport hold bag ~GBP 40-50."
+    },
+    "LY": {
+      "name": "El Al",
+      "aliases": [],
+      "currency": "USD",
+      "trolley": {
+        "min": 0,
+        "max": 0,
+        "included": true
+      },
+      "checked": {
+        "min": 50,
+        "max": 90,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Economy Lite",
+      "source": "https://upgradedpoints.com/travel/airlines/el-al-baggage-fees ; https://aifly.one/guides/el-al-baggage-allowance/ ; https://onemileatatime.com/news/el-al-carry-on-restriction-economy-lite-fares/ (elal.com fee page returned empty)",
+      "confidence": "low",
+      "notes": "Lite includes an 8 kg trolley, but on Europe routes since May 2025 it must be checked at the counter/gate for free. USD 90 is the quoted Europe add-bag fee (late/near-departure); the USD 50 lower bound for early online purchase is an estimate, not verified."
+    },
+    "6H": {
+      "name": "Israir",
+      "aliases": [],
+      "currency": "USD",
+      "trolley": {
+        "min": 30,
+        "max": 30,
+        "included": false
+      },
+      "checked": {
+        "min": 60,
+        "max": 65,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Basic",
+      "source": "https://www.kikar.co.il/teufa/t8g8bu (price table for bookings from 2026-03-01; israir.co.il behind a queue page)",
+      "confidence": "medium",
+      "notes": "Fixed prices: trolley (10 kg) USD 30 online / 40 airport; first bag USD 60 online / 100 airport. Ynet (2026-03-05) reports first bag USD 65; a further Oct 2026 ancillary increase was reported but figures not confirmed."
+    },
+    "IZ": {
+      "name": "Arkia",
+      "aliases": [],
+      "currency": "USD",
+      "trolley": {
+        "min": 20,
+        "max": 25,
+        "included": false
+      },
+      "checked": {
+        "min": 45,
+        "max": 50,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "Basic",
+      "source": "https://baggagepolicies.com/?p=4586 (updated 2026-09-04; arkia.com returned 403)",
+      "confidence": "medium",
+      "notes": "Fixed prices: trolley (8 kg) USD 25 in advance, 20 kg bag USD 50 in advance (USD 20/45 per the July 2025 announcement). Airport bag USD 90 (EUR 85 at EU airports)."
+    },
+    "PC": {
+      "name": "Pegasus Airlines",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": null,
+        "max": null,
+        "included": false
+      },
+      "checked": {
+        "min": 25,
+        "max": 50,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "Light",
+      "source": "https://aifly.one/?p=47950 ; https://camli.com/airlines/pegasus-airlines/baggage-policy (flypgs.com not checked)",
+      "confidence": "low",
+      "notes": "Since Feb 2026 Light includes only a 3 kg under-seat item; 8 kg cabin bag is add-on (price not found) and comes with Saver. Checked range is a third-party estimate; airport ~EUR 50/piece."
+    },
+    "BT": {
+      "name": "airBaltic",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": null,
+        "max": null,
+        "included": false
+      },
+      "checked": {
+        "min": 25,
+        "max": 60,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Economy MINI",
+      "source": "https://www.airbaltic.com/en/fare-conditions (official)",
+      "confidence": "medium",
+      "notes": "Official: checked bag from EUR 24.99 per direction online; max is an estimate for peak/long routes. MINI has personal item only; BASIC includes an 8 kg cabin bag - cabin-bag add-on price not published."
+    },
+    "VY": {
+      "name": "Vueling",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": 10,
+        "max": 59,
+        "included": false
+      },
+      "checked": {
+        "min": 18,
+        "max": 70,
+        "included": false,
+        "kg": 25
+      },
+      "fare_brand": "Basic",
+      "source": "https://www.cabinzero.com/blogs/air-travel-tips/vueling-cabin-luggage ; https://www.eurosender.com/en/airlines/vueling-baggage-allowance (vueling.com not checked)",
+      "confidence": "medium",
+      "notes": "Bag is 25 kg. Some summaries quote up to ~EUR 99 on peak dates; airport ~EUR 70."
+    },
+    "XQ": {
+      "name": "SunExpress",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": null,
+        "max": null,
+        "included": false
+      },
+      "checked": {
+        "min": 8,
+        "max": 70,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "SunLight",
+      "source": "https://www.sunexpress.com/en-gb/book/extras-more/book-extra-luggage ; https://www.sunexpress.com/en-gb/book/extras-more/upgrade-fare (official, via search snippets; pages return 403 to fetch)",
+      "confidence": "low",
+      "notes": "SunLight = 4 kg personal item only; 8 kg cabin bag add-on price not found. Cheapest bag route is upgrading to SunEco+ (from EUR 8, includes 20-30 kg); a standalone 20 kg prepaid package is from EUR 69.99."
+    },
+    "BZ": {
+      "name": "Blue Bird Airways",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": 25,
+        "max": 25,
+        "included": false
+      },
+      "checked": {
+        "min": 52,
+        "max": 52,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "Standard",
+      "source": "https://www.bluebirdair.com/Travel-information/Baggage-allowance (official)",
+      "confidence": "high",
+      "notes": "IATA BZ confirmed (ICAO BBG). Fixed online prices: carry-on 8 kg EUR 25 (USD 29), 20 kg bag EUR 52 (USD 60); airport EUR 33 / EUR 99."
+    },
+    "HV": {
+      "name": "Transavia",
+      "aliases": [
+        "TO"
+      ],
+      "currency": "EUR",
+      "trolley": {
+        "min": null,
+        "max": null,
+        "included": false
+      },
+      "checked": {
+        "min": 36,
+        "max": 60,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "Basic",
+      "source": "https://aifly.one/guides/transavia-freigepaeck/ (checked 2026-08-19; transavia.com returned 403)",
+      "confidence": "low",
+      "notes": "Basic = under-seat item only; overhead bag comes with Smart/Max, standalone add-on price not found (unbooked at gate EUR 60). 20 kg bag from ~EUR 36 online, ~EUR 80 at airport."
+    },
+    "A3": {
+      "name": "Aegean Airlines",
+      "aliases": [
+        "OA"
+      ],
+      "currency": "EUR",
+      "trolley": {
+        "min": 0,
+        "max": 0,
+        "included": true
+      },
+      "checked": {
+        "min": 20,
+        "max": 50,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Economy Light",
+      "source": "https://www.aegeanhub.com/en/passenger-services-and-procedures/baggage/baggage-policy (official, no prices) ; https://www.eurosender.com/en/airlines/aegean-baggage-allowance",
+      "confidence": "low",
+      "notes": "Light: 0 checked bags; one cabin piece (either 8 kg carry-on or personal item). Price range from third-party summaries (EUR 10-30 short routes, ~USD 16-70 overall); use Aegean's calculator."
+    },
+    "LH": {
+      "name": "Lufthansa",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": 0,
+        "max": 0,
+        "included": true
+      },
+      "checked": {
+        "min": 45,
+        "max": 90,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Economy Light",
+      "source": "https://www.markenkoffer.de/en-eu/blogs/news/lufthansa-hand-luggage ; https://www.travelextra.ie/lufthansa-group-rolls-out-basic-economy-fares-across-europe/",
+      "confidence": "low",
+      "notes": "Light includes an 8 kg carry-on; bag ~EUR 65 online on FRA-FCO. From 27 Oct 2026 a cheaper Economy Basic (personal item only, no trolley) exists on European flights - if Google shows Basic, trolley is NOT included."
+    },
+    "LX": {
+      "name": "SWISS",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": 0,
+        "max": 0,
+        "included": true
+      },
+      "checked": {
+        "min": 45,
+        "max": 90,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Economy Light",
+      "source": "https://thetraveltinker.com/transport/swiss-baggage-allowance/ (swiss.com returned 403)",
+      "confidence": "low",
+      "notes": "Bag ~CHF 73 online on European flights. Same group Economy Basic caveat as LH from 27 Oct 2026."
+    },
+    "OS": {
+      "name": "Austrian Airlines",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": 0,
+        "max": 0,
+        "included": true
+      },
+      "checked": {
+        "min": 45,
+        "max": 90,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Economy Light",
+      "source": "No Austrian-specific source found; assumed same as Lufthansa Group Light pricing",
+      "confidence": "low",
+      "notes": "Unverified - mirrors LH/LX. Same group Economy Basic caveat from 27 Oct 2026."
+    },
+    "TK": {
+      "name": "Turkish Airlines",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": 0,
+        "max": 0,
+        "included": true
+      },
+      "checked": {
+        "min": null,
+        "max": null,
+        "included": false,
+        "kg": 20
+      },
+      "fare_brand": "EcoFly",
+      "source": "https://www.ans.kz/en/news/article/16278 ; https://aifly.one/?p=47901 ; https://www.turkishairlines.com/en-us/any-questions/checked-baggage/",
+      "confidence": "low",
+      "notes": "EcoFly includes 8 kg cabin bag. Checked bag removed from EcoFly on medium-haul international routes (2022) and short-haul Europe EcoFly is hand-luggage only; whether TLV routes include 20 kg could not be confirmed. Add-on price not found (per-kg ~EUR 8-32)."
+    },
+    "AZ": {
+      "name": "ITA Airways",
+      "aliases": [],
+      "currency": "EUR",
+      "trolley": {
+        "min": 0,
+        "max": 0,
+        "included": true
+      },
+      "checked": {
+        "min": 60,
+        "max": 100,
+        "included": false,
+        "kg": 23
+      },
+      "fare_brand": "Economy Light",
+      "source": "https://upgradedpoints.com/travel/airlines/ita-airways-baggage-fees (ita-airways.com returned 403)",
+      "confidence": "low",
+      "notes": "Light includes 8 kg carry-on. Listed per-segment: Europe EUR 70, Italy EUR 60, Israel EUR 100; online prepay may be somewhat cheaper."
+    }
+  }
+}
