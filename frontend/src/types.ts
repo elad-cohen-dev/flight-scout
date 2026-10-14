@@ -19,7 +19,8 @@ export interface SearchParams {
   cabin_class: CabinClass;
   max_stops: number | null; // null = any, 0 = direct only
   cabin_bag: boolean;
-  checked_bag: boolean;
+  checked_bag: boolean; // any checked bag (legacy flag; true whenever checked_bags > 0)
+  checked_bags?: number; // checked 20kg bags for the whole party (absent from pre-3.0 servers)
   depart_from: string | null; // YYYY-MM-DD
   depart_to: string | null;
   nights_min: number | null;
@@ -74,6 +75,77 @@ export interface StoredDeal {
   source?: FareSource; // set by the backend engine/providers
   seen_at?: string; // ISO time the source saw this price ("" = unknown)
   details_cost?: number; // most live searches "Details & book direct" may use (0/absent = not available)
+  bags?: BagPricing | null; // price with the requested bags (backend app/bags.py; absent from pre-3.0 servers)
+  compare_total?: number | null; // bags.total (else price) in compare_currency — what lists sort by
+}
+
+// --- price with bags (backend app/bags.py) ---
+
+/** Where a bag fee came from: google = already in Google's fare (bags filter); seller = the
+ *  seller's own fee; table = our fee table; typical = airline not in the table; included = in the fare. */
+export type BagBasis = "google" | "seller" | "table" | "typical" | "included";
+/** The weakest line's basis; none = no bags asked; as_quoted = the source quoted bags itself (web agent). */
+export type PriceBasis = "none" | "as_quoted" | "included" | "seller" | "table" | "typical";
+
+export interface BagLine {
+  kind: "trolley" | "checked";
+  count: number; // bags per direction, whole party
+  directions: number; // 1 one-way, 2 round trip
+  low: number; // fee range for all bags and directions, deal currency
+  high: number;
+  basis: BagBasis;
+  carrier: string;
+}
+
+export interface BagPricing {
+  basis: PriceBasis;
+  fare: number; // the deal's own price
+  total: number; // fare + the middle of the bag-fee range
+  total_min: number;
+  total_max: number;
+  currency: string;
+  lines: BagLine[];
+  added_at_checkout: boolean; // the seller's first price is lower: bags come at checkout
+  as_of: string; // fee table month, "2026-10"
+}
+
+/** POST /api/deals/{id}/recheck (backend app/pricecheck.py). */
+export interface RecheckResult {
+  status: "same" | "cheaper" | "pricier" | "gone";
+  old: number;
+  new: number | null; // null = Google no longer lists the fare
+  delta: number | null;
+  currency: string;
+  old_seen_at: string;
+  deal: StoredDeal | null; // the stored new sighting
+  spent: number;
+  left: number;
+}
+
+/** POST /api/price-checks: "was it the same price?" after a Book click. */
+export interface PriceCheckCreate {
+  deal_id: number;
+  seller: string;
+  shown_total: number;
+  actual_total: number | null;
+  same: boolean;
+  currency: string;
+}
+
+export interface AirlineAccuracy {
+  airline: string;
+  checks: number;
+  same: number;
+  same_pct: number;
+  median_diff: number | null; // actual - shown
+  currency: string;
+  bags_estimated: number; // checks whose shown price had estimated bag fees
+}
+
+export interface PriceCheckSummary {
+  checks: number;
+  same: number;
+  airlines: AirlineAccuracy[];
 }
 
 export interface SearchRequest extends Partial<SearchParams> {

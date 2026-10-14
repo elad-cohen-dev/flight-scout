@@ -11,20 +11,30 @@ export function formatPrice(price: number, currency: string): string {
   return symbol ? `${symbol}${amount}` : `${amount} ${currency}`;
 }
 
-/** A deal's price for ranking: sources quote their own currency ($600 vs
- *  ₪2,123), so compare in the run's preferred currency when the backend
- *  could convert it, else fall back to the raw figure. */
-export function comparable(d: { price: number; currency: string; compare_price?: number | null; compare_currency?: string }): {
+/** A deal's price for ranking: the price with the requested bags (a Wizz fare
+ *  without its checked bags isn't cheaper than an El Al one with them), and
+ *  since sources quote their own currency ($600 vs ₪2,123), in the run's
+ *  preferred currency when the backend could convert it, else the raw figure.
+ *  Pre-3.0 servers send no compare_total: the bare fare, as before. */
+export function comparable(d: {
+  price: number;
+  currency: string;
+  compare_price?: number | null;
+  compare_total?: number | null;
+  compare_currency?: string;
+  bags?: { total: number } | null;
+}): {
   price: number;
   currency: string;
 } {
-  return d.compare_price != null && d.compare_currency
-    ? { price: d.compare_price, currency: d.compare_currency }
-    : { price: d.price, currency: d.currency };
+  const converted = d.compare_total ?? d.compare_price;
+  return converted != null && d.compare_currency
+    ? { price: converted, currency: d.compare_currency }
+    : { price: d.bags?.total ?? d.price, currency: d.currency };
 }
 
-export function timeAgo(iso: string): string {
-  const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
+export function timeAgo(iso: string, now = Date.now()): string {
+  const seconds = (now - new Date(iso).getTime()) / 1000;
   if (seconds < 90) return "just now";
   const minutes = seconds / 60;
   if (minutes < 90) return `${Math.round(minutes)} min ago`;

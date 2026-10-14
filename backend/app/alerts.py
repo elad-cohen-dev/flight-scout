@@ -518,14 +518,39 @@ def _route(w: Watch) -> str:
     return f"{w.origin} → {w.destination}"
 
 
+_BAG_NAMES = {"trolley": ("trolley", "trolleys"), "checked": ("checked bag", "checked bags")}
+
+
+def bag_words(deal: StoredDeal | None) -> str:
+    """'2 checked bags' / '2 trolleys + 2 checked bags' when the deal's price
+    has bag fees added (app/bags.py); '' when no bags were asked for, the
+    source quoted them itself, or every bag is already in the fare."""
+    pricing = getattr(deal, "bags", None)  # a plain FlightDeal has none
+    if pricing is None or pricing.basis in ("none", "as_quoted") or pricing.total == pricing.fare:
+        return ""
+    parts = []
+    for line in pricing.lines:
+        one, many = _BAG_NAMES[line.kind]
+        parts.append(f"{line.count} {one if line.count == 1 else many}")
+    return " + ".join(parts)
+
+
 def fare_lines(r: WatchResult, rich: bool) -> list[str]:
-    """Price line + dates line of the best deal; HTML-escaped when `rich`."""
+    """Price line + dates line of the best deal; HTML-escaped when `rich`.
+    The price is the one the watch compares — with the requested bags — and
+    the bare fare follows it: '₪2,980 with 2 checked bags (fare ₪2,140)'."""
     esc = html.escape if rich else (lambda s: s)
     d, w = r.best, r.watch
     price = fmt_price(r.best_price, w.currency)
-    if d.currency != w.currency:
+    bags = bag_words(d)
+    if bags:
+        total = d.bags.total
+        if d.currency != w.currency:
+            price = f"{fmt_price(total, d.currency)} (~{price})"
+        price += f" with {bags} (fare {fmt_price(d.bags.fare, d.currency)})"
+    elif d.currency != w.currency:
         price = f"{fmt_price(d.price, d.currency)} (~{price})"
-    if w.passengers.total > 1 and d.price_per_person:
+    if w.passengers.total > 1 and d.price_per_person and not bags:  # pp is the bare fare's
         price += f" · {fmt_price(d.price_per_person, d.currency)} pp"
     stops = "direct" if d.stops == 0 else f"{d.stops} stop{'s' if d.stops > 1 else ''}"
     first = f"{('<b>' + esc(price) + '</b>') if rich else price} · {esc(d.airline)} · {stops}"
@@ -565,7 +590,7 @@ def _block(r: WatchResult, rich: bool) -> list[str]:
     if r.best is None:
         return [f"{esc(head)}: no comparable fares"]
     if not r.alerting:
-        line = f"{esc(head)}: {fmt_price(r.best_price, w.currency)}"
+        line = f"{esc(head)}: {fmt_price(r.best_price, w.currency)}" + (" with bags" if bag_words(r.best) else "")
         score = r.stats.score if r.stats else None
         if score is not None:
             line += f" · score {score}"
@@ -620,5 +645,6 @@ def format_digest(results: list[WatchResult], now: datetime, warning: str = "") 
 def format_instant(r: WatchResult) -> tuple[str, str, str]:
     """A "Run now" hit: (title, plain text, Telegram HTML) for one watch."""
     w = r.watch
-    title = f"{_route(w)}: {fmt_price(r.best_price, w.currency)} — {r.hits[0].text.split(' (')[0]}"
+    with_bags = " with bags" if bag_words(r.best) else ""
+    title = f"{_route(w)}: {fmt_price(r.best_price, w.currency)}{with_bags} — {r.hits[0].text.split(' (')[0]}"
     return title, "\n".join(_block(r, False)), _clip("\n".join(_block(r, True)))

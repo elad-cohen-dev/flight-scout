@@ -5,6 +5,7 @@ import { formatPrice, plural, timeAgo } from "../lib/format";
 import type { RouteHistory, SearchRequest, StoredDeal } from "../types";
 import Icon from "./Icon";
 import PriceCalendar from "./PriceCalendar";
+import PriceCheckAccuracy from "./PriceCheckAccuracy";
 import PriceTrend from "./PriceTrend";
 import Segmented from "./Segmented";
 import Sparkline from "./Sparkline";
@@ -169,6 +170,7 @@ export default function TrendsTab({
         )}
       </section>
 
+      <PriceCheckAccuracy />
       <h3 className="section-title">
         All routes <span className="section-count">{routes.length}</span>
       </h3>

@@ -1,7 +1,7 @@
 import type { AlertSettings, SearchParams, SearchRequest, Watch, WatchCreate, WatchStats, WatchUpdate } from "../types";
 import { formatPrice } from "./format";
 import type { QueryGroup } from "./history";
-import { CABIN_LABELS, exactWindowLabel, formToWatch, requestToForm, totalPassengers } from "./search";
+import { CABIN_LABELS, checkedBagCount, exactWindowLabel, formToWatch, requestToForm, totalPassengers } from "./search";
 import type { SearchForm } from "./search";
 
 type Criteria = Partial<SearchParams> & { origin: string; destination: string; dates_hint: string; direct_only?: boolean };
@@ -24,7 +24,7 @@ export function criteriaKey(c: Criteria): string {
     c.cabin_class ?? "economy",
     stops,
     !!c.cabin_bag,
-    !!c.checked_bag,
+    checkedBagCount(c), // the count; a legacy flag means one per seated traveller
     c.depart_from ?? null,
     c.depart_to ?? null,
     c.nights_min ?? null,
@@ -107,7 +107,11 @@ export function describeWatch(w: Criteria & { max_price?: number | null }): { se
   const bits = [`for ${partyWords(pax)} in ${cabin}`];
   if (stops === 0) bits.push("direct flights only");
   else if (stops != null) bits.push(`at most ${stops} stop${stops === 1 ? "" : "s"}`);
-  const bags = [w.cabin_bag && "a cabin trolley", w.checked_bag && "a 20kg checked bag"].filter(Boolean);
+  const checked = checkedBagCount(w);
+  const bags = [
+    w.cabin_bag && "a cabin trolley each",
+    checked && (checked === 1 ? "a 20kg checked bag" : `${checked} checked 20kg bags`),
+  ].filter(Boolean);
   if (bags.length) bits.push(`needs ${bags.join(" and ")}`);
   if (w.nearby_airports) bits.push("also trying nearby airports");
   const search = `Every day, looks for ${trip} from ${w.origin} to ${w.destination} ${when} ${bits.join(", ")}.`;

@@ -185,6 +185,20 @@ _SCHEMA = [
         web_fetches INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (month, provider, model)
     )""",
+    # v3.0: "Was it the same price?" answers after a booking click (app/pricecheck.py).
+    # airline + bag_basis are copied from the deal so the summary needs no join.
+    """CREATE TABLE IF NOT EXISTS price_checks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        deal_id INTEGER NOT NULL,
+        seller TEXT NOT NULL DEFAULT '',
+        airline TEXT NOT NULL DEFAULT '',
+        bag_basis TEXT NOT NULL DEFAULT '',
+        shown_total REAL NOT NULL,
+        actual_total REAL,
+        same INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -1224,3 +1238,32 @@ def interrupt_running_jobs(search_message: str, watch_message: str,
         return ids
 
     return _with_conn(op)
+
+
+# --- price checks (v3.0, app/pricecheck.py) ------------------------------------
+
+_PRICE_CHECK_COLUMNS = ["deal_id", "seller", "airline", "bag_basis", "shown_total", "actual_total", "same",
+                        "currency", "created_at"]
+
+
+def add_price_check(row: dict) -> dict:
+    """Insert one "was it the same price?" answer; returns it with its id."""
+    values = [row.get(c) for c in _PRICE_CHECK_COLUMNS]
+    values[_PRICE_CHECK_COLUMNS.index("same")] = 1 if row.get("same") else 0
+
+    def op(conn) -> int:
+        cur = conn.execute(
+            f"INSERT INTO price_checks ({', '.join(_PRICE_CHECK_COLUMNS)}) "
+            f"VALUES ({', '.join('?' for _ in _PRICE_CHECK_COLUMNS)})", values)
+        conn.commit()
+        return cur.lastrowid
+
+    return {**row, "id": _with_conn(op), "same": bool(row.get("same"))}
+
+
+def list_price_checks(limit: int = 1000) -> list[dict]:
+    """Recent price checks, newest first (`same` as a bool)."""
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(
+        f"SELECT id, {', '.join(_PRICE_CHECK_COLUMNS)} FROM price_checks ORDER BY created_at DESC, id DESC LIMIT ?",
+        (limit,))))
+    return [{**r, "same": bool(r["same"])} for r in rows]

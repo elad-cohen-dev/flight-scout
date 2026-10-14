@@ -88,17 +88,18 @@ def cache_key(provider: str, params: dict) -> str:
 
 
 def cached_get(provider: str, url: str, params: dict, headers: dict | None = None,
-               *, budget_left=None) -> tuple[dict, bool]:
+               *, budget_left=None, fresh: bool = False) -> tuple[dict, bool]:
     """(response, from_cache). A cache miss spends one call: `budget_left()`
     (when given) must be positive first, else BudgetExhausted; the call is
     counted in provider_usage once the provider answered. The caller caches
-    the response with `store` once it knows it is worth keeping."""
+    the response with `store` once it knows it is worth keeping. `fresh`
+    skips the cache read (a deliberate recheck), never the budget."""
     key = cache_key(provider, params)
+    hit = None
     try:
-        hit = storage.cache_get(key)
+        hit = None if fresh else storage.cache_get(key)
     except Exception:
         logger.exception("%s: cache read failed", provider)
-        hit = None
     if hit is not None:
         return hit, True
     if budget_left is not None and budget_left() <= 0:

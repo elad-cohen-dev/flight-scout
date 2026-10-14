@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { CABIN_LABELS, formToRequest } from "../lib/search";
+import { CABIN_LABELS, formToRequest, maxCheckedBags } from "../lib/search";
 import type { SearchForm } from "../lib/search";
 import { alertSettingsOf, describeAlertRules, describeWatch, formToWatchUpdate, watchToForm } from "../lib/watches";
 import type { AlertSettings, CabinClass, Watch, WatchUpdate } from "../types";
 import AlertRules from "./AlertRules";
+import BagsPicker from "./BagsPicker";
 import Icon from "./Icon";
 import PassengersPicker from "./PassengersPicker";
 import Segmented from "./Segmented";
@@ -75,7 +76,10 @@ export default function WatchEditor({
             { value: "one_way", label: "One way" },
           ]}
         />
-        <PassengersPicker value={form.passengers} onChange={(passengers) => set({ passengers })} />
+        <PassengersPicker
+          value={form.passengers}
+          onChange={(passengers) => set({ passengers, checked_bags: Math.min(form.checked_bags, maxCheckedBags(passengers)) })}
+        />
         <label className="pill-select pill-native">
           <span className="sr-only">Cabin class</span>
           <select value={form.cabin_class} onChange={(e) => set({ cabin_class: e.target.value as CabinClass })}>
@@ -179,17 +183,7 @@ export default function WatchEditor({
             ]}
           />
         </div>
-        <div className="sf-option">
-          <span className="field-label">Bags included in price</span>
-          <div className="chip-row">
-            <button type="button" className={`chip chip-toggle${form.cabin_bag ? " chip-active" : ""}`} aria-pressed={form.cabin_bag} onClick={() => set({ cabin_bag: !form.cabin_bag })}>
-              <Icon name="bag" size={14} /> Cabin trolley
-            </button>
-            <button type="button" className={`chip chip-toggle${form.checked_bag ? " chip-active" : ""}`} aria-pressed={form.checked_bag} onClick={() => set({ checked_bag: !form.checked_bag })}>
-              <Icon name="luggage" size={14} /> 20kg checked
-            </button>
-          </div>
-        </div>
+        <BagsPicker cabinBag={form.cabin_bag} checkedBags={form.checked_bags} passengers={form.passengers} onChange={set} />
         <label className="switch">
           <input type="checkbox" checked={form.nearby_airports} onChange={(e) => set({ nearby_airports: e.target.checked })} />
           <span className="switch-track" aria-hidden="true" />

@@ -22,10 +22,11 @@ function paxLabel(p: SearchParams["passengers"]) {
 }
 
 function bagsLabel(c: Criteria) {
-  return [c.cabin_bag && "trolley", c.checked_bag && "20kg bag"].filter(Boolean).join(" + ");
+  const checked = c.checked_bags && c.checked_bags > 1 ? `${c.checked_bags} checked bags` : "20kg bag";
+  return [c.cabin_bag && "trolley", c.checked_bag && checked].filter(Boolean).join(" + ");
 }
 
-type Criteria = Pick<SearchParams, "passengers" | "cabin_class" | "max_stops" | "cabin_bag" | "checked_bag">;
+type Criteria = Pick<SearchParams, "passengers" | "cabin_class" | "max_stops" | "cabin_bag" | "checked_bag" | "checked_bags">;
 
 // Legacy rows have no search_params: the backend assumed 1 adult, economy.
 const DEFAULTS: Criteria = {
@@ -86,8 +87,19 @@ export interface DirectLink {
 }
 
 /** `secondary`: the fare is an unconfirmed estimate, so the links are styled as
- *  look-ups ("Search on", outlined), never as a confirmed booking. */
-export default function BookingLinks({ deal, direct, secondary = false }: { deal: StoredDeal; direct?: DirectLink; secondary?: boolean }) {
+ *  look-ups ("Search on", outlined), never as a confirmed booking.
+ *  `onBook`: told the clicked link's label (the "was it the same price?" check). */
+export default function BookingLinks({
+  deal,
+  direct,
+  secondary = false,
+  onBook,
+}: {
+  deal: StoredDeal;
+  direct?: DirectLink;
+  secondary?: boolean;
+  onBook?: (label: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const moreId = useId();
   const found: BookingLink[] = deal.booking_links?.length
@@ -120,6 +132,7 @@ export default function BookingLinks({ deal, direct, secondary = false }: { deal
           rel={direct ? "noopener noreferrer" : "noreferrer"}
           className={secondary ? "bl-primary bl-secondary" : "bl-primary"}
           title={hint ? `Opens with ${hint}` : undefined}
+          onClick={() => onBook?.(primary.label)}
         >
           {verb} {primary.label}
           <span aria-hidden="true" className="bl-ext">↗</span>
@@ -155,7 +168,14 @@ export default function BookingLinks({ deal, direct, secondary = false }: { deal
             const h = prefilledHint(l, c);
             return (
               <li key={l.url}>
-                <a href={l.url} target="_blank" rel="noreferrer" className="bl-chip" title={h ? `Pre-filled: ${h}` : "Not pre-filled"}>
+                <a
+                  href={l.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bl-chip"
+                  title={h ? `Pre-filled: ${h}` : "Not pre-filled"}
+                  onClick={() => onBook?.(l.label)}
+                >
                   <span className="bl-chip-label">{l.label}</span>
                   <span className="bl-chip-meta">
                     {l.prefilled.includes("bags") ? "incl. bags" : l.prefilled.includes("dates") ? "dated" : l.prefilled.length ? "route" : "home"}

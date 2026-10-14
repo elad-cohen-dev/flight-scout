@@ -1,6 +1,6 @@
 // "Details & book direct": wording and choices for a deal's on-demand booking details.
 import { formatPrice } from "./format";
-import type { BagFee, DealDetails, Seller, SellerLink } from "../types";
+import type { BagFee, BagPricing, DealDetails, Seller, SellerLink } from "../types";
 
 /** Before asking the server: the most a fetch can use ("uses 1–2 live searches"). */
 export function costHint(maxCost: number): string {
@@ -102,11 +102,13 @@ export interface BagBadge {
 
 /** Bag badges for a card: "incl." only when the shown price includes the bag;
  *  "not in price" until an exact bag-inclusive total is known; then nothing
- *  (the total under the price says it). */
+ *  (the total under the price says it). With the backend's price with bags
+ *  (3.0+), a bag it added is "added" (an estimate; the breakdown says how). */
 export function bagBadges(
   source: string | undefined,
   criteria: { cabin_bag?: boolean; checked_bag?: boolean },
   details: DealDetails | null | undefined,
+  pricing?: BagPricing | null,
 ): BagBadge[] {
   const exact = bagTotal(details) != null;
   const out: BagBadge[] = [];
@@ -114,7 +116,15 @@ export function bagBadges(
     if (!(bag === "carry_on" ? criteria.cabin_bag : criteria.checked_bag)) continue;
     const word = bag === "carry_on" ? "Trolley" : "20kg bag";
     const what = bag === "carry_on" ? "a 10kg cabin trolley" : "a 20kg+ checked bag";
-    if (priceIncludesBag(source, bag)) {
+    const line = pricing?.lines.find((l) => l.kind === (bag === "carry_on" ? "trolley" : "checked"));
+    if (line && !exact && line.basis !== "google" && line.basis !== "included") {
+      out.push({
+        bag,
+        label: `${word} added`,
+        tip: `The price includes ${what} at the airline's fee (${line.basis === "seller" ? "the seller's own fee" : "an estimate"}); tap the price for the breakdown`,
+        included: true,
+      });
+    } else if (line || priceIncludesBag(source, bag)) {
       out.push({ bag, label: `${word} incl.`, tip: `Price includes ${what}`, included: true });
     } else if (!exact) {
       out.push({

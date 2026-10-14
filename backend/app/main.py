@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from . import alerts, details, engine, explore, jobs, notify, storage, telegram_bot, watcher
+from . import alerts, details, engine, explore, jobs, notify, pricecheck, storage, telegram_bot, watcher
 from .jobs import Job
 from .models import (
     AlertRecord, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate,
@@ -366,6 +366,33 @@ def fetch_deal_details(deal_id: int) -> details.DealDetails:
         return details.fetch_details(_deal_or_404(deal_id))
     except details.DetailsError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.message) from None
+
+
+# --- a price you can check (app/pricecheck.py) ----------------------------------
+
+@app.post("/api/deals/{deal_id}/recheck", response_model=pricecheck.RecheckResult,
+          dependencies=[Depends(require_auth)])
+def recheck_deal(deal_id: int) -> pricecheck.RecheckResult:
+    """Re-run the deal's live Google Flights query for its exact dates: always
+    1 live search (cache bypassed), within the monthly budget. Stores the new
+    sighting. 400 = not a live Google fare, 409 = budget used up, 503 = not configured."""
+    try:
+        return pricecheck.recheck(_deal_or_404(deal_id))
+    except pricecheck.RecheckError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from None
+
+
+@app.post("/api/price-checks", response_model=pricecheck.PriceCheck, status_code=201,
+          dependencies=[Depends(require_auth)])
+def add_price_check(body: pricecheck.PriceCheckCreate) -> pricecheck.PriceCheck:
+    """"Was it the same price?" after a Book click."""
+    return pricecheck.add_check(body, _deal_or_404(body.deal_id))
+
+
+@app.get("/api/price-checks/summary", response_model=pricecheck.PriceCheckSummary,
+         dependencies=[Depends(require_auth)])
+def price_check_summary() -> pricecheck.PriceCheckSummary:
+    return pricecheck.summary()
 
 
 @app.get("/api/deals/{deal_id}/book/{option}", include_in_schema=False)

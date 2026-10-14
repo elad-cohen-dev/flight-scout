@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { CURRENCIES, currencySymbol } from "../lib/format";
-import { CABIN_LABELS, DEFAULT_DATES_HINT } from "../lib/search";
+import { CABIN_LABELS, DEFAULT_DATES_HINT, maxCheckedBags } from "../lib/search";
 import type { SearchForm as Form } from "../lib/search";
 import type { CabinClass } from "../types";
 import AirportInput from "./AirportInput";
+import BagsPicker from "./BagsPicker";
 import Icon from "./Icon";
 import PassengersPicker from "./PassengersPicker";
 import Segmented from "./Segmented";
@@ -57,7 +58,10 @@ export default function SearchForm({
             { value: "one_way", label: "One way" },
           ]}
         />
-        <PassengersPicker value={form.passengers} onChange={(passengers) => onChange({ passengers })} />
+        <PassengersPicker
+          value={form.passengers}
+          onChange={(passengers) => onChange({ passengers, checked_bags: Math.min(form.checked_bags, maxCheckedBags(passengers)) })}
+        />
         <label className="pill-select pill-native">
           <span className="sr-only">Cabin class</span>
           <select value={form.cabin_class} onChange={(e) => onChange({ cabin_class: e.target.value as CabinClass })}>
@@ -206,29 +210,7 @@ export default function SearchForm({
             ]}
           />
         </div>
-        <div className="sf-option">
-          <span className="field-label">Bags included in price</span>
-          <div className="chip-row">
-            <button
-              type="button"
-              className={`chip chip-toggle${form.cabin_bag ? " chip-active" : ""}`}
-              aria-pressed={form.cabin_bag}
-              title="Prices include a 10kg cabin trolley (fees added where the fare excludes it)"
-              onClick={() => onChange({ cabin_bag: !form.cabin_bag })}
-            >
-              <Icon name="bag" size={14} /> Cabin trolley
-            </button>
-            <button
-              type="button"
-              className={`chip chip-toggle${form.checked_bag ? " chip-active" : ""}`}
-              aria-pressed={form.checked_bag}
-              title="Prices include a 20kg+ checked bag (fees added where the fare excludes it)"
-              onClick={() => onChange({ checked_bag: !form.checked_bag })}
-            >
-              <Icon name="luggage" size={14} /> 20kg checked
-            </button>
-          </div>
-        </div>
+        <BagsPicker cabinBag={form.cabin_bag} checkedBags={form.checked_bags} passengers={form.passengers} onChange={onChange} />
         <div className="sf-option">
           <span className="field-label" id="max-price-label">
             Max total price

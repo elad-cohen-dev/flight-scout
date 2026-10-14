@@ -1,5 +1,6 @@
 import type { Job, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate } from "./types";
 import type { DealDetails, ExploreQuote, ExploreRequest, ExploreResult } from "./types";
+import type { PriceCheckCreate, PriceCheckSummary, RecheckResult } from "./types";
 
 const PASSWORD_KEY = "fs_app_password";
 
@@ -268,4 +269,25 @@ export async function runExplore(req: ExploreRequest): Promise<ExploreResult> {
       body: JSON.stringify(req),
     })
   );
+}
+
+/** Re-run a live Google Flights fare for its exact dates — always 1 live search (no cache). */
+export async function recheckDeal(id: number): Promise<RecheckResult> {
+  return handle(await fetch(`/api/deals/${id}/recheck`, { method: "POST", headers: authHeaders() }));
+}
+
+/** Log a "was it the same price?" answer after a Book click. */
+export async function addPriceCheck(check: PriceCheckCreate): Promise<void> {
+  await handle(
+    await fetch("/api/price-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(check),
+    })
+  );
+}
+
+/** How often the seller's total matched ours, per airline. */
+export async function fetchPriceCheckSummary(): Promise<PriceCheckSummary> {
+  return handle(await fetch("/api/price-checks/summary", { headers: authHeaders() }));
 }

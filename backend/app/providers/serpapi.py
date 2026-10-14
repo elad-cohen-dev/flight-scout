@@ -137,13 +137,18 @@ def _trim(data: dict) -> dict:
     }
 
 
-def fetch(params: dict, trim=_trim, ttl: float = CACHE_TTL_SECONDS) -> tuple[dict, bool]:
+def fetch(params: dict, trim=_trim, ttl: float = CACHE_TTL_SECONDS, fresh: bool = False) -> tuple[dict, bool]:
     """(trimmed response, from_cache) for SerpApi `params`, cached `ttl`
     seconds. Raises BudgetExhausted / ProviderError. A "no results" answer is
-    a valid, cached, empty response."""
+    a valid, cached, empty response. `fresh` ignores our cache (and refills it):
+    one paid call, for "Recheck" (app/pricecheck.py)."""
     if not configured():
         raise ProviderError("serpapi: SERPAPI_API_KEY not set")
-    data, cached = cached_get(PROVIDER, URL, {**params, "api_key": api_key()}, budget_left=remaining)
+    # SerpApi's own 1h cache would answer a repeat for free with the old
+    # prices; no_cache makes it ask Google again. Stored under the plain params.
+    extra = {"no_cache": "true"} if fresh else {}
+    data, cached = cached_get(PROVIDER, URL, {**params, **extra, "api_key": api_key()}, budget_left=remaining,
+                              fresh=fresh)
     if cached:
         return data, True
     error = str(data.get("error") or "")

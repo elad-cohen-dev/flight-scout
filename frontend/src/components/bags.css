@@ -1,0 +1,251 @@
+/* 3.0 "Real price with bags" + "Price you can check": bags picker, price
+   breakdown, checkout preview, freshness/Recheck, the price-check prompt. */
+
+/* --- bags picker (search form + watch editor) --- */
+.bags-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bag-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.1rem 0.25rem 0.1rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.bag-stepper .icon-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.bag-stepper-label {
+  margin-right: 0.15rem;
+}
+
+/* --- headline price with bags + breakdown --- */
+.deal-price-approx {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: var(--muted);
+  margin-right: 0.1em;
+}
+
+.deal-price-with {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.bag-bd {
+  display: inline-block;
+}
+
+.bag-bd-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bag-bd-toggle:hover,
+.bag-bd-toggle[aria-expanded="true"] {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.bag-bd-toggle:focus-visible,
+.recheck-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.popover.bag-bd-pop {
+  left: auto;
+  right: 0;
+  width: min(330px, calc(100vw - 2rem));
+  text-align: left;
+}
+
+.bag-bd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.bag-bd-table th,
+.bag-bd-table td {
+  padding: 0.3rem 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.bag-bd-table th {
+  font-weight: 600;
+  text-align: left;
+  padding-right: 0.5rem;
+}
+
+.bag-bd-basis {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding-right: 0.5rem;
+}
+
+.bag-bd-typical {
+  color: var(--warn);
+}
+
+.bag-bd-amt {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bag-bd-total th,
+.bag-bd-total td {
+  border-bottom: 0;
+  font-weight: 700;
+}
+
+.bag-bd-note {
+  margin: 0.4rem 0 0;
+}
+
+/* --- checkout preview, freshness, recheck --- */
+.bag-preview {
+  display: flex;
+  gap: 0.35rem;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--text);
+}
+
+.bag-preview svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--warn);
+}
+
+.deal-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+
+.recheck {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.recheck-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.recheck-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.recheck-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.recheck-result {
+  font-weight: 600;
+}
+
+.recheck-good {
+  color: var(--green);
+}
+
+.recheck-bad {
+  color: var(--bad);
+}
+
+.recheck-same {
+  color: var(--text);
+}
+
+/* --- "was it the same price?" --- */
+.pc-prompt {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.55rem 2.2rem 0.55rem 0.7rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.pc-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.pc-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pc-input {
+  width: 8rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.pc-close {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  width: 28px;
+  height: 28px;
+}
+
+/* --- Trends: accuracy line --- */
+.pc-accuracy {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .bags-picker {
+    align-items: stretch;
+  }
+  .popover.bag-bd-pop {
+    right: -0.25rem;
+  }
+}

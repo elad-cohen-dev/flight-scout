@@ -4,9 +4,10 @@
 // so the exact cost is shown and confirmed first.
 import { useState } from "react";
 import { fetchDealDetails, loadDealDetails } from "../api";
+import { estimateSource, sellerEstimate } from "../lib/bags";
 import { bagSummary, canFetch, costHint, costLine, errorText, linkLabel } from "../lib/dealDetails";
 import { formatPrice, formatTripDate, stopsLabel, timeAgo } from "../lib/format";
-import type { DealDetails, DetailsLeg, Seller, StoredDeal } from "../types";
+import type { BagPricing, DealDetails, DetailsLeg, Seller, StoredDeal } from "../types";
 import Icon from "./Icon";
 import "./direct-booking.css";
 
@@ -28,8 +29,21 @@ function LegLine({ label, leg }: { label: string; leg: DetailsLeg }) {
   );
 }
 
-function SellerRow({ s, currency, bagsRequested }: { s: Seller; currency: string; bagsRequested: boolean }) {
+function SellerRow({
+  s,
+  currency,
+  bagsRequested,
+  pricing,
+  onBook,
+}: {
+  s: Seller;
+  currency: string;
+  bagsRequested: boolean;
+  pricing?: BagPricing | null; // the deal's own price with bags: the fallback when the seller states no fee
+  onBook?: (label: string, total: number | null) => void;
+}) {
   const bags = bagSummary(s, currency);
+  const estimate = sellerEstimate(s.price, currency, pricing);
   return (
     <li className={`db-seller${s.airline ? " db-seller-direct" : ""}`}>
       <div className="db-seller-head">
@@ -58,6 +72,10 @@ function SellerRow({ s, currency, bagsRequested }: { s: Seller; currency: string
             </span>
           ) : s.price_incl_bags_max != null ? (
             <span className="db-warn">Up to {formatPrice(s.price_incl_bags_max, currency)} incl. your bags — bag fee not exact</span>
+          ) : estimate != null && pricing ? (
+            <span className="db-warn" title="This seller states no bag fee; the bags are priced like the deal's">
+              ≈ {formatPrice(estimate, currency)} incl. your bags ({estimateSource(pricing)}) — seller states no bag fee
+            </span>
           ) : (
             <span className="db-warn">Bag fee not stated — check at checkout</span>
           )}
@@ -65,7 +83,14 @@ function SellerRow({ s, currency, bagsRequested }: { s: Seller; currency: string
       )}
       <div className="db-seller-links">
         {s.links.filter((l) => l.url).map((l) => (
-          <a key={l.part} href={l.url} target="_blank" rel="noopener noreferrer" className={s.airline ? "db-book db-book-direct" : "db-book"}>
+          <a
+            key={l.part}
+            href={l.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={s.airline ? "db-book db-book-direct" : "db-book"}
+            onClick={() => onBook?.(s.book_with, s.bags_verified ? s.price_incl_bags : estimate ?? (bagsRequested ? null : s.price))}
+          >
             {linkLabel(s, l)} <span aria-hidden="true">↗</span>
           </a>
         ))}
@@ -79,10 +104,12 @@ export default function DirectBooking({
   deal,
   details,
   onDetails,
+  onBook,
 }: {
   deal: StoredDeal;
   details: DealDetails | null;
   onDetails: (d: DealDetails) => void;
+  onBook?: (label: string, total: number | null) => void; // a seller link was clicked (its total, when known)
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
@@ -175,7 +202,7 @@ export default function DirectBooking({
           {details.sellers.length > 0 ? (
             <ul className="db-sellers">
               {details.sellers.map((s) => (
-                <SellerRow key={s.index} s={s} currency={currency} bagsRequested={bagsRequested} />
+                <SellerRow key={s.index} s={s} currency={currency} bagsRequested={bagsRequested} pricing={deal.bags} onBook={onBook} />
               ))}
             </ul>
           ) : (

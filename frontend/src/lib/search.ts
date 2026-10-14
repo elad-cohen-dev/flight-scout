@@ -20,7 +20,8 @@ export interface SearchForm {
   cabin_class: CabinClass;
   max_stops: number | null;
   cabin_bag: boolean;
-  checked_bag: boolean;
+  checked_bag: boolean; // kept = checked_bags > 0, for older code paths
+  checked_bags: number; // whole party, 0..2 per seated traveller
   date_mode: "flexible" | "exact";
   dates_hint: string;
   depart_from: string;
@@ -41,6 +42,7 @@ export const DEFAULT_FORM: SearchForm = {
   max_stops: null,
   cabin_bag: false,
   checked_bag: false,
+  checked_bags: 0,
   date_mode: "flexible",
   dates_hint: DEFAULT_DATES_HINT,
   depart_from: "",
@@ -59,7 +61,10 @@ export function loadForm(): SearchForm {
     const raw = localStorage.getItem(FORM_KEY);
     if (!raw) return DEFAULT_FORM;
     const saved = JSON.parse(raw) as Partial<SearchForm>;
-    return { ...DEFAULT_FORM, ...saved, passengers: { ...DEFAULT_FORM.passengers, ...saved.passengers } };
+    const form = { ...DEFAULT_FORM, ...saved, passengers: { ...DEFAULT_FORM.passengers, ...saved.passengers } };
+    // A pre-3.0 form had only the checked-bag checkbox: one per seated traveller.
+    const checked_bags = saved.checked_bags ?? checkedBagCount(form);
+    return { ...form, checked_bags, checked_bag: checked_bags > 0 };
   } catch {
     return DEFAULT_FORM;
   }
@@ -75,6 +80,20 @@ export function saveForm(form: SearchForm): void {
 
 export function totalPassengers(p: Passengers): number {
   return p.adults + p.children + p.infants;
+}
+
+/** Checked bags a party can ask for: up to two per seated traveller. */
+export function maxCheckedBags(p: Passengers): number {
+  return Math.max(1, p.adults + p.children) * 2;
+}
+
+/** The checked-bag count a request means: its count, else one per seated
+ *  traveller when only the legacy flag is set (the backend's rule). */
+export function checkedBagCount(c: { checked_bags?: number | null; checked_bag?: boolean; passengers?: Passengers | null }): number {
+  if (c.checked_bags) return c.checked_bags;
+  if (!c.checked_bag) return 0;
+  const p = c.passengers ?? { adults: 1, children: 0, infants: 0 };
+  return Math.max(1, p.adults + p.children);
 }
 
 export function passengersLabel(p: Passengers): string {
@@ -102,6 +121,7 @@ export function exactWindowLabel(p: Pick<SearchParams, "depart_from" | "depart_t
 export function formToRequest(f: SearchForm): SearchRequest {
   const exact = f.date_mode === "exact" && !!f.depart_from;
   const roundTrip = f.trip_type === "round_trip";
+  const checked = Math.min(Math.max(0, Math.round(f.checked_bags ?? 0)), maxCheckedBags(f.passengers));
   return {
     origin: f.origin.trim(),
     destination: f.destination.trim(),
@@ -112,7 +132,8 @@ export function formToRequest(f: SearchForm): SearchRequest {
     max_stops: f.max_stops,
     direct_only: f.max_stops === 0, // legacy alias, for older backends
     cabin_bag: f.cabin_bag,
-    checked_bag: f.checked_bag,
+    checked_bag: checked > 0, // legacy flag, for older backends
+    checked_bags: checked,
     depart_from: exact ? f.depart_from : null,
     depart_to: exact ? f.depart_to || f.depart_from : null,
     nights_min: exact && roundTrip ? numOrNull(f.nights_min) : null,
@@ -141,7 +162,8 @@ export function requestToForm(req: SearchRequest, base: SearchForm = DEFAULT_FOR
     cabin_class: req.cabin_class ?? base.cabin_class,
     max_stops: req.max_stops !== undefined ? req.max_stops : req.direct_only ? 0 : null,
     cabin_bag: req.cabin_bag,
-    checked_bag: req.checked_bag,
+    checked_bag: checkedBagCount(req) > 0,
+    checked_bags: checkedBagCount(req),
     date_mode: exact ? "exact" : "flexible",
     dates_hint: exact ? base.dates_hint : req.dates_hint,
     depart_from: req.depart_from ?? "",
@@ -156,6 +178,8 @@ export function requestToForm(req: SearchRequest, base: SearchForm = DEFAULT_FOR
 
 // Flags the backend's models.search_label() appends inside the parens, in order.
 const LABEL_FLAGS = ["direct only", "cabin bag", "checked 20kg bag"];
+// "3 checked bags": only when the count isn't one per seated traveller.
+const CHECKED_BAGS_FLAG = /^(\d+) checked bags?$/;
 // Criteria flags (backend models._criteria_flags) sit between the hint and the legacy flags.
 const CRITERIA_FLAGS = [
   /^depart (\d{4}-\d{2}-\d{2} to|from|by) \d{4}-\d{2}-\d{2}$/,
@@ -164,6 +188,7 @@ const CRITERIA_FLAGS = [
   /^\d+ adults?( \+ \d+ child(ren)?)?( \+ \d+ infants?)?$/,
   /^(premium economy|business|first)$/,
   /^max \d stops?$/,
+  CHECKED_BAGS_FLAG,
   /^nearby airports$/,
   /^up to \d+ [A-Z]{3}$/,
 ];
@@ -175,6 +200,7 @@ export interface ParsedLabel {
   direct_only: boolean;
   cabin_bag: boolean;
   checked_bag: boolean;
+  checked_bags: number | null; // the label's explicit count; null = one per seated traveller when checked_bag
   watchId: number | null;
 }
 
@@ -191,8 +217,10 @@ export function parseSearchQuery(query: string): ParsedLabel | null {
   while (parts.length > 1 && LABEL_FLAGS.includes(parts[parts.length - 1].trim())) {
     flags.add(parts.pop()!.trim());
   }
+  let checkedBags: number | null = null;
   while (parts.length > 1 && CRITERIA_FLAGS.some((re) => re.test(parts[parts.length - 1].trim()))) {
-    parts.pop();
+    const m = CHECKED_BAGS_FLAG.exec(parts.pop()!.trim());
+    if (m) checkedBags = Number(m[1]);
   }
   return {
     origin: m[1].trim(),
@@ -200,7 +228,8 @@ export function parseSearchQuery(query: string): ParsedLabel | null {
     dates_hint: parts.join(", ").trim(),
     direct_only: flags.has("direct only"),
     cabin_bag: flags.has("cabin bag"),
-    checked_bag: flags.has("checked 20kg bag"),
+    checked_bag: flags.has("checked 20kg bag") || !!checkedBags,
+    checked_bags: checkedBags,
     watchId: m[4] ? Number(m[4]) : null,
   };
 }
@@ -225,6 +254,7 @@ export function rerunRequest(deal: StoredDeal): SearchRequest | null {
     max_stops: parsed?.direct_only ? 0 : null,
     cabin_bag: parsed?.cabin_bag ?? false,
     checked_bag: parsed?.checked_bag ?? false,
+    ...(parsed?.checked_bags ? { checked_bags: parsed.checked_bags } : {}),
   };
 }
 
@@ -248,15 +278,25 @@ export function checkLiveRequest(deal: StoredDeal): SearchRequest | null {
 
 /** Effective criteria behind a deal, merging stored params with the legacy label. */
 export function dealCriteria(deal: StoredDeal): Pick<SearchParams, "cabin_bag" | "checked_bag" | "max_stops"> & {
+  checked_bags: number;
   passengers: Passengers | null;
   cabin_class: CabinClass | null;
 } {
   const sp = deal.search_params;
-  if (sp) return { cabin_bag: sp.cabin_bag, checked_bag: sp.checked_bag, max_stops: sp.max_stops, passengers: sp.passengers, cabin_class: sp.cabin_class };
+  if (sp)
+    return {
+      cabin_bag: sp.cabin_bag,
+      checked_bag: sp.checked_bag,
+      checked_bags: checkedBagCount(sp),
+      max_stops: sp.max_stops,
+      passengers: sp.passengers,
+      cabin_class: sp.cabin_class,
+    };
   const p = parseSearchQuery(deal.search_query);
   return {
     cabin_bag: p?.cabin_bag ?? false,
     checked_bag: p?.checked_bag ?? false,
+    checked_bags: checkedBagCount({ checked_bags: p?.checked_bags, checked_bag: p?.checked_bag }),
     max_stops: p?.direct_only ? 0 : null,
     passengers: null,
     cabin_class: null,
@@ -273,7 +313,8 @@ export function criteriaChips(req: Partial<SearchParams> & { direct_only?: boole
   if (stops === 0) chips.push("Direct only");
   else if (stops != null) chips.push(`≤${stops} stop${stops > 1 ? "s" : ""}`);
   if (req.cabin_bag) chips.push("Cabin trolley");
-  if (req.checked_bag) chips.push("20kg bag");
+  const checked = checkedBagCount(req);
+  if (checked) chips.push(`${checked} checked bag${checked === 1 ? "" : "s"}`);
   if (req.nearby_airports) chips.push("Nearby airports");
   return chips;
 }
