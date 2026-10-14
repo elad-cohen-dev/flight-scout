@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchUsage } from "../api";
+import { planLine, planLow, planTip, showAdvice } from "../lib/advice";
 import { formatPrice, timeAgo } from "../lib/format";
 import { usageWarning } from "../lib/providers";
 import { criteriaChips } from "../lib/search";
@@ -16,6 +17,7 @@ import {
   scoreTone,
 } from "../lib/watches";
 import type { Watch, WatchUpdate } from "../types";
+import AdviceChip from "./AdviceChip";
 import Icon from "./Icon";
 import WatchEditor from "./WatchEditor";
 import "./watches.css";
@@ -70,6 +72,11 @@ function WatchStatsGrid({ watch: w, hit }: { watch: Watch; hit: boolean }) {
           <span className="ws-note">{tone ? tone.label : "after 4 checks"}</span>
         </div>
       </div>
+      {s?.advice && showAdvice(s.advice, true) && (
+        <div className="watch-dim">
+          <AdviceChip advice={s.advice} withReason />
+        </div>
+      )}
       {basis && <p className="ws-basis small watch-dim">{basis}</p>}
       {legacy &&
         (legacy.detail ? (
@@ -148,10 +155,18 @@ function WatchCard({
           <p className="watch-words small watch-dim">
             {words.search} {w.active ? <strong>{alerts.threshold ? words.alert : "Smart alerts only."}</strong> : <strong>Paused — not checked daily until you resume it.</strong>}
           </p>
-          {w.active && w.credits && w.credits.per_check > 0 && (
-            <p className="ws-credits small muted watch-dim" title="Live Google searches (SerpApi quota) one daily check may spend; the pre-screen often skips the confirmation">
-              {w.credits.text}
+          {w.active && w.plan && planLine(w.plan) ? (
+            <p className={`ws-plan small muted watch-dim${planLow(w.plan) ? " ws-plan-low" : ""}`} title={planTip(w.plan)}>
+              <Icon name="calendar" size={13} /> {planLine(w.plan)}
             </p>
+          ) : (
+            w.active &&
+            w.credits &&
+            w.credits.per_check > 0 && (
+              <p className="ws-credits small muted watch-dim" title="Live Google searches (SerpApi quota) one daily check may spend; the pre-screen often skips the confirmation">
+                {w.credits.text}
+              </p>
+            )
           )}
           {chips.length > 0 && (
             <div className="chip-row watch-dim">

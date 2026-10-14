@@ -27,6 +27,7 @@ export interface SearchParams {
   max_price: number | null;
   currency: string;
   nearby_airports: boolean;
+  holiday?: string; // holiday window id (GET /api/holidays), e.g. "hanukkah-2026"; "" = none
 }
 
 export interface BookingLink {
@@ -118,6 +119,50 @@ export interface SearchMeta {
   live_searches: number; // paid SerpApi searches this run
   messages: string[]; // e.g. "This month's live Google Flights budget … is used up"
   decision: string; // watch runs: the pre-screen decision
+  advice?: Advice | null; // buy or wait, for the best deal (backend app/advice.py)
+  holiday?: string; // name of the holiday window searched, e.g. "Hanukkah 2026"
+  skipped?: boolean; // watch runs: the credit plan skipped today's check
+}
+
+/** Buy or wait (backend app/advice.py): a verdict and its one-line reason. */
+export interface Advice {
+  verdict: "buy_now" | "good_price" | "wait" | "not_enough_data";
+  label: string; // "Buy now" | "Good price" | "Wait" | "Not enough data"
+  reason: string;
+  days_out: number | null;
+}
+
+/** A school vacation / holiday window (GET /api/holidays, backend app/holidays.py). */
+export interface HolidayWindow {
+  id: string; // "hanukkah-2026"
+  name: string; // "Hanukkah 2026"
+  kind: string;
+  school_year: string; // "2026-27"
+  start: string; // first day with no school (YYYY-MM-DD)
+  end: string; // last day with no school
+  holiday_start: string | null;
+  holiday_end: string | null;
+  nights_min: number;
+  nights_max: number;
+  depart_from: string;
+  depart_to: string; // end - nights_min
+  confirmed: boolean; // false = predicted until the Ministry publishes the calendar
+  note: string;
+  sources: string[];
+}
+
+/** A watch's credit plan (backend app/cadence.py). */
+export interface WatchPlan {
+  per_check: number;
+  interval_days: number;
+  next_check: string | null; // YYYY-MM-DD
+  next_in_days: number | null; // 0 = today
+  used: number; // live searches spent this month
+  budget: number; // monthly budget
+  budget_default: boolean; // the fair share (no credit_budget set)
+  per_month: number; // projected this month
+  reason: string; // "45 days out, prices steady: every 6 days"
+  text: string; // "next live check: in 2 days · 6/12 credits this month"
 }
 
 export interface ProviderUsage {
@@ -206,6 +251,7 @@ export interface WatchStats {
   typical_high?: number | null;
   legacy_runs?: number; // unverified runs left out of the numbers
   legacy?: { runs: number; low_30d: number | null; typical: number | null; all_time_low: number | null } | null;
+  advice?: Advice | null; // buy or wait for the last best
 }
 
 export interface AlertRecord {
@@ -234,6 +280,8 @@ export interface Watch extends SearchParams {
   stats?: WatchStats | null; // null before the first comparable run
   last_alert?: AlertRecord | null;
   credits?: WatchCredits | null; // live-search cost estimate (absent from pre-2.2 servers)
+  credit_budget?: number | null; // monthly live-search budget; null = fair share
+  plan?: WatchPlan | null; // credit plan (active watches that spend live searches)
 }
 
 export interface WatchCreate extends Partial<SearchParams> {
@@ -245,6 +293,7 @@ export interface WatchCreate extends Partial<SearchParams> {
   cabin_bag: boolean;
   checked_bag: boolean;
   alerts?: Partial<AlertSettings>;
+  credit_budget?: number | null;
 }
 
 /** PATCH /api/watches/{id} body: any subset. The route can't be edited;
@@ -255,6 +304,7 @@ export interface WatchUpdate extends Partial<Omit<SearchParams, "max_price">> {
   direct_only?: boolean;
   active?: boolean;
   alerts?: Partial<AlertSettings>;
+  credit_budget?: number | null; // null = back to the fair share
 }
 
 export interface HistoryPoint {

@@ -4,6 +4,7 @@ import { CABIN_LABELS, DEFAULT_DATES_HINT } from "../lib/search";
 import type { SearchForm as Form } from "../lib/search";
 import type { CabinClass } from "../types";
 import AirportInput from "./AirportInput";
+import HolidayPicks from "./HolidayPicks";
 import Icon from "./Icon";
 import PassengersPicker from "./PassengersPicker";
 import Segmented from "./Segmented";
@@ -111,6 +112,7 @@ export default function SearchForm({
             ]}
           />
         </div>
+        <HolidayPicks form={form} onChange={onChange} />
         {form.date_mode === "flexible" ? (
           <>
             <input

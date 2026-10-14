@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { rankDeals, type Sort } from "../lib/ranking";
-import type { StoredDeal } from "../types";
+import { showAdvice } from "../lib/advice";
+import type { Advice, StoredDeal } from "../types";
 import DealCard from "./DealCard";
 import Segmented from "./Segmented";
 
@@ -11,14 +12,24 @@ export default function DealList({
   deals,
   sortable = true,
   onCheckLive,
+  advice,
 }: {
   deals: StoredDeal[];
   sortable?: boolean;
   onCheckLive?: (deal: StoredDeal) => void; // re-run that exact date pair live (1 search)
+  advice?: Advice | null; // buy or wait for the cheapest deal (search meta)
 }) {
   const [sort, setSort] = useState<Sort>("price");
   const { confirmed, estimates, cheapestId } = useMemo(() => rankDeals(deals, sort), [deals, sort]);
-  const card = (d: StoredDeal) => <DealCard key={d.id} deal={d} highlight={d.id === cheapestId} onCheckLive={onCheckLive} />;
+  const card = (d: StoredDeal) => (
+    <DealCard
+      key={d.id}
+      deal={d}
+      highlight={d.id === cheapestId}
+      onCheckLive={onCheckLive}
+      advice={d.id === cheapestId && showAdvice(advice) ? advice : null}
+    />
+  );
   return (
     <div className="deal-list">
       {sortable && deals.length > 1 && (

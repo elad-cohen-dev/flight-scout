@@ -1,5 +1,5 @@
 import type { Job, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate } from "./types";
-import type { DealDetails, ExploreQuote, ExploreRequest, ExploreResult } from "./types";
+import type { DealDetails, ExploreQuote, ExploreRequest, ExploreResult, HolidayWindow } from "./types";
 
 const PASSWORD_KEY = "fs_app_password";
 
@@ -231,6 +231,11 @@ export async function updateWatch(id: number, patch: WatchUpdate): Promise<Watch
 
 export async function deleteWatch(id: number): Promise<void> {
   return handle(await fetch(`/api/watches/${id}`, { method: "DELETE", headers: authHeaders() }));
+}
+
+/** Upcoming school vacations / holidays (backend app/holidays.py) — the search form's quick-picks. */
+export async function fetchHolidays(): Promise<HolidayWindow[]> {
+  return handle(await fetch("/api/holidays", { headers: authHeaders() }));
 }
 
 /** Fare-API calls this month (live Google Flights budget) — for the usage meter. */

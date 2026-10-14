@@ -4,7 +4,8 @@ import { bagBadges, bagCheckoutNote, bagTotal, bagWords, directSeller } from "..
 import { comparable, formatPrice, formatTripDate, nightsBetween, shortDate, stopsLabel, timeAgo } from "../lib/format";
 import { isUnconfirmed } from "../lib/ranking";
 import { dealCriteria, totalPassengers } from "../lib/search";
-import type { DealDetails, PriceConfidence, StoredDeal } from "../types";
+import type { Advice, DealDetails, PriceConfidence, StoredDeal } from "../types";
+import AdviceChip from "./AdviceChip";
 import DirectBooking from "./DirectBooking";
 import Icon from "./Icon";
 import SourceBadge from "./SourceBadge";
@@ -101,10 +102,12 @@ export default function DealCard({
   deal,
   highlight,
   onCheckLive,
+  advice,
 }: {
   deal: StoredDeal;
   highlight?: boolean;
   onCheckLive?: (deal: StoredDeal) => void;
+  advice?: Advice | null; // buy or wait (search meta), on the run's best deal
 }) {
   const estimate = isUnconfirmed(deal);
   const criteria = dealCriteria(deal);
@@ -233,6 +236,7 @@ export default function DealCard({
           </span>
         )}
       </div>
+      {advice && <AdviceChip advice={advice} withReason />}
 
       <div className="deal-foot">
         {estimate && onCheckLive && (

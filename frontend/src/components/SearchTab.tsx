@@ -92,6 +92,11 @@ export default function SearchTab({
             <div>
               <h2 id="results-title">Results</h2>
               <p className="muted small">
+                {lastResult.meta?.holiday && (
+                  <span className="badge badge-holiday" title="Trips that fit this school vacation">
+                    <Icon name="calendar" size={11} /> {lastResult.meta.holiday}
+                  </span>
+                )}{" "}
                 {lastResult.query.replace(" -> ", " → ")} · {timeAgo(lastResult.finishedAt)}
               </p>
               {insightsLine(lastResult.meta?.price_insights) && (
@@ -115,7 +120,7 @@ export default function SearchTab({
               <span className="muted">Try flexible dates, allowing a stop, or a wider destination like a country.</span>
             </div>
           ) : (
-            <DealList deals={lastResult.deals} onCheckLive={onCheckLive} />
+            <DealList deals={lastResult.deals} onCheckLive={onCheckLive} advice={lastResult.meta?.advice} />
           )}
         </section>
       )}

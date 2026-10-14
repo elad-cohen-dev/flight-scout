@@ -63,7 +63,7 @@ from datetime import datetime, timedelta, timezone
 from . import bags
 from .currency import convert, normalize
 from .models import (
-    AlertRecord, AlertRule, AlertSettings, LegacyStats, PriceInsights, SearchParams, StoredDeal, Watch,
+    Advice, AlertRecord, AlertRule, AlertSettings, LegacyStats, PriceInsights, SearchParams, StoredDeal, Watch,
     WatchStats,
 )
 
@@ -471,6 +471,7 @@ def enrich_watches(watches: list[Watch], sightings: dict[int, list[dict]],
 _SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£", "ILS": "₪"}
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 RULE_ICONS = {"threshold": "🎯", "new_low": "📉", "under_typical": "💸", "big_drop": "⬇️"}
+ADVICE_ICONS = {"buy_now": "🛒", "good_price": "👍", "wait": "⏳"}
 
 
 def fmt_price(amount: float, currency: str) -> str:
@@ -508,6 +509,8 @@ class WatchResult:
     hits: list[RuleHit] = field(default_factory=list)
     suppressed: AlertRecord | None = None  # set when the hits are a repeat
     error: str | None = None
+    advice: Advice | None = None           # buy or wait (app/advice.py)
+    skipped: str = ""                      # the credit plan skipped today's check: when the next one is
 
     @property
     def alerting(self) -> bool:
@@ -560,8 +563,14 @@ def _block(r: WatchResult, rich: bool) -> list[str]:
     esc = html.escape if rich else (lambda s: s)
     w = r.watch
     head = f"{_route(w)} · #{w.id}"
+    advice = r.advice if r.advice is not None and r.advice.verdict in ADVICE_ICONS else None
     if r.error:
         return [f"⚠️ {esc(head)}: search failed"]
+    if r.skipped:
+        line = f"{esc(head)}: skipped today"
+        if w.last_best_price is not None:
+            line += f" · last {fmt_price(w.last_best_price, w.currency)}"
+        return [line + f" · next live check {esc(r.skipped)}"]
     if r.best is None:
         return [f"{esc(head)}: no comparable fares"]
     if not r.alerting:
@@ -569,12 +578,17 @@ def _block(r: WatchResult, rich: bool) -> list[str]:
         score = r.stats.score if r.stats else None
         if score is not None:
             line += f" · score {score}"
+        if advice is not None:
+            line += f" · {advice.label}"
         if r.suppressed is not None:
             line += " · already alerted"
         return [line]
     lines = [f"🔥 <b>{esc(head)}</b>" if rich else f"🔥 {head}"]
     lines += fare_lines(r, rich)
     lines += [f"{RULE_ICONS[h.rule]} {esc(h.text)}" for h in r.hits]
+    if advice is not None:
+        verdict = f"<b>{esc(advice.label)}</b>" if rich else advice.label
+        lines.append(f"{ADVICE_ICONS[advice.verdict]} {verdict} — {esc(advice.reason)}")
     stats = stats_line(r)
     if stats:
         lines.append(esc(stats))

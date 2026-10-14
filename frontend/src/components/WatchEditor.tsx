@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { CABIN_LABELS, formToRequest } from "../lib/search";
 import type { SearchForm } from "../lib/search";
+import { parseCreditBudget } from "../lib/advice";
 import { alertSettingsOf, describeAlertRules, describeWatch, formToWatchUpdate, watchToForm } from "../lib/watches";
 import type { AlertSettings, CabinClass, Watch, WatchUpdate } from "../types";
 import AlertRules from "./AlertRules";
+import HolidayPicks from "./HolidayPicks";
 import Icon from "./Icon";
 import PassengersPicker from "./PassengersPicker";
 import Segmented from "./Segmented";
 import "./watches.css";
+import "./advice.css";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -24,6 +27,7 @@ export default function WatchEditor({
 }) {
   const [form, setForm] = useState<SearchForm>(() => watchToForm(watch));
   const [alerts, setAlerts] = useState<AlertSettings>(() => alertSettingsOf(watch));
+  const [budget, setBudget] = useState(watch.credit_budget != null ? String(watch.credit_budget) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const priceRef = useRef<HTMLInputElement>(null);
@@ -44,9 +48,14 @@ export default function WatchEditor({
       priceRef.current?.focus();
       return;
     }
+    const credit_budget = parseCreditBudget(budget);
+    if (credit_budget === undefined) {
+      setError("Live searches a month: a whole number, or empty for a fair share.");
+      return;
+    }
     setError(null);
     setSaving(true);
-    const ok = await onSave({ ...patch, alerts });
+    const ok = await onSave({ ...patch, alerts, credit_budget });
     setSaving(false);
     if (!ok) setError("Couldn't save — check the values and try again.");
   }
@@ -103,6 +112,7 @@ export default function WatchEditor({
             ]}
           />
         </div>
+        <HolidayPicks form={form} onChange={set} />
         {form.date_mode === "flexible" ? (
           <input
             className="input"
@@ -207,6 +217,23 @@ export default function WatchEditor({
         priceRef={priceRef}
         priceInvalid={!!error && !formToWatchUpdate(form)}
       />
+
+      <label className="field we-budget">
+        <span className="field-label">Live searches a month</span>
+        <input
+          type="number"
+          min={0}
+          max={1000}
+          inputMode="numeric"
+          placeholder={watch.plan?.budget_default ? `fair share (${watch.plan.budget})` : "fair share"}
+          aria-describedby={`we-budget-${watch.id}`}
+          value={budget}
+          onChange={(e) => setBudget(e.target.value)}
+        />
+        <span className="muted small" id={`we-budget-${watch.id}`}>
+          Caps this watch's live Google checks; the daily run checks less often to stay inside it. Empty = a fair share of the monthly budget.
+        </span>
+      </label>
 
       <p className="watch-words small" aria-live="polite">
         {words.search} <strong>{alerts.threshold ? words.alert : ""}</strong> {ruleWords}
