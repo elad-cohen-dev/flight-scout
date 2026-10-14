@@ -118,9 +118,15 @@ export default function BookingLinks({
   const hint = prefilledHint(primary, c);
   const generic = todo(primary, c, others);
   const bags = bagsLabel(c);
+  const addBags = (s: string) => !!bags && s.startsWith(`Add ${bags} at checkout`);
+  // The deal card already says the bags come at checkout (its checkout preview,
+  // with the price with bags), so the generic "Add … at checkout" step would repeat it.
+  const previewed = !!deal.bags?.added_at_checkout;
   const steps = direct?.bagsNote
-    ? [...generic.filter((s) => !(bags && s.startsWith(`Add ${bags} at checkout`))), direct.bagsNote]
-    : generic;
+    ? [...generic.filter((s) => !addBags(s)), direct.bagsNote]
+    : previewed
+      ? generic.filter((s) => !addBags(s))
+      : generic;
   const verb = direct ? "Book with" : secondary ? "Search on" : primary.kind === "airline" ? "Book on" : primary.kind === "other" ? "Open" : "Search on";
 
   return (

@@ -220,3 +220,12 @@ describe("bag badges with the price with bags", () => {
     expect(bagBadges("google_flights", { checked_bag: true }, null).map((b) => b.label)).toEqual(["20kg bag not in price"]);
   });
 });
+
+describe("describeWatch with a credit plan", () => {
+  it("says how often an adaptive watch checks", () => {
+    const base = { origin: "TLV", destination: "Rome", dates_hint: "Hanukkah 2026" };
+    expect(describeWatch({ ...base, plan: { interval_days: 3 } }).search).toMatch(/^Every 3 days for now, looks for/);
+    expect(describeWatch({ ...base, plan: { interval_days: 1 } }).search).toMatch(/^Every day, looks for/);
+    expect(describeWatch(base).search).toMatch(/^Every day, looks for/);
+  });
+});

@@ -198,3 +198,14 @@ def test_for_watch_nothing_to_say():
     assert advice.for_watch(stats(last_best=None), [], None, TODAY) is None
     assert advice.days_until("mid November", TODAY) is None and advice.days_until("", TODAY) is None
     assert advice.days_until(date(2026, 10, 20), TODAY) == 6
+
+
+def test_typical_band_but_best_seen_is_not_wait():
+    # 9% under the typical (inside the ±10% band) yet the lowest of 30 days:
+    # "Wait" would contradict the watch's own deal score.
+    s = advice.Signals(price=2864, currency="ILS", days_out=62, typical=3159, low_30d=2864)
+    assert advice.advise(s).verdict == advice.GOOD
+    great = advice.Signals(price=2950, currency="ILS", days_out=62, typical=3159, score=91)
+    assert advice.advise(great).verdict == advice.GOOD
+    plain = advice.Signals(price=3100, currency="ILS", days_out=62, typical=3159, score=55)
+    assert advice.advise(plain).verdict == advice.WAIT

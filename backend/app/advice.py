@@ -64,6 +64,10 @@ class Signals:
     low_30d: float | None = None       # lowest of the 30 days BEFORE this price
     recent: tuple[float, ...] = ()     # latest run bests, oldest first (this one last)
     long_haul: bool = False
+    score: int | None = None           # the watch's 0-100 deal score (alerts.deal_score)
+
+
+GREAT_SCORE = 80  # the score the Watches tab calls a "great deal"
 
 
 def _pct(a: float, b: float) -> int:
@@ -147,6 +151,12 @@ def advise(s: Signals) -> Advice:
     if lvl == "typical":
         if last_minute:
             return _make(BUY, f"{why}{when} — unlikely to get cheaper this close", days)
+        # A price inside the typical band can still be the best this watch has
+        # seen; then "wait" would contradict the deal score next to it.
+        if s.low_30d is not None and s.price <= s.low_30d:
+            return _make(GOOD, f"{why}, but the lowest of your checks in 30 days{when}", days)
+        if s.score is not None and s.score >= GREAT_SCORE:
+            return _make(GOOD, f"{why}, but a great deal against your earlier checks{when}", days)
         if close:
             return _make(GOOD, f"{why}{when} — {haul} fares usually rise inside "
                                f"~{rise // 7} weeks, so book soon", days)
@@ -219,7 +229,8 @@ def for_watch(stats: WatchStats | None, recent: list[float], depart: str | date 
     low = prior_low if prior_low is not None else (stats.low_30d if depth >= TYPICAL_MIN_DEPTH else None)
     return advise(Signals(price=price, currency=stats.currency, days_out=days_until(depart, today),
                           typical_low=stats.typical_low, typical_high=stats.typical_high, typical=typical,
-                          low_30d=low, recent=tuple(recent), long_haul=long_haul(origin, destination)))
+                          low_30d=low, recent=tuple(recent), long_haul=long_haul(origin, destination),
+                          score=stats.score))
 
 
 def today_of(now: datetime | date | None) -> date:

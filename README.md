@@ -9,10 +9,11 @@ An AI agent that hunts the live web for cheap flights, stores what it finds, and
 - **Search engine** (`engine.py`): routes each search to the best source. Exact routes and dates get **live Google Flights fares** via [SerpApi](https://serpapi.com); flexible dates use **Google Travel Explore** to find the cheapest dates, then confirm them live; regions, "anywhere" and fallbacks go to the LLM agent. A monthly live-search budget and a response cache keep it on SerpApi's free plan.
 - **Agent**: [LangGraph](https://langchain-ai.github.io/langgraph/) (Python) driving an LLM with the provider's **server-side web search tool**. Works with **Anthropic** (Claude) or **OpenAI** (GPT), auto-detected from the API key. A *research* pass searches the live web, then a cheaper *extract* pass turns the findings into validated structured deals.
 - **Cleanup**: every deal — API or agent — goes through one `postprocess` step: canonical airlines and airports, currency checks, the search criteria enforced in code, dedupe.
+- **Price with bags** (`bags.py`): Google's fares leave out checked bags (and Google lists no bag fees for low-cost carriers), so every deal is re-priced with the requested trolleys and checked bags from a dated per-airline fee table (`data/bag_fees.json`). Sorting, watches and alerts all use that total; the app shows the breakdown and what the airline's checkout will show first. A "was it the same price?" log after each booking click shows how accurate it is.
 - **Storage**: [Turso](https://turso.tech) (hosted libSQL) in production, a local SQLite file in development — same code path, selected by env var. Jobs, usage counters, the provider cache and the alert log live there too.
 - **API**: FastAPI — searches run as background jobs (persisted, restart-safe) with live progress over SSE; it also serves the built frontend, the Telegram bot webhook and the book-direct redirect.
-- **App**: React + Vite with Search, Explore (map), History, Watches and Trends tabs.
-- **Watches**: a daily GitHub Actions job runs the same watcher code directly against Turso, scores each watch against its price history, and sends one digest to Telegram/ntfy.
+- **App**: React + Vite with Search, Explore (map), History, Watches, Trips and Trends tabs. Trips group a holiday's searches, watches, shortlist and booked flight; school-holiday quick-picks (`holidays.py`) search the cheapest week inside a vacation; a buy-or-wait verdict (`advice.py`) sits on the best deal and each watch.
+- **Watches**: a daily GitHub Actions job runs the same watcher code directly against Turso, scores each watch against its price history, and sends one digest to Telegram/ntfy. Each watch spends live searches on an adaptive schedule (`cadence.py`: more often close to departure or when prices move) within its monthly credit budget.
 
 **→ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full end-to-end design: agent internals, request flow, storage/caching, the cron + notification pipeline, and the free-tier trade-offs.**
 
@@ -198,7 +199,12 @@ Free-tier notes:
 - **Real fare data** (optional keys): live, exact Google Flights fares via SerpApi for exact routes and dates; the free Aviasales cache picks the cheapest dates for flexible searches (then the top ones are confirmed live) and seeds region/"anywhere" searches — without it, Google Travel Explore picks the dates (≤ 3 live searches per flexible search, ~2 typical); every card says where its price came from ("Google Flights · live", "Google Explore · estimate", "Aviasales · cached 2d", "Web search"); watch cards show their live-search cost and the Watches tab warns when active watches would exceed the monthly budget, results show Google's typical price range for the route, and the Search tab shows live searches used this month. Without keys the LLM agent works exactly as before
 - **Price confidence** on every deal: verified dated fare vs. estimate vs. "from" teaser
 - **One-click, pre-filled booking** — airline deep links (Ryanair, Wizz Air, easyJet) and Google Flights / Skyscanner / Kayak / Momondo links with the route, exact dates, passengers, cabin and (where supported) stops and bags already set; the card shows what's pre-filled and what's left to set at checkout
-- **Baggage-inclusive pricing** — optionally require a 🎒 cabin trolley and/or 🧳 20kg+ checked bag; the agent adds the airline's bag fees to advertised fares (or flags when it can't verify them), so comparisons reflect what the trip actually costs
+- **Price with bags** — ask for a 10 kg trolley each and any number of 20 kg checked bags; every live fare is re-priced with the airline's bag fees (per passenger, per direction, from a dated fee table — Google lists none for low-cost carriers), the card shows the total, a breakdown and what the airline will show before bags, and everything ranks by the total
+- **Price you can check** — "checked 3 h ago" on every fare, a 1-credit Recheck button, and a "was it the same price?" prompt after a booking click; the Trends tab shows how often prices held, per airline
+- **Trips** — group a holiday's searches, watches and shortlisted fares, compare them side by side, and record the booked flight (`/trips` in Telegram too)
+- **Holiday windows** — Israeli school vacations and holidays as one-tap date picks; finds the cheapest week inside the break
+- **Buy or wait** — a verdict on the best deal and every watch, from Google's typical range, the watch's history and days to departure
+- **Adaptive watches** — live checks weekly when departure is far, daily when close, faster when prices move, within a monthly credit budget per watch
 - **City & airport autocomplete** — ~550 airports, metro areas ("London — all airports"), countries and regions, accent-insensitive with Hebrew names; free text like "Greece or Cyprus" still works
 - **Price calendar** — best fare per departure date for each route (compared in one currency, stale sightings faded); tap a day to see its fares or pre-fill a search around it
 - **Price watches** — create one from any History card, edit or pause it anytime; routes re-searched daily (GitHub Actions cron) with currency-aware comparison (a ₪ fare is converted before checking a $ threshold)
@@ -207,5 +213,5 @@ Free-tier notes:
 - **Price-history chart** per route, built from every search run
 - **De-duplication** of identical deals across runs ("seen 3× since Aug 10")
 - **Access control** — optional shared password (`APP_PASSWORD`) with a lock screen
-- **Tabbed app** — Search / History / Watches / Trends; history folds repeated runs of a search into one card with its price trend, grouped by date or route, with filter, sort and paging
+- **Tabbed app** — Search / Explore / History / Watches / Trips / Trends; history folds repeated runs of a search into one card with its price trend, grouped by date or route, with filter, sort and paging
 - **Mobile-friendly** responsive UI with a bottom tab bar, and dark mode

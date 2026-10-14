@@ -574,6 +574,8 @@ def search_label(origin: str, destination: str, dates_hint: str,
         cabin_bag, checked_bag = params.cabin_bag, params.checked_bag
         for flag in _criteria_flags(params):
             flags += f", {flag}"
+            if flag.endswith((" checked bag", " checked bags")):
+                checked_bag = False  # the count already says it; don't repeat "checked 20kg bag"
     if direct_only:
         flags += ", direct only"
     if cabin_bag:

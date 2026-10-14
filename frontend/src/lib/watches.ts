@@ -92,7 +92,9 @@ function partyWords(p: SearchParams["passengers"]): string {
  *  from TLV to Greece (a long weekend in November) for 2 adults in economy,
  *  direct flights only, needs a cabin trolley." — a requirement: Google's fares
  *  don't include a checked bag, so the wording mustn't promise the price does. */
-export function describeWatch(w: Criteria & { max_price?: number | null }): { search: string; alert: string } {
+export function describeWatch(
+  w: Criteria & { max_price?: number | null; plan?: { interval_days: number } | null },
+): { search: string; alert: string } {
   const trip = w.trip_type === "one_way" ? "a one-way flight" : "a round trip";
   const window = exactWindowLabel({
     depart_from: w.depart_from ?? null,
@@ -114,7 +116,9 @@ export function describeWatch(w: Criteria & { max_price?: number | null }): { se
   ].filter(Boolean);
   if (bags.length) bits.push(`needs ${bags.join(" and ")}`);
   if (w.nearby_airports) bits.push("also trying nearby airports");
-  const search = `Every day, looks for ${trip} from ${w.origin} to ${w.destination} ${when} ${bits.join(", ")}.`;
+  // Adaptive watches (backend app/cadence.py) check live on their own schedule.
+  const every = w.plan && w.plan.interval_days > 1 ? `Every ${w.plan.interval_days} days for now` : "Every day";
+  const search = `${every}, looks for ${trip} from ${w.origin} to ${w.destination} ${when} ${bits.join(", ")}.`;
   const who = totalPassengers(pax) > 1 ? "the total for everyone" : "a fare";
   const alert =
     w.max_price != null && w.max_price > 0
