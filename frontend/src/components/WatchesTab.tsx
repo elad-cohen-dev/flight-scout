@@ -15,7 +15,9 @@ import {
   ruleWords,
   scoreTone,
 } from "../lib/watches";
+import { tripFromWatch } from "../lib/trips";
 import type { Watch, WatchUpdate } from "../types";
+import AddToTrip from "./AddToTrip";
 import Icon from "./Icon";
 import WatchEditor from "./WatchEditor";
 import "./watches.css";
@@ -206,6 +208,7 @@ function WatchCard({
             >
               <Icon name={w.active ? "pause" : "play"} size={14} /> {w.active ? "Pause" : "Resume"}
             </button>
+            <AddToTrip item={{ kind: "watch", ref_id: w.id }} defaults={() => tripFromWatch(w)} />
             <button className="btn btn-ghost btn-sm btn-danger push" onClick={() => onDelete(w.id)} aria-label={`Delete watch ${route}`}>
               <Icon name="trash" size={14} /> Delete
             </button>

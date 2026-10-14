@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { formatPrice, plural, shortDate, timeAgo } from "../lib/format";
 import { sectionize } from "../lib/history";
 import type { QueryGroup } from "../lib/history";
+import { searchRef, tripFromDeal } from "../lib/trips";
 import { watchForGroup } from "../lib/watches";
 import type { WatchMatch } from "../lib/watches";
 import type { Watch, WatchCreate } from "../types";
+import AddToTrip from "./AddToTrip";
 import DealList from "./DealList";
 import Icon from "./Icon";
 import PriceTrend from "./PriceTrend";
@@ -104,6 +106,11 @@ function QueryCard({
         >
           <Icon name="refresh" size={17} />
         </button>
+        <AddToTrip
+          compact
+          item={{ kind: "search", search_query: searchRef(latest.deals[0].search_query) }}
+          defaults={() => tripFromDeal(latest.deals[0])}
+        />
         {match ? (
           <button
             className="icon-btn query-watch watching"

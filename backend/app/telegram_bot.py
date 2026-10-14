@@ -11,7 +11,7 @@ Register the webhook once per deploy URL:
     cd backend && uv run python -m app.telegram_bot https://your-app.onrender.com
 or POST /api/telegram/setup from the deployed app (see README).
 
-Commands: /watches, /best <#>, /run <#>, /pause <#>, /resume <#>,
+Commands: /watches, /trips, /best <#>, /run <#>, /pause <#>, /resume <#>,
 /watch <from> <to> <dates...> under <price> [direct] [2 adults] ..., /help.
 """
 
@@ -25,10 +25,10 @@ import sys
 from datetime import datetime, timezone
 from typing import Callable
 
-from . import alerts, notify, storage, watcher
+from . import alerts, notify, storage, trips, watcher
 from .alerts import WatchResult, fmt_price
 from .currency import _FALLBACK_PER_USD, normalize
-from .models import Passengers, Watch, WatchCreate, WatchUpdate
+from .models import Passengers, Trip, Watch, WatchCreate, WatchUpdate
 
 # run_watch(watch_id, chat_id) starts a background run and messages the chat when done.
 RunWatch = Callable[[int, str], None]
@@ -37,6 +37,7 @@ _SECRET_OK = re.compile(r"^[A-Za-z0-9_-]{16,256}$")
 
 HELP = """✈️ <b>Flight Scout bot</b>
 /watches — your watches, last best + score
+/trips — your trips, best price with bags
 /best 3 — cheapest fare of watch #3 + booking link
 /run 3 — check watch #3 now (reply in ~2 min)
 /pause 3 · /resume 3
@@ -290,6 +291,32 @@ def format_watches(watches: list[Watch], now: datetime) -> str:
     return "\n".join(lines)
 
 
+_TRIP_STATUS = {"planning": "🗺 planning", "booked": "✅ booked", "done": "🏁 done"}
+
+
+def format_trips(trip_list: list[Trip]) -> str:
+    """/trips: each trip's route, window and best price with bags (read-only)."""
+    if not trip_list:
+        return "No trips yet. Plan one in the app's Trips tab."
+    lines = ["<b>Your trips</b>"]
+    for t in trip_list:
+        head = f"<b>{_esc(t.name)}</b> · {_TRIP_STATUS.get(t.status, t.status)}"
+        route = " → ".join(_esc(x) for x in (t.origin, t.destination) if x)
+        when = t.dates_hint or " – ".join(d.strftime("%d %b") for d in (t.depart_from, t.depart_to) if d)
+        bits = [b for b in (route, _esc(when)) if b]
+        if t.booked and t.booked.price is not None:
+            flight = " ".join(x for x in (t.booked.airline, t.booked.flight_numbers) if x)
+            bits.append(f"paid {fmt_price(t.booked.price, t.booked.currency)}" + (f" · {_esc(flight)}" if flight else ""))
+        elif t.best:
+            bits.append(f"best {fmt_price(t.best.price, t.best.currency)} incl. bags")
+        elif not t.items:
+            bits.append("nothing linked yet")
+        lines.append(head)
+        if bits:
+            lines.append("   " + " · ".join(bits))
+    return "\n".join(lines)
+
+
 def format_best(w: Watch, now: datetime) -> str:
     deals = storage.watch_run_deals(w.id)
     price, best = watcher.cheapest(w, deals)
@@ -368,6 +395,8 @@ def handle_update(update: dict, run_watch: RunWatch, now: datetime | None = None
         return _reply(chat_id, HELP)
     if cmd in ("watches", "list"):
         return _reply(chat_id, format_watches(_enriched(now), now))
+    if cmd == "trips":
+        return _reply(chat_id, format_trips(trips.with_best(storage.list_trips(), now)))
     if cmd == "watch":
         parsed_watch, explicit = _parse_watch(arg)
         if isinstance(parsed_watch, str):
@@ -419,6 +448,7 @@ def _criteria(w: Watch) -> list[str]:
 
 COMMANDS = [
     {"command": "watches", "description": "Your watches with last best + score"},
+    {"command": "trips", "description": "Your trips with best price incl. bags"},
     {"command": "best", "description": "Cheapest fare of a watch: /best 3"},
     {"command": "run", "description": "Check a watch now: /run 3"},
     {"command": "pause", "description": "Pause a watch: /pause 3"},

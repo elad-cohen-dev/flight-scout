@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Literal
 
@@ -560,3 +561,174 @@ class SearchRequest(SearchParams):
 
     def params(self) -> SearchParams:
         return SearchParams(**self.model_dump(include=set(SearchParams.model_fields)))
+
+
+# --- trips (3.0): a family trip plan grouping searches, watches and shortlisted deals ---
+
+TripStatus = Literal["planning", "booked", "done"]
+TripItemKind = Literal["search", "watch", "deal"]
+
+_WATCH_LABEL_TAG = re.compile(r"\s*\[watch #\d+\]\s*$")
+
+
+class BookedFlight(BaseModel):
+    """What was actually bought: a stored deal (deal_id) and/or free-form
+    details, since bookings often happen off-app (a travel agent, an airline
+    sale). Every field is optional so a half-remembered booking still fits."""
+
+    deal_id: int | None = Field(default=None, description="The stored deal that was booked, if any")
+    airline: str = ""
+    flight_numbers: str = ""
+    depart_date: str = ""
+    return_date: str = ""
+    price: float | None = Field(default=None, ge=0, description="Price paid, whole party")
+    currency: str = "USD"
+    booking_ref: str = ""
+    notes: str = Field(default="", max_length=2000)
+    booked_at: datetime | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def _currency(cls, v: str) -> str:
+        return _normalize_currency(v) or "USD"
+
+
+class TripCreate(BaseModel):
+    """A trip plan: where, roughly when, who. Route and dates are descriptive —
+    the searches and watches linked to it carry the exact criteria."""
+
+    name: str = Field(min_length=1, max_length=120)
+    notes: str = Field(default="", max_length=5000)
+    origin: str = ""
+    destination: str = ""
+    dates_hint: str = Field(default="", description="Free-text window, e.g. 'Sukkot week'")
+    depart_from: date | None = None
+    depart_to: date | None = None
+    passengers: Passengers = Field(default_factory=Passengers)
+    currency: str = Field(default="USD", description="Currency the trip's best price is shown in")
+    status: TripStatus = "planning"
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("name can't be blank")
+        return v.strip()
+
+    @field_validator("currency")
+    @classmethod
+    def _currency(cls, v: str) -> str:
+        return _normalize_currency(v) or "USD"
+
+
+class TripUpdate(BaseModel):
+    """Partial update for PATCH /api/trips/{id}: only the fields sent change;
+    the merged trip is re-validated as a TripCreate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    notes: str | None = None
+    origin: str | None = None
+    destination: str | None = None
+    dates_hint: str | None = None
+    depart_from: date | None = None
+    depart_to: date | None = None
+    passengers: Passengers | None = None
+    currency: str | None = None
+    status: TripStatus | None = None
+
+    @model_validator(mode="after")
+    def _no_null_for_required(self):
+        nulled = sorted(f for f in self.model_fields_set - {"depart_from", "depart_to"} if getattr(self, f) is None)
+        if nulled:
+            raise ValueError(f"cannot be null: {', '.join(nulled)}")
+        return self
+
+
+class TripItemCreate(BaseModel):
+    """Link a search (by its stored label), a watch or a deal to a trip."""
+
+    kind: TripItemKind
+    ref_id: int | None = Field(default=None, description="kind=watch/deal: the watch or deal id")
+    search_query: str = Field(default="", description="kind=search: the search's stored label ('[watch #N]' is dropped)")
+    note: str = Field(default="", max_length=1000)
+    pinned: bool = Field(default=False, description="A favourite: listed first in the trip's shortlist")
+
+    @model_validator(mode="after")
+    def _ref(self):
+        if self.kind == "search":
+            # A watch's runs carry "[watch #N]"; the trip follows the search
+            # itself, which matches both the plain and the watch-tagged runs.
+            self.search_query = _WATCH_LABEL_TAG.sub("", self.search_query).strip()
+            if not self.search_query:
+                raise ValueError("a search item needs search_query")
+            self.ref_id = None
+        elif self.ref_id is None:
+            raise ValueError(f"a {self.kind} item needs ref_id")
+        else:
+            self.search_query = ""
+        return self
+
+
+class TripItemUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: str | None = Field(default=None, max_length=1000)
+    pinned: bool | None = None
+
+
+class TripItem(BaseModel):
+    id: int
+    trip_id: int
+    kind: TripItemKind
+    ref_id: int | None = None
+    search_query: str = ""
+    note: str = ""
+    pinned: bool = False
+    created_at: datetime
+
+
+class TripBest(BaseModel):
+    """The cheapest price with bags across a trip's items, in the trip currency."""
+
+    price: float
+    currency: str
+    kind: TripItemKind
+    label: str = Field(description="Where it came from, e.g. 'Wizz Air · TLV -> Rome'")
+    deal_id: int | None = None
+
+
+class Trip(TripCreate):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    booked: BookedFlight | None = None
+    # Computed on read (app/trips.py); never stored.
+    items: int = Field(default=0, description="Linked searches + watches + deals")
+    best: TripBest | None = None
+
+
+class TripSearchItem(BaseModel):
+    item: TripItem
+    route: str = ""
+    runs: int = Field(default=0, description="Stored runs of this search")
+    latest_run_at: datetime | None = None
+    deals: list[StoredDeal] = Field(default_factory=list, description="The latest run's deals, cheapest with bags first")
+
+
+class TripWatchItem(BaseModel):
+    item: TripItem
+    watch: Watch | None = Field(default=None, description="None once the watch was deleted")
+
+
+class TripDealItem(BaseModel):
+    item: TripItem
+    deal: StoredDeal | None = Field(default=None, description="None if the deal row is gone")
+
+
+class TripDetail(Trip):
+    searches: list[TripSearchItem] = Field(default_factory=list)
+    watches: list[TripWatchItem] = Field(default_factory=list)
+    deals: list[TripDealItem] = Field(default_factory=list, description="The shortlist, pinned first")
+    booked_deal: StoredDeal | None = None

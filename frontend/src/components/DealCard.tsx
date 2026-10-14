@@ -4,7 +4,9 @@ import { bagBadges, bagCheckoutNote, bagTotal, bagWords, directSeller } from "..
 import { comparable, formatPrice, formatTripDate, nightsBetween, shortDate, stopsLabel, timeAgo } from "../lib/format";
 import { isUnconfirmed } from "../lib/ranking";
 import { dealCriteria, totalPassengers } from "../lib/search";
+import { tripFromDeal } from "../lib/trips";
 import type { DealDetails, PriceConfidence, StoredDeal } from "../types";
+import AddToTrip from "./AddToTrip";
 import DirectBooking from "./DirectBooking";
 import Icon from "./Icon";
 import SourceBadge from "./SourceBadge";
@@ -272,6 +274,7 @@ export default function DealCard({
           </details>
         )}
         <DirectBooking deal={deal} details={details} onDetails={setDetails} />
+        <AddToTrip item={{ kind: "deal", ref_id: deal.id }} defaults={() => tripFromDeal(deal)} />
       </div>
     </article>
   );
