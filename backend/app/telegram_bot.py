@@ -25,7 +25,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Callable
 
-from . import alerts, notify, storage, trips, watcher
+from . import alerts, engine, notify, storage, trips, watcher
 from .alerts import WatchResult, fmt_price
 from .currency import _FALLBACK_PER_USD, normalize
 from .models import Passengers, Trip, Watch, WatchCreate, WatchUpdate
@@ -265,8 +265,10 @@ def _ago(when: datetime | None, now: datetime) -> str:
 
 
 def _enriched(now: datetime) -> list[Watch]:
-    return alerts.enrich_watches(storage.list_watches(), storage.watch_sightings(), storage.list_alerts(), now,
-                                 insights=storage.watch_price_insights())
+    sightings = storage.watch_sightings()
+    watches = alerts.enrich_watches(storage.list_watches(), sightings, storage.list_alerts(), now,
+                                    insights=storage.watch_price_insights())
+    return engine.with_advice(watches, sightings, now)
 
 
 def format_watches(watches: list[Watch], now: datetime) -> str:
@@ -285,6 +287,8 @@ def format_watches(watches: list[Watch], now: datetime) -> str:
             bits.append(f"last {fmt_price(w.last_best_price, w.currency)}")
         if s and s.score is not None:
             bits.append(f"score {s.score}")
+        if s and s.advice and s.advice.verdict in alerts.ADVICE_ICONS:
+            bits.append(s.advice.label)
         bits.append(_ago(w.last_run_at, now))
         lines += [head, "   " + " · ".join(bits)]
     lines.append("\n/best 1 · /run 1 · /pause 1")
@@ -328,6 +332,9 @@ def format_best(w: Watch, now: datetime) -> str:
     stats = alerts.stats_line(r)
     if stats:
         lines.append(_esc(stats))
+    advice = w.stats.advice if w.stats else None
+    if advice and advice.verdict in alerts.ADVICE_ICONS:
+        lines.append(f"{alerts.ADVICE_ICONS[advice.verdict]} <b>{_esc(advice.label)}</b> — {_esc(advice.reason)}")
     lines.append(f"Found {_ago(best.found_at, now)} · target ≤ {fmt_price(w.max_price, w.currency)}")
     if r.link:
         label, url = r.link

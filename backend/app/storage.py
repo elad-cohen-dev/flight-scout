@@ -228,6 +228,15 @@ _SCHEMA = [
         created_at TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_trip_items_trip ON trip_items (trip_id)",
+    # v3.0: live searches each watch run spent (app/cadence.py: the watch's
+    # monthly budget and when its last live check ran).
+    """CREATE TABLE IF NOT EXISTS watch_credit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        watch_id INTEGER NOT NULL,
+        spent_at TEXT NOT NULL,
+        credits INTEGER NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_watch_credit_log ON watch_credit_log (watch_id, spent_at)",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -258,6 +267,8 @@ _MIGRATIONS = [
     "ALTER TABLE deals ADD COLUMN departure_token TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE deals ADD COLUMN booking_token TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE deals ADD COLUMN serp_params TEXT NOT NULL DEFAULT ''",
+    # v3.0: per-watch monthly live-search budget (NULL = fair share, app/cadence.py).
+    "ALTER TABLE watches ADD COLUMN credit_budget INTEGER",
 ]
 
 # Deal columns written by save_deals, beyond search_query/found_at/search_params.
@@ -800,12 +811,12 @@ def add_watch(watch: WatchCreate) -> Watch:
         cur = conn.execute(
             """INSERT INTO watches (origin, destination, dates_hint, max_price, currency,
                                     direct_only, cabin_bag, checked_bag, active, created_at,
-                                    search_params, alert_settings)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)""",
+                                    search_params, alert_settings, credit_budget)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)""",
             (watch.origin, watch.destination, watch.dates_hint,
              watch.max_price, watch.currency, int(watch.direct_only),
              int(watch.cabin_bag), int(watch.checked_bag), created_at.isoformat(),
-             params_json, watch.alerts.model_dump_json()),
+             params_json, watch.alerts.model_dump_json(), watch.credit_budget),
         )
         conn.commit()
         return cur.lastrowid
@@ -831,8 +842,9 @@ def update_watch(watch_id: int, watch: WatchCreate, active: bool) -> Watch | Non
     current = get_watch(watch_id)
     if current is None:
         return None
-    same_search = current.model_dump(exclude={"max_price", "alerts"}, include=set(WatchCreate.model_fields)) == \
-        watch.model_dump(exclude={"max_price", "alerts"}, include=set(WatchCreate.model_fields))
+    kept = {"max_price", "alerts", "credit_budget"}  # not the search itself
+    same_search = current.model_dump(exclude=kept, include=set(WatchCreate.model_fields)) == \
+        watch.model_dump(exclude=kept, include=set(WatchCreate.model_fields))
     last_run_at = current.last_run_at.isoformat() if same_search and current.last_run_at else None
     last_best_price = current.last_best_price if same_search else None
 
@@ -840,11 +852,11 @@ def update_watch(watch_id: int, watch: WatchCreate, active: bool) -> Watch | Non
         cur = conn.execute(
             """UPDATE watches SET dates_hint = ?, max_price = ?, currency = ?, direct_only = ?,
                                   cabin_bag = ?, checked_bag = ?, active = ?, search_params = ?,
-                                  last_run_at = ?, last_best_price = ?, alert_settings = ?
+                                  last_run_at = ?, last_best_price = ?, alert_settings = ?, credit_budget = ?
                WHERE id = ?""",
             (watch.dates_hint, watch.max_price, watch.currency, int(watch.direct_only),
              int(watch.cabin_bag), int(watch.checked_bag), int(active), _watch_params_json(watch),
-             last_run_at, last_best_price, watch.alerts.model_dump_json(), watch_id),
+             last_run_at, last_best_price, watch.alerts.model_dump_json(), watch.credit_budget, watch_id),
         )
         conn.commit()
         return cur.rowcount
@@ -919,7 +931,7 @@ def watch_sightings() -> dict[int, list[dict]]:
     rows = _with_conn(
         lambda conn: _rows_as_dicts(conn.execute(
             "SELECT search_query, found_at, price, currency, search_params, source, airline, airline_code, "
-            "flight_numbers, return_date FROM deals "
+            "flight_numbers, return_date, depart_date FROM deals "
             "WHERE search_query LIKE '%[watch #%'"
         ))
     )
@@ -1152,6 +1164,52 @@ def last_live_check(watch_id: int) -> datetime | None:
     if not rows or not rows[0][0]:
         return None
     return datetime.fromisoformat(rows[0][0])
+
+
+def record_watch_credits(watch_id: int, credits: int, now: datetime | None = None) -> None:
+    """Add the live searches one run of a watch spent (0 = nothing to record)."""
+    if credits <= 0:
+        return
+    now = now or datetime.now(timezone.utc)
+
+    def op(conn) -> None:
+        conn.execute("INSERT INTO watch_credit_log (watch_id, spent_at, credits) VALUES (?, ?, ?)",
+                     (watch_id, now.isoformat(), int(credits)))
+        conn.commit()
+
+    _with_conn(op)
+
+
+def watch_credit_usage(now: datetime | None = None) -> dict[int, tuple[int, datetime | None]]:
+    """{watch id: (live searches spent this calendar month (UTC), when it last
+    spent any, or the pre-screen last went live — this month or earlier)}.
+    Two queries for every watch (the pre-screen log predates the credit log)."""
+    now = now or datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    def op(conn):
+        spent = conn.execute(
+            "SELECT watch_id, SUM(CASE WHEN spent_at >= ? THEN credits ELSE 0 END), MAX(spent_at) "
+            "FROM watch_credit_log GROUP BY watch_id", (month_start,)).fetchall()
+        live = conn.execute(
+            "SELECT watch_id, MAX(decided_at) FROM watch_prescreen WHERE live = 1 GROUP BY watch_id").fetchall()
+        return spent, live
+
+    spent, live = _with_conn(op)
+
+    def at(text):
+        dt = datetime.fromisoformat(text)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    out: dict[int, tuple[int, datetime | None]] = {}
+    for w, used, last in spent:
+        out[int(w)] = (int(used or 0), at(last) if last else None)
+    for w, last in live:
+        if not last:
+            continue
+        used, prev = out.get(int(w), (0, None))
+        out[int(w)] = (used, max(prev, at(last)) if prev else at(last))
+    return out
 
 
 def list_prescreens(watch_id: int | None = None, limit: int = 50) -> list[dict]:

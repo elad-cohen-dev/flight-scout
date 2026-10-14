@@ -41,11 +41,11 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
-from . import agent, airports, alerts, bags, llm_usage, storage
+from . import advice, agent, airports, alerts, bags, cadence, holidays, llm_usage, storage
 from .booking import _MONTH_RE, _parse_date, _parse_month
 from .currency import convert
 from .models import (
-    FlightDeal, ProviderUsage, SearchMeta, SearchParams, UsageReport, Watch, WatchCredits,
+    Advice, FlightDeal, ProviderUsage, SearchMeta, SearchParams, UsageReport, Watch, WatchCredits, WatchPlan,
 )
 from .providers import serpapi, travelpayouts
 from .providers.base import BudgetExhausted, FareQuery, ProviderError
@@ -155,6 +155,10 @@ class DatePlan:
     pairs: list[tuple[str, str]]  # exact (depart, return or '') — at most one from the request
     start: date
     end: date
+    # Holiday windows (app/holidays.py): the last day to fly back, and the pair
+    # to check live when Explore can't date the window (beyond its horizon).
+    return_by: date | None = None
+    fallback: tuple[str, str] | None = None
 
     @property
     def months(self) -> list[str]:
@@ -239,6 +243,9 @@ def plan_dates(dates_hint: str, params: SearchParams, today: date) -> DatePlan:
     the calendar should scan otherwise. Free text like 'October - November
     after October 11th' is a window (Oct 12 to Nov 30), not a date."""
     rt = params.trip_type == "round_trip"
+    window = holidays.get(params.holiday)
+    if window is not None:
+        return _holiday_plan(window, params, today)
     hint = dates_hint or ""
     win_start, win_end, span = _hint_window(hint, today)
     windowed = bool(win_start or win_end)
@@ -270,6 +277,30 @@ def plan_dates(dates_hint: str, params: SearchParams, today: date) -> DatePlan:
            or (bounds[1] if bounds and bounds[1] >= start else start + timedelta(days=DEFAULT_WINDOW_DAYS)))
     start = max(start, today)
     return DatePlan(pairs=pairs, start=start, end=max(end, start))
+
+
+def _holiday_plan(window: holidays.HolidayWindow, params: SearchParams, today: date) -> DatePlan:
+    """A holiday window: departures from the request's window (the form fills
+    it from the holiday), else the holiday's own; the return by its last free
+    day. Never an exact pair — the cheapest week is what's asked."""
+    rt = params.trip_type == "round_trip"
+    start = max(params.depart_from or window.depart_from, window.start, today)
+    end = min(params.depart_to or window.depart_to, window.end)
+    nights = params.nights_max if params.nights_max is not None else window.nights_max
+    fallback = None
+    if start <= end:
+        back = min(start + timedelta(days=nights), window.end) if rt else None
+        if not rt or back > start:
+            fallback = (start.isoformat(), back.isoformat() if back else "")
+    return DatePlan(pairs=[], start=start, end=max(end, start), return_by=window.end if rt else None,
+                    fallback=fallback)
+
+
+def _fits_holiday(deal: FlightDeal, plan: DatePlan) -> bool:
+    """A return after the vacation's last free day doesn't fit (unknown = kept)."""
+    if plan.return_by is None or not _ISO.fullmatch(deal.return_date or ""):
+        return True
+    return deal.return_date <= plan.return_by.isoformat()
 
 
 # --- provider steps ----------------------------------------------------------------
@@ -403,6 +434,10 @@ def _fit_pair(deal: FlightDeal, plan: DatePlan, params: SearchParams) -> tuple[t
     nights = (back - out).days
     lo = params.nights_min if params.nights_min is not None else 0
     hi = params.nights_max if params.nights_max is not None else 60
+    if plan.return_by is not None:  # a holiday: back by the vacation's last free day
+        hi = min(hi, (plan.return_by - out).days)
+        if hi < max(lo, 1):
+            return None, False
     fitted = min(max(nights, lo), max(lo, hi))
     if fitted == nights:
         return (deal.depart_date, deal.return_date), True
@@ -548,12 +583,13 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
         return SearchOutcome(deals, meta)
 
     plan = plan_dates(dates_hint, params, today)
+    meta.holiday = holidays.name_of(params.holiday)
     exact = bool(plan.pairs)
     cached: list[FlightDeal] = []
     pairs = plan.pairs
     if not exact and cache_ok:
         emit("Checking cached fares (Aviasales) for the cheapest dates…")
-        cached = _cached_fares(o, d, plan, params, emit, meta, exact=False)
+        cached = [x for x in _cached_fares(o, d, plan, params, emit, meta, exact=False) if _fits_holiday(x, plan)]
         pairs = _cheapest_pairs(cached, params, CALENDAR_PICKS, today)
     if not exact and live_ok and not pairs:
         # No calendar (or it had nothing): Google Explore picks the dates, then
@@ -561,6 +597,10 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
         explored, pairs, paid = _explore_dates(o, d, dates_hint, plan, params, emit, meta, today)
         cached += explored
         live_limit = max(1, min(live_limit, MAX_FLEX_CREDITS - paid))
+        if not pairs and plan.fallback:
+            # A holiday beyond Explore's horizon: check its first week live.
+            emit(f"Google Explore can't date {meta.holiday or 'this window'} yet — checking its first days live.")
+            pairs = [plan.fallback]
 
     live: list[FlightDeal] = []
     answered: set[tuple[str, str]] = set()
@@ -576,6 +616,7 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
     others = [x for x in cached if (x.depart_date, x.return_date if rt else "") not in answered]
     others = agent.postprocess(others, params, today)[:MAX_CACHED_SHOWN]
     deals = agent.postprocess(live + others, params, today) if (live or others) else []
+    deals = [x for x in deals if _fits_holiday(x, plan)]
 
     if not deals:
         if llm_configured():
@@ -585,8 +626,27 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
         else:
             meta.messages.append("No fares found from the fare APIs, and no LLM key is set for a web search.")
     meta.sources = _sources(deals, meta)
+    meta.advice = best_advice(deals, params, meta, today, origin, destination)
     emit(f"Found {len(deals)} deals.")
     return SearchOutcome(deals, meta)
+
+
+def best_advice(deals: list[FlightDeal], params: SearchParams, meta: SearchMeta, today: date,
+                origin: str = "", destination: str = "") -> Advice | None:
+    """Buy or wait (app/advice.py) for the cheapest deal with bags, against
+    Google's insights of this search (shifted by that deal's bag fees). Never
+    raises: advice is a nicety on top of the results."""
+    try:
+        priced = [(bags.price_with_bags(x, params), x) for x in deals if x.currency == params.currency]
+        if not priced:
+            return None
+        pricing, best = min(priced, key=lambda t: t[0].total)
+        return advice.for_search(pricing.total, params.currency, best.depart_date, today, meta.price_insights,
+                                 pricing.total - pricing.fare,
+                                 best.origin_airport or origin, best.destination_airport or destination)
+    except Exception:
+        logger.exception("buy-or-wait advice failed")
+        return None
 
 
 # --- watches: free pre-screen before a paid live search ----------------------------
@@ -601,7 +661,8 @@ def _best_in(deals: list[FlightDeal], currency: str, params: SearchParams | None
 def prescreen_decision(watch: Watch, cached_best: float | None, prior_rows: list[dict],
                        last_live: datetime | None, live_left: int | None,
                        now: datetime, google: alerts.GoogleHistory | None = None,
-                       label: str = "cached") -> tuple[bool, str]:
+                       label: str = "cached", plan: WatchPlan | None = None,
+                       plan_cadence: bool = True) -> tuple[bool, str]:
     """Spend a live search on this watch run? (decision, human-readable reason).
 
     `live_left` is the SerpApi budget left (None = not configured). Live when:
@@ -609,12 +670,18 @@ def prescreen_decision(watch: Watch, cached_best: float | None, prior_rows: list
     smart rule would fire if the live price came in 15% under the cached one;
     or the watch hasn't had a live check for a week. The rules compare on the
     same basis as the run itself (`google`: the watch's stored price insights).
+    With a credit `plan` (app/cadence.py) its monthly budget caps everything
+    and (`plan_cadence`) its cadence replaces the weekly rule — not on the
+    Explore path, where the plan already gated the paid pre-screen and the
+    confirmation keeps the rules above.
     `label` names the pre-screen price in the reason ("cached", "Google Explore"). Pure."""
     cur = watch.currency
     if live_left is None:
         return False, "live search not configured"
     if live_left <= 0:
         return False, "no live searches left this month"
+    if not cadence.has_budget(plan):
+        return False, f"this watch's monthly budget is used ({plan.used}/{plan.budget} credits)"
     if cached_best is None:
         return True, f"no {label} fare for this route"
     fmt = alerts.fmt_price
@@ -625,6 +692,11 @@ def prescreen_decision(watch: Watch, cached_best: float | None, prior_rows: list
                                                   watch.max_price, cur, now, google) if h.rule != "threshold"]
     if hits:
         return True, f"a smart rule may fire ({', '.join(hits)})"
+    if plan_cadence and plan is not None and plan.per_check > 0:
+        if cadence.due(plan, now.date()):
+            return True, f"plan: {plan.reason}"
+        return False, (f"{label} best {fmt(cached_best, cur)} is not close to firing; plan: "
+                       f"{plan.text.removeprefix('next live check: ')}")
     if last_live is None:
         return True, "first live check for this watch"
     last_live = last_live if last_live.tzinfo else last_live.replace(tzinfo=timezone.utc)
@@ -637,7 +709,7 @@ def prescreen_decision(watch: Watch, cached_best: float | None, prior_rows: list
 
 
 def _decide(watch: Watch, best: float | None, prior_rows: list[dict], now: datetime,
-            label: str) -> tuple[bool, str]:
+            label: str, plan: WatchPlan | None = None, plan_cadence: bool = True) -> tuple[bool, str]:
     """The pre-screen decision for this run, logged in watch_prescreen."""
     left = serpapi.remaining() if serpapi.configured() else None
     try:
@@ -651,7 +723,8 @@ def _decide(watch: Watch, best: float | None, prior_rows: list[dict], now: datet
     except Exception:
         logger.exception("watch #%s: reading price insights failed", watch.id)
         google = None
-    live, reason = prescreen_decision(watch, best, prior_rows, last_live, left, now, google, label)
+    live, reason = prescreen_decision(watch, best, prior_rows, last_live, left, now, google, label, plan,
+                                      plan_cadence)
     logger.info("watch #%s pre-screen: %s — %s", watch.id, "live" if live else f"{label} only", reason)
     try:
         storage.log_prescreen(watch.id, live, reason, best, watch.currency, now)
@@ -661,34 +734,59 @@ def _decide(watch: Watch, best: float | None, prior_rows: list[dict], now: datet
 
 
 def find_for_watch(watch: Watch, params: SearchParams, prior_rows: list[dict], on_event=None,
-                   now: datetime | None = None) -> SearchOutcome:
+                   now: datetime | None = None, force: bool = False) -> SearchOutcome:
     """One watch run: a cheap pre-screen, a live Google Flights search only
     when it may matter (decision logged in watch_prescreen), the plain search
     otherwise. The pre-screen is the free Aviasales cache when configured;
     without it, flexible dates use Google Travel Explore (1-2 searches, which
-    also pick the date pair to confirm)."""
+    also pick the date pair to confirm).
+
+    The watch's credit plan (app/cadence.py) gates paid work: on a day it
+    isn't due, the free cache pre-screen still runs (and may still go live
+    when a fare is about to fire), but a watch whose pre-screen or search is
+    itself paid is skipped — no search, the reason logged. `force` (a manual
+    "Run now") ignores the plan."""
     now = now or datetime.now(timezone.utc)
     today = now.date()
     o, d = resolve_end(watch.origin), resolve_end(watch.destination)
-    plan = plan_dates(watch.dates_hint, params, today) if o and d else None
+    dates = plan_dates(watch.dates_hint, params, today) if o and d else None
     exact_route = o is not None and d is not None and not params.nearby_airports
+    plan = None if force else plan_for(watch, prior_rows, now)
     if exact_route and travelpayouts.configured():
-        return _watch_via_cache(watch, params, prior_rows, o, d, plan, on_event, now)
-    if exact_route and serpapi.configured() and not plan.pairs:
-        return _watch_via_explore(watch, params, prior_rows, o, d, plan, on_event, now)
+        return _watch_via_cache(watch, params, prior_rows, o, d, dates, on_event, now, plan)
+    if plan is not None and plan.per_check > 0 and not cadence.due(plan, today):
+        return _skip_watch(watch, plan, on_event, now)
+    if exact_route and serpapi.configured() and not dates.pairs:
+        return _watch_via_explore(watch, params, prior_rows, o, d, dates, on_event, now, plan)
     outcome = search(watch.origin, watch.destination, watch.dates_hint, params, on_event,
                      live_limit=WATCH_CONFIRM_LIVE, today=today)
     outcome.meta.decision = "no pre-screen (cached fares unavailable for this watch)"
     return outcome
 
 
-def _watch_via_cache(watch, params, prior_rows, o, d, plan, on_event, now) -> SearchOutcome:
+def _skip_watch(watch: Watch, plan: WatchPlan, on_event, now: datetime) -> SearchOutcome:
+    """Not this watch's day: no search at all (its pre-screen would be paid)."""
+    reason = f"plan: {plan.text.removeprefix('next live check: ')} ({plan.reason})"
+    if not cadence.has_budget(plan):
+        reason = f"this watch's monthly budget is used ({plan.used}/{plan.budget} credits); {reason}"
+    logger.info("watch #%s skipped — %s", watch.id, reason)
+    try:
+        storage.log_prescreen(watch.id, False, reason, None, watch.currency, now)
+    except Exception:
+        logger.exception("watch #%s: logging the pre-screen failed", watch.id)
+    _emitter(on_event)(f"Skipped today: {reason}")
+    return SearchOutcome([], SearchMeta(decision="skipped: " + reason, skipped=True))
+
+
+def _watch_via_cache(watch, params, prior_rows, o, d, plan, on_event, now, credit_plan=None) -> SearchOutcome:
     emit = _emitter(on_event)
     meta = SearchMeta()
     emit("Pre-screening with cached fares (free)…")
     cached = agent.postprocess(_cached_fares(o, d, plan, params, emit, meta, exact=bool(plan.pairs)),
                                params, now.date())
-    live, reason = _decide(watch, _best_in(cached, watch.currency, params), prior_rows, now, "cached")
+    cached = [x for x in cached if _fits_holiday(x, plan)]
+    live, reason = _decide(watch, _best_in(cached, watch.currency, params), prior_rows, now, "cached",
+                           credit_plan)
     emit(("Live check: " if live else "Cached fares only: ") + reason)
 
     if live or not cached:
@@ -702,14 +800,15 @@ def _watch_via_cache(watch, params, prior_rows, o, d, plan, on_event, now) -> Se
     return outcome
 
 
-def _watch_via_explore(watch, params, prior_rows, o, d, plan, on_event, now) -> SearchOutcome:
+def _watch_via_explore(watch, params, prior_rows, o, d, plan, on_event, now, credit_plan=None) -> SearchOutcome:
     """Explore is the pre-screen: its best price decides whether the cheapest
     pair is confirmed on Google Flights (verified deals + price insights)."""
     emit = _emitter(on_event)
     today = now.date()
     meta = SearchMeta()
     explored, pairs, _ = _explore_dates(o, d, watch.dates_hint, plan, params, emit, meta, today)
-    live, reason = _decide(watch, _best_in(explored, watch.currency, params), prior_rows, now, "Google Explore")
+    live, reason = _decide(watch, _best_in(explored, watch.currency, params), prior_rows, now, "Google Explore",
+                           credit_plan, plan_cadence=False)
     if not pairs:
         live = False
     emit(("Live check: " if live else "Google Explore prices only: ") + reason)
@@ -763,15 +862,105 @@ def watch_credits(watch: Watch, today: date | None = None) -> WatchCredits:
     return WatchCredits(per_check=per_check, per_month=per_month, text=text)
 
 
-def watch_projection(watches: list[Watch], today: date | None = None) -> tuple[int, str]:
+def watch_depart(watch: Watch, rows: list[dict], today: date) -> date | None:
+    """Departure the watch is about: its latest run's cheapest dated fare,
+    else the middle of its date window."""
+    latest = max((str(r.get("found_at")) for r in rows), default=None)
+    dated = sorted((r for r in rows if str(r.get("found_at")) == latest and _ISO.fullmatch(r.get("depart_date") or "")),
+                   key=lambda r: r.get("price") or 0)
+    if dated:
+        return date.fromisoformat(dated[0]["depart_date"])
+    o, d = resolve_end(watch.origin), resolve_end(watch.destination)
+    if not (o and d):
+        return None
+    params = SearchParams(**watch.model_dump(include=set(SearchParams.model_fields)))
+    window = plan_dates(watch.dates_hint, params, today)
+    return window.start + (window.end - window.start) // 2
+
+
+def _recent_prices(watch: Watch, rows: list[dict], now: datetime) -> list[float]:
+    """The watch's run bests of its trusted basis in the last 30 days, oldest first."""
+    runs = alerts.run_bests(rows, watch.currency, alerts.fare_kind(watch))
+    series = alerts.select_baseline(runs).runs
+    cutoff = now - timedelta(days=alerts.STATS_WINDOW_DAYS)
+    return [r.price for r in series if r.found_at >= cutoff]
+
+
+def watch_advice(watch: Watch, rows: list[dict], now: datetime | None = None) -> Advice | None:
+    """Buy or wait (app/advice.py) for a watch's last best: its stats (already
+    on `watch`), its trend and the departure of its latest best fare. Never raises."""
+    now = now or datetime.now(timezone.utc)
+    try:
+        depart = watch_depart(watch, rows, now.date())
+        return advice.for_watch(watch.stats, _recent_prices(watch, rows, now), depart, now.date(),
+                                watch.origin, watch.destination)
+    except Exception:
+        logger.exception("watch #%s: buy-or-wait advice failed", watch.id)
+        return None
+
+
+def with_advice(watches: list[Watch], sightings: dict[int, list[dict]], now: datetime | None = None) -> list[Watch]:
+    """Watches (already carrying stats, alerts.enrich_watches) with stats.advice set."""
+    out = []
+    for w in watches:
+        if w.stats is not None:
+            stats = w.stats.model_copy(update={"advice": watch_advice(w, sightings.get(w.id, []), now)})
+            w = w.model_copy(update={"stats": stats})
+        out.append(w)
+    return out
+
+
+def watch_plans(watches: list[Watch], sightings: dict[int, list[dict]], now: datetime | None = None,
+                usage: dict[int, tuple[int, datetime | None]] | None = None) -> dict[int, WatchPlan]:
+    """Credit plans (app/cadence.py) of the ACTIVE watches among `watches`
+    that spend live searches, budgets shared across them. `usage`:
+    storage.watch_credit_usage()."""
+    now = now or datetime.now(timezone.utc)
+    today = now.date()
+    active = [w for w in watches if w.active]
+    credits = {w.id: watch_credits(w, today) for w in active}
+    shares = cadence.fair_shares({w.id: w.credit_budget for w in active if credits[w.id].per_check > 0},
+                                 serpapi.monthly_budget())
+    usage = storage.watch_credit_usage(now) if usage is None else usage
+    plans = {}
+    for w in active:
+        if credits[w.id].per_check <= 0:
+            continue  # cached / web only: nothing to plan
+        rows = sightings.get(w.id, [])
+        used, last = usage.get(w.id, (0, None))
+        depart = watch_depart(w, rows, today)
+        plans[w.id] = cadence.make_plan(
+            credits[w.id].per_check, (depart - today).days if depart else None, _recent_prices(w, rows, now),
+            used, w.credit_budget if w.credit_budget is not None else shares.get(w.id, 0),
+            last.date() if last else None, today, budget_default=w.credit_budget is None)
+    return plans
+
+
+def plan_for(watch: Watch, prior_rows: list[dict], now: datetime) -> WatchPlan | None:
+    """This watch's credit plan for a run (shares against the other active
+    watches); None when it can't be worked out — the run then behaves as before."""
+    try:
+        others = [w for w in storage.list_watches(active_only=True) if w.id != watch.id]
+        sightings = {watch.id: prior_rows}
+        return watch_plans([*others, watch.model_copy(update={"active": True})], sightings, now).get(watch.id)
+    except Exception:
+        logger.exception("watch #%s: credit plan unavailable", watch.id)
+        return None
+
+
+def watch_projection(watches: list[Watch], today: date | None = None,
+                     plans: dict[int, WatchPlan] | None = None) -> tuple[int, str]:
     """(live searches the active watches may spend in a month, a warning when
-    that exceeds the monthly budget, else '')."""
-    total = sum(watch_credits(w, today).per_month for w in watches if w.active)
+    that exceeds the monthly budget, else ''). With `plans` (watch_plans) a
+    watch counts its cadence capped by its budget; without, the upper bound."""
+    plans = plans or {}
+    total = sum(plans[w.id].per_month if w.id in plans else watch_credits(w, today).per_month
+                for w in watches if w.active)
     budget = serpapi.monthly_budget()
     if serpapi.configured() and total > budget:
         return total, (f"Active watches may use up to ~{total} live searches a month — over the "
-                       f"{budget}-search budget. Pause a watch or narrow its dates, or searches "
-                       "will fall back to estimates late in the month.")
+                       f"{budget}-search budget. Pause a watch, lower a watch's credit budget or narrow "
+                       "its dates, or searches will fall back to estimates late in the month.")
     return total, ""
 
 
@@ -780,7 +969,13 @@ def usage_report(now: datetime | None = None) -> UsageReport:
     now = now or datetime.now(timezone.utc)
     serp_used = storage.provider_calls(serpapi.PROVIDER, now)
     budget = serpapi.monthly_budget()
-    projection, warning = watch_projection(storage.list_watches(active_only=True), now.date())
+    active = storage.list_watches(active_only=True)
+    try:
+        plans = watch_plans(active, storage.watch_sightings(), now)
+    except Exception:
+        logger.exception("watch credit plans unavailable")
+        plans = None
+    projection, warning = watch_projection(active, now.date(), plans)
     try:
         research, extract = agent.model_for("research"), agent.model_for("extract")
     except RuntimeError:  # no LLM key (or an unknown FLIGHT_SCOUT_PROVIDER)

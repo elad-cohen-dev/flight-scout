@@ -51,6 +51,8 @@ class SearchParams(BaseModel):
     max_price: float | None = Field(default=None, gt=0, description="Price ceiling for the whole party, in `currency`")
     currency: str = Field(default="USD", description="Preferred currency for quoted prices")
     nearby_airports: bool = Field(default=False, description="Also consider airports near origin/destination")
+    holiday: str = Field(default="", description="Holiday window id (app/holidays.py), e.g. 'hanukkah-2026': the "
+                                                 "trip must fit that school vacation; '' = none")
 
     @field_validator("currency")
     @classmethod
@@ -157,6 +159,18 @@ class PriceInsights(BaseModel):
     )
 
 
+AdviceVerdict = Literal["buy_now", "good_price", "wait", "not_enough_data"]
+
+
+class Advice(BaseModel):
+    """Buy or wait (app/advice.py): a verdict and the one-line reason for it."""
+
+    verdict: AdviceVerdict
+    label: str = Field(description="'Buy now' | 'Good price' | 'Wait' | 'Not enough data'")
+    reason: str = Field(description="One line, e.g. '18% under Google's typical $285–390, 24 days out — ...'")
+    days_out: int | None = Field(default=None, description="Days to the fare's departure; None = unknown")
+
+
 class SearchMeta(BaseModel):
     """How a search was answered: which sources ran, Google's price insights,
     and anything the user should know (budget used up, fell back to the web)."""
@@ -167,6 +181,9 @@ class SearchMeta(BaseModel):
     live_searches: int = Field(default=0, description="Paid SerpApi searches this run spent (Explore included)")
     messages: list[str] = Field(default_factory=list)
     decision: str = Field(default="", description="Watch pre-screen decision (watch runs only)")
+    advice: Advice | None = Field(default=None, description="Buy or wait, for the best deal (app/advice.py)")
+    holiday: str = Field(default="", description="Name of the holiday window searched, e.g. 'Hanukkah 2026'")
+    skipped: bool = Field(default=False, description="Watch runs: the credit plan skipped today's check (no search)")
 
 
 class ProviderUsage(BaseModel):
@@ -226,6 +243,22 @@ class WatchCredits(BaseModel):
     per_check: int = Field(description="Most live searches one check spends")
     per_month: int = Field(description="per_check x the daily sweep's ~30 runs")
     text: str = Field(default="", description="e.g. 'Up to 3 live searches per check (~90/month)'")
+
+
+class WatchPlan(BaseModel):
+    """A watch's credit plan (app/cadence.py): how often its live check runs,
+    and what it has spent of its monthly live-search budget."""
+
+    per_check: int = Field(description="Live searches one check spends (WatchCredits.per_check)")
+    interval_days: int = Field(description="Days between live checks")
+    next_check: date | None = Field(default=None, description="Day of the next live check; None = no live checks")
+    next_in_days: int | None = Field(default=None, description="0 = due today")
+    used: int = Field(default=0, description="Live searches this watch spent this month")
+    budget: int = Field(default=0, description="Its monthly budget")
+    budget_default: bool = Field(default=True, description="budget is the fair share (no credit_budget set)")
+    per_month: int = Field(default=0, description="Projected live searches this month: the cadence, capped by the budget")
+    reason: str = Field(default="", description="Why this cadence, e.g. '45 days out, prices steady: every 4 days'")
+    text: str = Field(default="", description="'next live check: in 2 days · 6/12 credits this month'")
 
 
 class FlightDealList(BaseModel):
@@ -366,6 +399,7 @@ class WatchStats(BaseModel):
     typical_high: float | None = None
     legacy_runs: int = Field(default=0, description="Unverified runs left out of the numbers")
     legacy: LegacyStats | None = Field(default=None, description="Their numbers, while the basis is thin")
+    advice: Advice | None = Field(default=None, description="Buy or wait for the last best (app/advice.py)")
 
 
 class AlertRecord(BaseModel):
@@ -390,6 +424,9 @@ class WatchCreate(SearchParams):
     currency: str = Field(default="USD", description="Currency the threshold is expressed in")
     direct_only: bool = Field(default=False, description="Legacy alias for max_stops=0")
     alerts: AlertSettings = Field(default_factory=AlertSettings, description="Which alert rules apply")
+    credit_budget: int | None = Field(
+        default=None, ge=0, le=1000,
+        description="Live searches this watch may spend a month; None = a fair share of the budget (app/cadence.py)")
 
     @model_validator(mode="after")
     def _direct_alias(self):
@@ -409,11 +446,12 @@ class Watch(WatchCreate):
     stats: WatchStats | None = None
     last_alert: AlertRecord | None = None
     credits: WatchCredits | None = None
+    plan: WatchPlan | None = None
 
 
 # WatchUpdate fields where an explicit null means something ("any stops", "no
 # date window"); for every other field null is rejected rather than ignored.
-_NULLABLE_UPDATE_FIELDS = {"max_stops", "depart_from", "depart_to", "nights_min", "nights_max"}
+_NULLABLE_UPDATE_FIELDS = {"max_stops", "depart_from", "depart_to", "nights_min", "nights_max", "credit_budget"}
 
 
 class WatchUpdate(BaseModel):
@@ -443,7 +481,9 @@ class WatchUpdate(BaseModel):
     nights_min: int | None = None
     nights_max: int | None = None
     nearby_airports: bool | None = None
+    holiday: str | None = None
     alerts: AlertSettings | None = Field(default=None, description="Partial: only the rule fields sent change")
+    credit_budget: int | None = Field(default=None, description="Monthly live-search budget; null = fair share")
 
     @model_validator(mode="after")
     def _no_null_for_required(self):

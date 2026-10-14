@@ -101,6 +101,8 @@ def _price(value) -> str:
 def _outcome(row: dict) -> str:
     if row.get("error"):
         return "failed: " + row["error"][:160]
+    if row.get("skipped"):
+        return "skipped (credit plan)"
     if row.get("suppressed"):
         return "hit, already alerted"
     if row.get("rules"):

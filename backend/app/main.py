@@ -12,10 +12,11 @@ In production the built frontend (static files) is served from STATIC_DIR.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
@@ -25,7 +26,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
-from . import alerts, details, engine, explore, jobs, notify, pricecheck, storage, telegram_bot, trips, watcher
+from . import alerts, details, engine, explore, holidays, jobs, notify, pricecheck, storage, telegram_bot, trips, watcher
 from .jobs import Job
 from .models import (
     AlertRecord, RouteHistory, SearchRequest, StoredDeal, UsageReport, Watch, WatchCreate, WatchUpdate,
@@ -168,10 +169,21 @@ def get_history() -> list[RouteHistory]:
 # --- watches ----------------------------------------------------------------
 
 def _with_stats(watches: list[Watch]) -> list[Watch]:
-    """Attach price stats (30-day low, typical, score...) and the last sent alert."""
-    enriched = alerts.enrich_watches(watches, storage.watch_sightings(), storage.list_alerts(),
+    """Attach price stats (30-day low, typical, score, buy-or-wait...), the
+    last sent alert, the credit estimate and the credit plan (active watches)."""
+    sightings = storage.watch_sightings()
+    enriched = alerts.enrich_watches(watches, sightings, storage.list_alerts(),
                                      insights=storage.watch_price_insights())
-    return [w.model_copy(update={"credits": engine.watch_credits(w)}) for w in enriched]
+    enriched = engine.with_advice(enriched, sightings)
+    try:
+        # Budgets are shared by every active watch, not just the ones returned.
+        active = {w.id: w for w in storage.list_watches(active_only=True)}
+        active.update({w.id: w for w in watches if w.active})
+        plans = engine.watch_plans(list(active.values()), sightings)
+    except Exception:
+        logging.getLogger(__name__).exception("watch credit plans unavailable")
+        plans = {}
+    return [w.model_copy(update={"credits": engine.watch_credits(w), "plan": plans.get(w.id)}) for w in enriched]
 
 
 @app.post("/api/watches", response_model=Watch, status_code=201, dependencies=[Depends(require_auth)])
@@ -424,6 +436,14 @@ def telegram_setup(request: Request, body: TelegramSetup | None = None) -> dict:
         return telegram_bot.register_webhook(base)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/holidays", response_model=list[holidays.HolidayWindow], dependencies=[Depends(require_auth)])
+def get_holidays(all: bool = False) -> list[holidays.HolidayWindow]:
+    """Israeli school vacations and holidays (app/holidays.py) a trip can still
+    fit, soonest first; `all=true` includes past ones. Each fills a search's
+    date window: depart_from/depart_to, nights_min/max, and `id` as `holiday`."""
+    return holidays.upcoming(date.today(), include_past=all)
 
 
 @app.get("/api/usage", response_model=UsageReport, dependencies=[Depends(require_auth)])

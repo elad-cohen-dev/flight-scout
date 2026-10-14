@@ -31,6 +31,7 @@ export interface SearchForm {
   max_price: string;
   currency: string;
   nearby_airports: boolean;
+  holiday?: string; // holiday window id set by a quick-pick (lib/holidays.ts); "" / absent = none
 }
 
 export const DEFAULT_FORM: SearchForm = {
@@ -122,10 +123,13 @@ export function formToRequest(f: SearchForm): SearchRequest {
   const exact = f.date_mode === "exact" && !!f.depart_from;
   const roundTrip = f.trip_type === "round_trip";
   const checked = Math.min(Math.max(0, Math.round(f.checked_bags ?? 0)), maxCheckedBags(f.passengers));
+  // A holiday quick-pick keeps its name as the dates text ("Hanukkah 2026").
+  const holiday = exact && f.holiday ? f.holiday : "";
   return {
     origin: f.origin.trim(),
     destination: f.destination.trim(),
-    dates_hint: exact ? EXACT_DATES_HINT : f.dates_hint.trim() || DEFAULT_DATES_HINT,
+    dates_hint: holiday ? f.dates_hint.trim() || EXACT_DATES_HINT : exact ? EXACT_DATES_HINT : f.dates_hint.trim() || DEFAULT_DATES_HINT,
+    ...(holiday ? { holiday } : {}),
     trip_type: f.trip_type,
     passengers: f.passengers,
     cabin_class: f.cabin_class,
@@ -165,7 +169,8 @@ export function requestToForm(req: SearchRequest, base: SearchForm = DEFAULT_FOR
     checked_bag: checkedBagCount(req) > 0,
     checked_bags: checkedBagCount(req),
     date_mode: exact ? "exact" : "flexible",
-    dates_hint: exact ? base.dates_hint : req.dates_hint,
+    dates_hint: exact && !req.holiday ? base.dates_hint : req.dates_hint,
+    holiday: exact ? req.holiday ?? "" : "",
     depart_from: req.depart_from ?? "",
     depart_to: req.depart_to ?? "",
     nights_min: req.nights_min != null ? String(req.nights_min) : "",

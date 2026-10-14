@@ -8,9 +8,10 @@ import type { PendingCheck } from "../lib/priceCheck";
 import { isUnconfirmed } from "../lib/ranking";
 import { dealCriteria, totalPassengers } from "../lib/search";
 import { tripFromDeal } from "../lib/trips";
-import type { DealDetails, PriceConfidence, StoredDeal } from "../types";
+import type { Advice, DealDetails, PriceConfidence, StoredDeal } from "../types";
 import BagBreakdown from "./BagBreakdown";
 import AddToTrip from "./AddToTrip";
+import AdviceChip from "./AdviceChip";
 import DirectBooking from "./DirectBooking";
 import Icon from "./Icon";
 import PriceCheckPrompt from "./PriceCheckPrompt";
@@ -123,10 +124,12 @@ export default function DealCard({
   deal: listed,
   highlight,
   onCheckLive,
+  advice,
 }: {
   deal: StoredDeal;
   highlight?: boolean;
   onCheckLive?: (deal: StoredDeal) => void;
+  advice?: Advice | null; // buy or wait (search meta), on the run's best deal
 }) {
   // A Recheck stores a new sighting; the card then shows it (the lists catch up on their next load).
   const [rechecked, setRechecked] = useState<StoredDeal | null>(null);
@@ -296,6 +299,7 @@ export default function DealCard({
           </span>
         )}
       </div>
+      {advice && <AdviceChip advice={advice} withReason />}
 
       <div className="deal-foot">
         {estimate && onCheckLive && (

@@ -221,3 +221,7 @@ def test_server_restart_leaves_a_live_actions_sweep_alone(temp_db):
     assert sorted(jobs.recover_interrupted()) == ["actions-dead", "legacy", "server"]
     assert storage.get_job("actions-live")["status"] == "running"
     assert storage.get_job("actions-dead")["status"] == "interrupted"
+
+
+def test_skipped_watch_outcome():
+    assert script._outcome({"skipped": True, "best_price": None}) == "skipped (credit plan)"

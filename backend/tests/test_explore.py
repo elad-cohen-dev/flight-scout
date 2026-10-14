@@ -285,13 +285,27 @@ def test_watch_run_ends_verified_with_price_insights(http, web, monkeypatch):
 
 def test_watch_explore_prescreen_skips_the_confirmation(http, web, monkeypatch):
     w = london_watch(max_price=100)
-    storage.log_prescreen(w.id, True, "earlier live check", 400, "USD", NOW - timedelta(days=1))
+    # ~35 days out: the credit plan checks every 3 days, so today is due.
+    storage.log_prescreen(w.id, True, "earlier live check", 400, "USD", NOW - timedelta(days=3))
     out = engine.find_for_watch(w, watcher.watch_params(w), [], now=NOW)
     assert http.engines() == ["google_travel_explore", "google_travel_explore"]  # 2 credits, no confirm
     assert out.meta.decision.startswith("explore: Google Explore best $389 is over 15% above")
     assert {d.source for d in out.deals} == {"google_explore"} and out.meta.live_searches == 2
     [latest, _] = storage.list_prescreens(w.id)
     assert latest["live"] is False and latest["cached_best"] == 389
+
+
+def test_watch_skipped_when_its_plan_says_not_today(http, web):
+    w = london_watch(max_price=100)
+    storage.log_prescreen(w.id, True, "earlier live check", 400, "USD", NOW - timedelta(days=1))
+    out = engine.find_for_watch(w, watcher.watch_params(w), [], now=NOW)
+    assert http.engines() == [] and web == [] and out.deals == []  # no paid pre-screen either
+    assert out.meta.skipped and out.meta.decision.startswith("skipped: plan: in 2 days")
+    [latest, _] = storage.list_prescreens(w.id)
+    assert latest["live"] is False and latest["reason"].startswith("plan: in 2 days")
+    # "Run now" ignores the plan.
+    forced = engine.find_for_watch(w, watcher.watch_params(w), [], now=NOW, force=True)
+    assert not forced.meta.skipped and http.engines()[:2] == ["google_travel_explore", "google_travel_explore"]
 
 
 def test_watch_explore_prescreen_goes_live_near_threshold(http, web):
@@ -338,6 +352,9 @@ def test_usage_warns_when_watches_exceed_budget(temp_db, monkeypatch):
     body = client.get("/api/usage").json()
     assert body["watch_projection"] > 0 and body["warning"] == ""
     monkeypatch.setenv("SERPAPI_MONTHLY_BUDGET", "40")
+    body = client.get("/api/usage").json()
+    assert body["warning"] == "" and body["watch_projection"] <= 28  # the fair share caps it (70% of 40)
+    client.patch(f"/api/watches/{storage.list_watches()[0].id}", json={"credit_budget": 60})
     body = client.get("/api/usage").json()
     assert "over the 40-search budget" in body["warning"]
     [watch] = client.get("/api/watches").json()

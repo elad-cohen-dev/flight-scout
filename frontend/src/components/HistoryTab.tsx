@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatPrice, plural, shortDate, timeAgo } from "../lib/format";
 import { sectionize } from "../lib/history";
+import { holidayName } from "../lib/holidays";
 import type { QueryGroup } from "../lib/history";
 import { searchRef, tripFromDeal } from "../lib/trips";
 import { watchForGroup } from "../lib/watches";
@@ -13,6 +14,7 @@ import PriceTrend from "./PriceTrend";
 import Segmented from "./Segmented";
 import Sparkline from "./Sparkline";
 import WatchPopover from "./WatchPopover";
+import "./advice.css";
 
 type Sort = "newest" | "cheapest" | "runs";
 type GroupBy = "recent" | "route";
@@ -74,6 +76,11 @@ function QueryCard({
                     <Icon name="pause" size={11} /> Watch paused
                   </span>
                 ))}
+              {holidayName(group.request?.holiday) && (
+                <span className="badge badge-holiday" title="Searched inside this school vacation">
+                  <Icon name="calendar" size={11} /> {holidayName(group.request?.holiday)}
+                </span>
+              )}
             </span>
             <span className="query-sub muted small">
               {group.datesHint}

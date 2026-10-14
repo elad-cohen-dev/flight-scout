@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from . import agent, alerts, engine, storage
+from . import advice, agent, alerts, engine, storage
 from .alerts import WatchResult
 from .currency import convert
 from .models import AlertRecord, BookingLink, SearchMeta, SearchParams, StoredDeal, Watch, search_label
@@ -98,6 +98,7 @@ def check_watch(watch: Watch, stored: list[StoredDeal], prior_rows: list[dict],
     current = alerts.run_bests(alerts.deal_rows(stored, now), watch.currency, kind) or \
         [alerts.RunBest(now, best_price, alerts.source_tier(best.source))]
     result.stats = alerts.price_stats(prior + current, watch.currency, now, google)
+    result.advice = _advice(watch, prior, current, result.stats, best, best_price, now, google)
     result.link = best_link_labeled(best)
     result.hits = alerts.evaluate_rules(best_price, prior, watch.alerts, watch.max_price, watch.currency, now,
                                         google)
@@ -105,6 +106,24 @@ def check_watch(watch: Watch, stored: list[StoredDeal], prior_rows: list[dict],
         fingerprint = alerts.fare_fingerprint(best)
         result.suppressed = alerts.suppressed_by(fingerprint, best_price, recent_alerts, now)
     return result
+
+
+def _advice(watch: Watch, prior: list[alerts.RunBest], current: list[alerts.RunBest], stats, best: StoredDeal,
+            best_price: float, now: datetime, google: alerts.GoogleHistory | None):
+    """Buy or wait for this run's best (app/advice.py): the stats including the
+    run, the trend of its basis, and the 30-day low BEFORE it (a new low counts)."""
+    try:
+        before = alerts.select_baseline(prior, google)
+        earlier = before.window(now, alerts.STATS_WINDOW_DAYS)
+        series = alerts.select_baseline(prior + current, google).runs
+        cutoff = now - timedelta(days=alerts.STATS_WINDOW_DAYS)
+        return advice.for_watch(stats, [r.price for r in series if r.found_at >= cutoff], best.depart_date,
+                                now.date(), best.origin_airport or watch.origin,
+                                best.destination_airport or watch.destination, price=best_price,
+                                prior_low=min(earlier) if len(earlier) >= advice.TYPICAL_MIN_DEPTH else None)
+    except Exception:
+        logger.exception("watch #%s: buy-or-wait advice failed", watch.id)
+        return None
 
 
 def _google(watch: Watch, meta: SearchMeta, now: datetime) -> alerts.GoogleHistory | None:
@@ -148,6 +167,7 @@ def _summary_row(r: WatchResult, deals_found: int, alerted: bool) -> dict:
         "suppressed": r.suppressed is not None,
         "score": r.stats.score if r.stats else None,
         "stats": r.stats.model_dump(mode="json") if r.stats else None,
+        "advice": r.advice.model_dump(mode="json") if r.advice else None,
         "alerted": alerted,
     }
 
@@ -176,8 +196,24 @@ def run_watches(only_id: int | None = None, on_event=None, notify: bool = True) 
             emit(f"Checking {route} ({watch.dates_hint}) — alert at ≤ {watch.max_price:,.0f} {watch.currency}")
             prior_rows = storage.watch_sightings().get(watch.id, [])  # read before this run is saved
             params = watch_params(watch)
-            # Free cached pre-screen first; a paid live search only when it may matter.
-            outcome = engine.find_for_watch(watch, params, prior_rows, on_event=on_event)
+            # Free cached pre-screen first; a paid live search only when it may matter,
+            # and only on the days the watch's credit plan allows ("Run now" ignores it).
+            force = {"force": True} if only_id is not None else {}
+            outcome = engine.find_for_watch(watch, params, prior_rows, on_event=on_event, **force)
+            try:
+                storage.record_watch_credits(watch.id, outcome.meta.live_searches)
+            except Exception:
+                logger.exception("watch #%s: recording its credits failed", watch.id)
+            if outcome.meta.skipped:
+                plan = engine.plan_for(watch, prior_rows, datetime.now(timezone.utc))
+                when = plan.text.removeprefix("next live check: ").split(" · ")[0] if plan else "later"
+                emit(f"{route}: skipped today — next live check {when}.")
+                checked.append(WatchResult(watch=watch, skipped=when))
+                rows.append({"watch_id": watch.id, "route": route, "skipped": True, "deals_found": 0,
+                             "best_price": None, "currency": watch.currency, "threshold": watch.max_price,
+                             "rules": [], "reasons": [], "suppressed": False, "score": None, "alerted": False,
+                             "sources": [], "prescreen": outcome.meta.decision})
+                continue
             deals = outcome.deals
             stored = storage.save_deals(watch_label(watch), deals, params)
             now = datetime.now(timezone.utc)
