@@ -16,3 +16,7 @@ frontend/dist/
 .idea/
 .vscode/
 .claude/worktrees/
+
+# Personal trip guides (imported into the app, never committed)
+private/
+*.guide.json

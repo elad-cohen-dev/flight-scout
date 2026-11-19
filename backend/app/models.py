@@ -774,3 +774,19 @@ class TripDetail(Trip):
     watches: list[TripWatchItem] = Field(default_factory=list)
     deals: list[TripDealItem] = Field(default_factory=list, description="The shortlist, pinned first")
     booked_deal: StoredDeal | None = None
+
+
+# --- trip guides (3.1): a private per-trip document (schedule, places, bookings) ---
+
+GUIDE_SLUG_PATTERN = r"^[a-z0-9][a-z0-9-]{0,62}$"
+# A full week's guide with ~60 places is ~40 KB; the cap only stops accidents.
+GUIDE_MAX_BYTES = 300_000
+
+
+class Guide(BaseModel):
+    """A stored trip guide. `data` is the document exactly as it was imported —
+    the frontend validates and renders it (frontend/src/lib/guide.ts)."""
+
+    slug: str
+    updated_at: datetime
+    data: dict

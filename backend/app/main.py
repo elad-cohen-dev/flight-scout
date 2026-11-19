@@ -20,6 +20,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Path as ApiPath
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -35,6 +36,7 @@ from .models import (
 from .models import (
     BookedFlight, Trip, TripCreate, TripDetail, TripItem, TripItemCreate, TripItemUpdate, TripUpdate,
 )
+from .models import GUIDE_MAX_BYTES, GUIDE_SLUG_PATTERN, Guide
 
 
 @asynccontextmanager
@@ -46,7 +48,7 @@ async def _lifespan(_app: FastAPI):
     jobs.shutdown()
 
 
-app = FastAPI(title="Flight Scout", version="3.0.0", lifespan=_lifespan)
+app = FastAPI(title="Flight Scout", version="3.1.0", lifespan=_lifespan)
 
 
 def require_auth(
@@ -370,6 +372,36 @@ def clear_trip_booked(trip_id: int) -> Trip:
     trip = _trip_or_404(trip_id)
     status = "planning" if trip.status == "booked" else trip.status
     return trips.with_best([storage.set_trip_booked(trip_id, None, status)])[0]
+
+
+# --- trip guides (3.1) ----------------------------------------------------------
+#
+# A guide is a private JSON document per trip (schedule, places, bookings),
+# imported from a file in the Guide tab. It is personal, so it is only ever
+# served here, behind the app password — never shipped with the frontend.
+
+@app.get("/api/guides", response_model=list[Guide], dependencies=[Depends(require_auth)])
+def get_guides() -> list[Guide]:
+    """Every stored guide in full, most recently saved first."""
+    return storage.list_guides()
+
+
+@app.put("/api/guides/{slug}", response_model=Guide, dependencies=[Depends(require_auth)])
+def put_guide(data: dict = Body(...), slug: str = ApiPath(pattern=GUIDE_SLUG_PATTERN)) -> Guide:
+    """Store (or replace) the guide under this slug. The body is the guide
+    document itself; only its title and size are checked here."""
+    title = data.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise HTTPException(status_code=422, detail="A guide needs a title")
+    if len(json.dumps(data, ensure_ascii=False).encode()) > GUIDE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail=f"Guide is larger than {GUIDE_MAX_BYTES // 1000} KB")
+    return storage.save_guide(slug, data)
+
+
+@app.delete("/api/guides/{slug}", status_code=204, dependencies=[Depends(require_auth)])
+def remove_guide(slug: str) -> None:
+    if not storage.delete_guide(slug):
+        raise HTTPException(status_code=404, detail="No such guide")
 
 
 # --- Telegram bot (webhook; see app/telegram_bot.py) -------------------------

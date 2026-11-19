@@ -237,6 +237,13 @@ _SCHEMA = [
         credits INTEGER NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS idx_watch_credit_log ON watch_credit_log (watch_id, spent_at)",
+    # v3.1: trip guides — one private JSON document per trip (schedule, places,
+    # bookings). Stored verbatim; the frontend owns the shape (src/lib/guide.ts).
+    """CREATE TABLE IF NOT EXISTS guides (
+        slug TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""",
 ]
 
 # Applied best-effort at schema init; each fails harmlessly once the column exists.
@@ -1603,3 +1610,69 @@ def search_runs(search_query: str) -> tuple[list[StoredDeal], int]:
     latest = [_row_to_deal(r) for r in rows if rows and r["found_at"] == rows[0]["found_at"]]
     _cache_store(cache_key, [latest, runs], generation)
     return latest, runs
+
+
+# --- trip guides (v3.1) ----------------------------------------------------------
+#
+# A guide is one JSON document per trip: its day-by-day schedule, places,
+# bookings and practical tips. It is personal data, so it lives here — behind
+# the app password — and never in the repo or the built frontend. The document
+# is stored verbatim; frontend/src/lib/guide.ts owns its shape.
+
+from .models import Guide  # noqa: E402
+
+
+def _row_to_guide(row: dict) -> Guide | None:
+    try:
+        data = json.loads(row["data"])
+    except Exception:
+        data = None
+    if not isinstance(data, dict):
+        logger.warning("guide %r: ignoring unreadable document", row.get("slug"))
+        return None
+    return Guide(slug=row["slug"], updated_at=row["updated_at"], data=data)
+
+
+def list_guides() -> list[Guide]:
+    """Every stored guide, most recently saved first."""
+    cache_key = ("guides",)
+    cached, generation = _cache_read(cache_key)
+    if cached is not None:
+        return cached
+    rows = _with_conn(lambda conn: _rows_as_dicts(conn.execute(
+        "SELECT slug, data, updated_at FROM guides ORDER BY updated_at DESC, slug")))
+    guides = [g for g in map(_row_to_guide, rows) if g is not None]
+    _cache_store(cache_key, guides, generation)
+    return guides
+
+
+def get_guide(slug: str) -> Guide | None:
+    return next((g for g in list_guides() if g.slug == slug), None)
+
+
+def save_guide(slug: str, data: dict) -> Guide:
+    """Create the guide or replace the one stored under this slug."""
+    now = datetime.now(timezone.utc).isoformat()
+
+    def op(conn) -> None:
+        conn.execute("INSERT OR REPLACE INTO guides (slug, data, updated_at) VALUES (?, ?, ?)",
+                     (slug, json.dumps(data, ensure_ascii=False, separators=(",", ":")), now))
+        conn.commit()
+
+    try:
+        _with_conn(op)
+    finally:
+        _invalidate_cache()
+    return Guide(slug=slug, updated_at=now, data=data)
+
+
+def delete_guide(slug: str) -> bool:
+    def op(conn) -> bool:
+        cur = conn.execute("DELETE FROM guides WHERE slug = ?", (slug,))
+        conn.commit()
+        return cur.rowcount > 0
+
+    try:
+        return _with_conn(op)
+    finally:
+        _invalidate_cache()

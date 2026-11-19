@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
-export const TABS = ["search", "explore", "history", "watches", "trips", "trends"] as const;
+export const TABS = ["search", "explore", "history", "watches", "trips", "trends", "guide"] as const;
 export type Tab = (typeof TABS)[number];
 
 function fromHash(): Tab {
-  // "#watches/12" is the Watches tab with a sub-path the tab itself reads
+  // "#watches/12" / "#guide/places": a tab with a sub-path the tab itself reads
   const h = window.location.hash.replace(/^#\/?/, "").split("/")[0];
   return (TABS as readonly string[]).includes(h) ? (h as Tab) : "search";
 }

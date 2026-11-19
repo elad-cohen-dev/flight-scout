@@ -18,6 +18,7 @@ import {
   updateWatch,
 } from "./api";
 import type { AgentEvent } from "./api";
+import GuideTab from "./components/GuideTab";
 import HistoryTab from "./components/HistoryTab";
 import Icon from "./components/Icon";
 import type { IconName } from "./components/Icon";
@@ -33,6 +34,9 @@ import WatchesTab from "./components/WatchesTab";
 // Explore (with Leaflet) loads on first visit, outside the main bundle.
 const ExploreTab = lazy(() => import("./components/ExploreTab"));
 import { formatPrice } from "./lib/format";
+import { fetchGuides } from "./guideApi";
+import { clearCachedGuides, loadCachedGuides, pickGuide, readGuides, saveCachedGuides, todayISO } from "./lib/guide";
+import type { TripGuide } from "./lib/guide";
 import { groupHistory } from "./lib/history";
 import type { QueryGroup } from "./lib/history";
 import { forgetJob, loadActiveJob, rememberJob, rerunTarget, waitForServer } from "./lib/jobs";
@@ -52,6 +56,7 @@ const NAV: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: "watches", label: "Watches", icon: "bell" },
   { tab: "trips", label: "Trips", icon: "suitcase" },
   { tab: "trends", label: "Trends", icon: "chart" },
+  { tab: "guide", label: "Guide", icon: "pin" }, // shown under the trip's own name once a guide is loaded
 ];
 
 function FlightScout() {
@@ -62,6 +67,9 @@ function FlightScout() {
   const [deals, setDeals] = useState<StoredDeal[]>([]);
   const [watches, setWatches] = useState<Watch[]>([]);
   const [history, setHistory] = useState<RouteHistory[]>([]);
+  // The trip guide opens from its on-device copy (offline, or while the server wakes).
+  const [guides, setGuides] = useState<TripGuide[]>(loadCachedGuides);
+  const [guidesLoaded, setGuidesLoaded] = useState(false);
   const [form, setForm] = useState<SearchForm>(loadForm);
   const [run, setRun] = useState<RunState | null>(null);
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
@@ -72,20 +80,31 @@ function FlightScout() {
 
   const lock = useCallback(() => {
     clearAppPassword();
+    clearCachedGuides(); // private data: it goes with the password
+    setGuides([]);
     setLocked(true);
+  }, []);
+
+  const applyGuides = useCallback((stored: Awaited<ReturnType<typeof fetchGuides>>) => {
+    const list = readGuides(stored);
+    setGuides(list);
+    saveCachedGuides(list);
+    setGuidesLoaded(true);
   }, []);
 
   const loadAll = useCallback(async () => {
     try {
-      // deals decide auth/errors; watches and history are best-effort extras
-      const [d, w, h] = await Promise.all([
+      // deals decide auth/errors; watches, history and the guide are best-effort extras
+      const [d, w, h, g] = await Promise.all([
         fetchDeals(),
         fetchWatches().catch(() => [] as Watch[]),
         fetchHistory().catch(() => [] as RouteHistory[]),
+        fetchGuides().catch(() => null), // on failure the on-device copy stays
       ]);
       setDeals(d);
       setWatches(w);
       setHistory(h);
+      if (g) applyGuides(g);
       setLocked(false);
       return true;
     } catch (e) {
@@ -94,8 +113,9 @@ function FlightScout() {
       return false;
     } finally {
       setLoading(false);
+      setGuidesLoaded(true); // answered or not: the Guide tab stops waiting and shows what it has
     }
-  }, [lock, toast]);
+  }, [lock, toast, applyGuides]);
 
   /** Resolve once the server answers, showing the wake-up banner if it's
    *  asleep (free hosting) — before the first load and before starting runs. */
@@ -412,6 +432,7 @@ function FlightScout() {
   if (locked) return <LockScreen onUnlock={unlock} />;
 
   const counts: Partial<Record<Tab, number>> = { history: groups.length, watches: watches.length };
+  const guideTitle = pickGuide(guides, todayISO())?.title;
 
   return (
     <TripsProvider onError={onTripsError}>
@@ -443,7 +464,7 @@ function FlightScout() {
                   <Icon name={n.icon} size={20} />
                   {n.tab === "search" && run && <span className="tab-live" aria-label="search running" />}
                 </span>
-                <span className="tab-label">{n.label}</span>
+                <span className="tab-label">{(n.tab === "guide" && guideTitle) || n.label}</span>
                 {!!counts[n.tab] && <span className="tab-count">{counts[n.tab]}</span>}
               </a>
             ))}
@@ -516,6 +537,14 @@ function FlightScout() {
         )}
         {tab === "trips" && (
           <TripsTab busy={!!run} onRerunSearch={onRerunDeal} onRunWatch={onRunWatch} onOpenWatch={onOpenWatch} onError={onTripsError} />
+        )}
+        {tab === "guide" && (
+          <GuideTab
+            guides={guides}
+            loaded={guidesLoaded}
+            onReload={async () => applyGuides(await fetchGuides())}
+            onError={onTripsError}
+          />
         )}
         {tab === "trends" && (
           <TrendsTab

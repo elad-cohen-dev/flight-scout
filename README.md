@@ -12,7 +12,7 @@ An AI agent that hunts the live web for cheap flights, stores what it finds, and
 - **Price with bags** (`bags.py`): Google's fares leave out checked bags (and Google lists no bag fees for low-cost carriers), so every deal is re-priced with the requested trolleys and checked bags from a dated per-airline fee table (`data/bag_fees.json`). Sorting, watches and alerts all use that total; the app shows the breakdown and what the airline's checkout will show first. A "was it the same price?" log after each booking click shows how accurate it is.
 - **Storage**: [Turso](https://turso.tech) (hosted libSQL) in production, a local SQLite file in development — same code path, selected by env var. Jobs, usage counters, the provider cache and the alert log live there too.
 - **API**: FastAPI — searches run as background jobs (persisted, restart-safe) with live progress over SSE; it also serves the built frontend, the Telegram bot webhook and the book-direct redirect.
-- **App**: React + Vite with Search, Explore (map), History, Watches, Trips and Trends tabs. Trips group a holiday's searches, watches, shortlist and booked flight; school-holiday quick-picks (`holidays.py`) search the cheapest week inside a vacation; a buy-or-wait verdict (`advice.py`) sits on the best deal and each watch.
+- **App**: React + Vite with Search, Explore (map), History, Watches, Trips, Trends and Guide tabs. Trips group a holiday's searches, watches, shortlist and booked flight; the Guide tab is the booked trip's day-by-day plan, imported from a private file (see [Trip guide](#trip-guide)); school-holiday quick-picks (`holidays.py`) search the cheapest week inside a vacation; a buy-or-wait verdict (`advice.py`) sits on the best deal and each watch.
 - **Watches**: a daily GitHub Actions job runs the same watcher code directly against Turso, scores each watch against its price history, and sends one digest to Telegram/ntfy. Each watch spends live searches on an adaptive schedule (`cadence.py`: more often close to departure or when prices move) within its monthly credit budget.
 
 **→ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full end-to-end design: agent internals, request flow, storage/caching, the cron + notification pipeline, and the free-tier trade-offs.**
@@ -66,6 +66,8 @@ Open [http://localhost:5173](http://localhost:5173), enter a route (e.g. `TLV` �
 | `GET`            | `/api/usage`                         | Fare-API calls this month per provider: `{month, providers: [{provider, configured, used, budget, left}]}` (feeds the live-search meter) |
 | `POST`           | `/api/explore`                       | Explore mode — cheapest destinations from an origin (Google Travel Explore, no destination): `{origin, month (0 = next 6 months), travel_duration: weekend\|week\|two_weeks, trip_type, max_stops, passengers, cabin_class, cabin_bag, currency, max_price?, region?, country?, cached_only?}` → `{destinations: [{city, country, region, airport, search_destination, lat, lon, thumbnail, price, price_per_person, depart_date, return_date, airline, airline_code, stops, duration, booking_links, ...}], cached, live_searches, left, fetched_at, expires_at}`. 1 live search, cached 6h; `max_price`/`region`/`country` are filtered after the fetch (free). 409 = budget used up, 503 = no SerpApi key, 404 = not cached (`cached_only`) |
 | `POST`           | `/api/explore/quote`                 | What the same body would cost now: `{configured, cached, cost: 0\|1, left, budget}` — no network |
+| `GET`            | `/api/guides`                        | Every stored trip guide in full: `[{slug, updated_at, data}]` — `data` is the document as imported (see [Trip guide](#trip-guide)) |
+| `PUT` / `DELETE` | `/api/guides/{slug}`                 | Store (or replace) / remove a guide. The body is the guide document; the server checks only the slug, a title and the size (300 KB) |
 | `GET`            | `/api/health`                        | Liveness check                                                                                                                     |
 
 ### Search params
@@ -192,6 +194,35 @@ Free-tier notes:
 - **No keep-alive pinger, on purpose.** Render's free tier gives 750 instance-hours a month and one always-on instance uses ~744, so pinging it awake is technically possible but spends the whole allowance on idle time (and any second free service on the account would run out). Nor does the daily watch sweep need it awake: it runs in GitHub Actions against Turso.
 - **Restarts.** Every deploy or env-var change restarts the instance. Jobs are stored in the DB, so a search or watch run in flight comes back as **interrupted** (never re-run automatically — each run can cost a live fare-API credit or LLM money); the UI offers *Run again* with the same criteria. Reloading the page mid-search re-attaches to it, and a finished result is shown even if the tab was closed.
 
+## Trip guide
+
+The **Guide** tab shows one trip's plan: a day picker with a timeline per day, places grouped by area (coffee, shops, sights…) with **Directions** / **Map** links, practical tips, and the bookings with their confirmation numbers. While a guide is loaded the tab carries the trip's name.
+
+A guide is **personal data** — when you're away, where you sleep, booking references — so it is not part of this repo or of the built frontend. Write it as a JSON file (keep it out of git: `private/` and `*.guide.json` are ignored), then **Import a guide file** in the tab. The file is stored in the database behind `APP_PASSWORD`, shows on every device that knows the password, and is cached on the device so it opens offline; locking the app wipes that copy. **Import / replace** with the same `slug` updates it.
+
+```jsonc
+{
+  "slug": "rome-2027-03",            // lowercase letters, digits, dashes
+  "title": "Rome",                   // also the tab's label
+  "subtitle": "2 adults",
+  "start": "2027-03-05", "end": "2027-03-08",
+  "checked": "Facts checked 1 Mar 2027",
+  "places": [{ "id": "eustachio", "name": "Sant'Eustachio Il Caffè", "kind": "coffee", "area": "Pantheon",
+               "address": "Piazza di S. Eustachio 82", "hours": "07:30–24:00", "note": "Gran caffè at the bar.",
+               "tags": ["Standing only"], "url": "https://…", "pick": true }],
+  "days": [{ "date": "2027-03-06", "title": "Centro", "summary": "…",
+             "stops": [{ "time": "09:00", "title": "Coffee at the bar", "kind": "coffee", "place": "eustachio",
+                         "note": "…", "travel": "Bus 116, 20 min", "fixed": false }],
+             "extras": ["Gelato at Giolitti"] }],
+  "bookings": [{ "kind": "flight", "title": "TLV → FCO", "when": "Fri 5 Mar · 06:10", "at": "2027-03-05T06:10",
+                 "lines": ["Terminal 3"], "ref": "ABC123", "place": "" }],
+  "todos": [{ "id": "checkin", "text": "Online check-in", "due": "Thu 4 Mar", "note": "" }],
+  "tips": [{ "title": "Getting around", "kind": "transport", "tips": [{ "title": "Tickets", "body": "…" }] }]
+}
+```
+
+Place `kind`: `coffee`, `food`, `shop`, `sight`, `market`, `festive`, `show`, `stay`, `transport`; a stop can also be `flight`, `walk`, `rest` or `note`; a booking is `flight`, `stay`, `show`, `tour` or `other`. A stop's or booking's `place` is the `id` of a place, which gives it the directions links. `fixed` marks a stop that is booked for that time. Only `title`, `start`, `end` and at least one day or place are required; `frontend/src/lib/guide.ts` (`normalizeGuide`) is the reference and drops anything it can't use.
+
 ## Features
 
 - **Live web search** for deals on any route — or an explore-style search to a country, region or "anywhere" — with the agent's searches and findings **streamed live** into the UI while it works
@@ -202,6 +233,7 @@ Free-tier notes:
 - **Price with bags** — ask for a 10 kg trolley each and any number of 20 kg checked bags; every live fare is re-priced with the airline's bag fees (per passenger, per direction, from a dated fee table — Google lists none for low-cost carriers), the card shows the total, a breakdown and what the airline will show before bags, and everything ranks by the total
 - **Price you can check** — "checked 3 h ago" on every fare, a 1-credit Recheck button, and a "was it the same price?" prompt after a booking click; the Trends tab shows how often prices held, per airline
 - **Trips** — group a holiday's searches, watches and shortlisted fares, compare them side by side, and record the booked flight (`/trips` in Telegram too)
+- **Trip guide** — once a trip is booked: a day-by-day plan around the fixed bookings, places by neighbourhood with one-tap directions, getting-around tips and the confirmation numbers, in its own tab named after the trip. Imported from a file, stored behind the app password (never in the repo or the built app) and kept on the phone for offline use
 - **Holiday windows** — Israeli school vacations and holidays as one-tap date picks; finds the cheapest week inside the break
 - **Buy or wait** — a verdict on the best deal and every watch, from Google's typical range, the watch's history and days to departure
 - **Adaptive watches** — live checks weekly when departure is far, daily when close, faster when prices move, within a monthly credit budget per watch
@@ -213,5 +245,5 @@ Free-tier notes:
 - **Price-history chart** per route, built from every search run
 - **De-duplication** of identical deals across runs ("seen 3× since Aug 10")
 - **Access control** — optional shared password (`APP_PASSWORD`) with a lock screen
-- **Tabbed app** — Search / Explore / History / Watches / Trips / Trends; history folds repeated runs of a search into one card with its price trend, grouped by date or route, with filter, sort and paging
+- **Tabbed app** — Search / Explore / History / Watches / Trips / Trends / Guide; history folds repeated runs of a search into one card with its price trend, grouped by date or route, with filter, sort and paging
 - **Mobile-friendly** responsive UI with a bottom tab bar, and dark mode
