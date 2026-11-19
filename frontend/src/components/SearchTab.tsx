@@ -113,7 +113,13 @@ export default function SearchTab({
               )}
             </div>
           </div>
-          {lastResult.deals.length === 0 ? (
+          {lastResult.meta?.dates_passed ? (
+            <div className="empty card">
+              <Icon name="calendar" size={28} />
+              <strong>Those dates have already passed</strong>
+              <span className="muted">Nothing was searched, so no live searches were spent. Pick dates from today on and search again.</span>
+            </div>
+          ) : lastResult.deals.length === 0 ? (
             <div className="empty card">
               <Icon name="search" size={28} />
               <strong>No deals found this time</strong>

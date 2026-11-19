@@ -204,6 +204,16 @@ def run_watches(only_id: int | None = None, on_event=None, notify: bool = True) 
                 storage.record_watch_credits(watch.id, outcome.meta.live_searches)
             except Exception:
                 logger.exception("watch #%s: recording its credits failed", watch.id)
+            if outcome.meta.dates_passed:
+                # Nothing was searched and nothing will be again: say so every
+                # day (digest and "Run now") until the watch is edited or stopped.
+                emit(f"{route}: its dates have passed — not checked. Give it new dates, or pause or delete it.")
+                checked.append(WatchResult(watch=watch, expired=True))
+                rows.append({"watch_id": watch.id, "route": route, "skipped": True, "expired": True,
+                             "deals_found": 0, "best_price": None, "currency": watch.currency,
+                             "threshold": watch.max_price, "rules": [], "reasons": [], "suppressed": False,
+                             "score": None, "alerted": False, "sources": [], "prescreen": outcome.meta.decision})
+                continue
             if outcome.meta.skipped:
                 plan = engine.plan_for(watch, prior_rows, datetime.now(timezone.utc))
                 when = plan.text.removeprefix("next live check: ").split(" · ")[0] if plan else "later"

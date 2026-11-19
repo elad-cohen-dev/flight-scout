@@ -219,12 +219,14 @@ function FlightScout() {
       setDeals((prev) => [...found, ...prev.filter((d) => !ids.has(d.id))]);
       setLastResult({ query: job.query, deals: found, finishedAt: job.updated_at ?? new Date().toISOString(), meta: job.meta });
       fetchHistory().then(setHistory).catch(() => {});
-      toast("success", found.length ? `Found ${found.length} deal${found.length > 1 ? "s" : ""}.` : "Search finished — no deals this time.");
+      if (job.meta?.dates_passed) toast("info", "Those dates have already passed — nothing was searched.");
+      else toast("success", found.length ? `Found ${found.length} deal${found.length > 1 ? "s" : ""}.` : "Search finished — no deals this time.");
     } else {
       loadAll(); // fresh deals, watch stats (last best / checked), history point
       if (job.deals) setLastResult({ query: job.query, deals: job.deals, finishedAt: new Date().toISOString() });
       const r = ((job.summary?.results as Record<string, unknown>[] | undefined) ?? [])[0];
       if (r?.error) toast("error", String(r.error));
+      else if (r?.expired) toast("info", `${r.route}: its dates have passed, so nothing was searched. Give the watch new dates, or pause or delete it.`);
       else if (r) {
         const currency = String(r.currency ?? "USD");
         toast(

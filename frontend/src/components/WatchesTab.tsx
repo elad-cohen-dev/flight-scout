@@ -129,12 +129,14 @@ function WatchCard({
   const words = describeWatch(w);
   const alerts = alertSettingsOf(w);
   const rules = ruleChips(alerts);
-  const hit = w.active && alerts.threshold && w.last_best_price != null && w.last_best_price <= w.max_price;
+  // Its dates are behind us: the server no longer checks it (backend engine.watch_credits).
+  const passed = w.active && !!w.credits?.dates_passed;
+  const hit = w.active && !passed && alerts.threshold && w.last_best_price != null && w.last_best_price <= w.max_price;
   // how far the last best price sits above the target, capped for the meter
   const ratio = w.last_best_price != null ? Math.min(1, w.max_price / w.last_best_price) : 0;
   const route = `${w.origin} to ${w.destination}`;
   return (
-    <article className={`watch-card card${hit ? " watch-hit" : ""}${w.active ? "" : " watch-paused"}${editing ? " editing" : ""}`} id={`watch-${w.id}`}>
+    <article className={`watch-card card${hit ? " watch-hit" : ""}${w.active && !passed ? "" : " watch-paused"}${editing ? " editing" : ""}`} id={`watch-${w.id}`}>
       <div className="watch-head">
         <div className="watch-dim">
           <h3 className="watch-route">
@@ -142,7 +144,11 @@ function WatchCard({
           </h3>
           <p className="muted small">{w.dates_hint}</p>
         </div>
-        {w.active ? (
+        {passed ? (
+          <span className="badge badge-expired" title="Its dates are in the past, so the daily run no longer checks it or spends searches on it">
+            <Icon name="clock" size={11} /> Dates passed
+          </span>
+        ) : w.active ? (
           <span className="badge badge-good">Active</span>
         ) : (
           <span className="badge badge-paused" title="Skipped by the daily run until you resume it">
@@ -155,7 +161,13 @@ function WatchCard({
       ) : (
         <>
           <p className="watch-words small watch-dim">
-            {words.search} {w.active ? <strong>{alerts.threshold ? words.alert : "Smart alerts only."}</strong> : <strong>Paused — not checked daily until you resume it.</strong>}
+            {passed ? (
+              <strong>Its dates have passed, so it is no longer checked. Give it new dates, or pause or delete it.</strong>
+            ) : (
+              <>
+                {words.search} {w.active ? <strong>{alerts.threshold ? words.alert : "Smart alerts only."}</strong> : <strong>Paused — not checked daily until you resume it.</strong>}
+              </>
+            )}
           </p>
           {w.active && w.plan && planLine(w.plan) ? (
             <p className={`ws-plan small muted watch-dim${planLow(w.plan) ? " ws-plan-low" : ""}`} title={planTip(w.plan)}>
@@ -207,8 +219,8 @@ function WatchCard({
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => onRunNow(w.id)}
-              disabled={busy || !w.active}
-              title={w.active ? "Re-search this route now (same check the daily run does)" : "Resume the watch to run it"}
+              disabled={busy || !w.active || passed}
+              title={passed ? "Its dates have passed — edit them to run it" : w.active ? "Re-search this route now (same check the daily run does)" : "Resume the watch to run it"}
             >
               <Icon name="play" size={14} /> Run now
             </button>

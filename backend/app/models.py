@@ -184,6 +184,8 @@ class SearchMeta(BaseModel):
     advice: Advice | None = Field(default=None, description="Buy or wait, for the best deal (app/advice.py)")
     holiday: str = Field(default="", description="Name of the holiday window searched, e.g. 'Hanukkah 2026'")
     skipped: bool = Field(default=False, description="Watch runs: the credit plan skipped today's check (no search)")
+    dates_passed: bool = Field(default=False,
+                               description="The dates asked for are already in the past: nothing was searched or spent")
 
 
 class ProviderUsage(BaseModel):
@@ -243,6 +245,8 @@ class WatchCredits(BaseModel):
     per_check: int = Field(description="Most live searches one check spends")
     per_month: int = Field(description="per_check x the daily sweep's ~30 runs")
     text: str = Field(default="", description="e.g. 'Up to 3 live searches per check (~90/month)'")
+    dates_passed: bool = Field(default=False,
+                               description="The watch's dates are in the past: it is no longer checked at all")
 
 
 class WatchPlan(BaseModel):

@@ -279,6 +279,8 @@ def format_watches(watches: list[Watch], now: datetime) -> str:
         head = f"<b>#{w.id}</b> {_esc(w.origin)} → {_esc(w.destination)} · ≤ {fmt_price(w.max_price, w.currency)}"
         if not w.active:
             head += " · ⏸ paused"
+        elif engine.watch_credits(w, now.date()).dates_passed:
+            head += " · ⌛ dates passed"
         s = w.stats
         bits = []
         if s and s.last_best is not None:
@@ -352,6 +354,9 @@ def format_run_result(watch_id: int, summary: dict, now: datetime | None = None)
     w = next((x for x in _enriched(now) if x.id == watch_id), None)
     if w is None or not rows:
         return f"Watch #{watch_id} wasn't checked (deleted or paused?)."
+    if row.get("expired"):
+        return (f"⌛ #{w.id} {_esc(w.origin)} → {_esc(w.destination)}: its dates have passed, so nothing was "
+                f"searched. Give it new dates in the app, or /pause {w.id}.")
     if row.get("best_price") is None:
         return f"✅ Checked #{w.id} {_esc(w.origin)} → {_esc(w.destination)}: no comparable fares this time."
     reasons = row.get("reasons") or []

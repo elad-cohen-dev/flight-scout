@@ -511,6 +511,7 @@ class WatchResult:
     error: str | None = None
     advice: Advice | None = None           # buy or wait (app/advice.py)
     skipped: str = ""                      # the credit plan skipped today's check: when the next one is
+    expired: bool = False                  # the watch's dates have passed: it is no longer checked
 
     @property
     def alerting(self) -> bool:
@@ -591,6 +592,8 @@ def _block(r: WatchResult, rich: bool) -> list[str]:
     advice = r.advice if r.advice is not None and r.advice.verdict in ADVICE_ICONS else None
     if r.error:
         return [f"⚠️ {esc(head)}: search failed"]
+    if r.expired:
+        return [f"⌛ {esc(head)}: its dates have passed — no longer checked. New dates, or pause or delete it."]
     if r.skipped:
         line = f"{esc(head)}: skipped today"
         if w.last_best_price is not None:

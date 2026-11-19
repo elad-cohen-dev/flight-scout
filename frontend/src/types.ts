@@ -194,6 +194,7 @@ export interface SearchMeta {
   advice?: Advice | null; // buy or wait, for the best deal (backend app/advice.py)
   holiday?: string; // name of the holiday window searched, e.g. "Hanukkah 2026"
   skipped?: boolean; // watch runs: the credit plan skipped today's check
+  dates_passed?: boolean; // the dates asked for are in the past: nothing was searched or spent (3.1.1+)
 }
 
 /** Buy or wait (backend app/advice.py): a verdict and its one-line reason. */
@@ -289,6 +290,7 @@ export interface WatchCredits {
   per_check: number;
   per_month: number;
   text: string; // "Up to 3 live searches per check (~90/month)"
+  dates_passed?: boolean; // the watch's dates are in the past: it is no longer checked (3.1.1+)
 }
 
 /** Per-watch alert rules (backend AlertSettings). */

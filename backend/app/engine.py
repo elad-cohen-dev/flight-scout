@@ -66,6 +66,11 @@ MAX_FLEX_CREDITS = 3      # ...plus the Google Flights confirmations, at most
 EXPLORE_HORIZON_MONTHS = 6  # Explore's `month` only reaches this far ahead
 WATCH_RUNS_PER_MONTH = 30   # the daily sweep (.github/workflows/watch-flights.yml)
 
+# What a request for dates that are already behind us gets instead of a search.
+DATES_PASSED = "Those dates have already passed, so nothing was searched. Pick dates from today on."
+WATCH_DATES_PASSED = ("This watch's dates have passed, so it is no longer checked. "
+                      "Give it new dates, or pause or delete it.")
+
 SOURCE_ORDER = ["google_flights", "google_explore", "aviasales", "web"]
 _ISO = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
@@ -159,6 +164,10 @@ class DatePlan:
     # to check live when Explore can't date the window (beyond its horizon).
     return_by: date | None = None
     fallback: tuple[str, str] | None = None
+    # The last departure the request allows is already behind us. start/end are
+    # clamped to today regardless, so without this flag a trip that has been
+    # flown would be searched — and paid for — as "departing today".
+    expired: bool = False
 
     @property
     def months(self) -> list[str]:
@@ -273,10 +282,14 @@ def plan_dates(dates_hint: str, params: SearchParams, today: date) -> DatePlan:
                                        today)
     start = (params.depart_from or depart or win_start
              or (bounds[0] if bounds else today + timedelta(days=1)))
-    end = (params.depart_to or depart or win_end
-           or (bounds[1] if bounds and bounds[1] >= start else start + timedelta(days=DEFAULT_WINDOW_DAYS)))
+    # The last departure the request itself names. An open end ("after Nov 3",
+    # no dates at all) gets the default window instead and never expires; a
+    # month without a year is its next occurrence, so it never does either.
+    stated_end = params.depart_to or depart or win_end or (bounds[1] if bounds and bounds[1] >= start else None)
+    end = stated_end or start + timedelta(days=DEFAULT_WINDOW_DAYS)
     start = max(start, today)
-    return DatePlan(pairs=pairs, start=start, end=max(end, start))
+    return DatePlan(pairs=pairs, start=start, end=max(end, start),
+                    expired=stated_end is not None and stated_end < today)
 
 
 def _holiday_plan(window: holidays.HolidayWindow, params: SearchParams, today: date) -> DatePlan:
@@ -293,7 +306,7 @@ def _holiday_plan(window: holidays.HolidayWindow, params: SearchParams, today: d
         if not rt or back > start:
             fallback = (start.isoformat(), back.isoformat() if back else "")
     return DatePlan(pairs=[], start=start, end=max(end, start), return_by=window.end if rt else None,
-                    fallback=fallback)
+                    fallback=fallback, expired=end < today)
 
 
 def _fits_holiday(deal: FlightDeal, plan: DatePlan) -> bool:
@@ -568,6 +581,14 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
     today = today or date.today()
     meta = SearchMeta()
     emit = _emitter(on_event)
+    plan = plan_dates(dates_hint, params, today)
+    if plan.expired:
+        # Before any provider or the web agent: a past trip can't be booked, and
+        # "the same trip from today" is not what was asked.
+        meta.dates_passed = True
+        meta.messages.append(DATES_PASSED)
+        emit(DATES_PASSED)
+        return SearchOutcome([], meta)
     live_ok, cache_ok = serpapi.configured(), travelpayouts.configured()
 
     if not live_ok and not cache_ok:
@@ -582,7 +603,6 @@ def search(origin: str, destination: str, dates_hint: str, params: SearchParams,
         emit(f"Found {len(deals)} deals.")
         return SearchOutcome(deals, meta)
 
-    plan = plan_dates(dates_hint, params, today)
     meta.holiday = holidays.name_of(params.holiday)
     exact = bool(plan.pairs)
     cached: list[FlightDeal] = []
@@ -749,7 +769,9 @@ def find_for_watch(watch: Watch, params: SearchParams, prior_rows: list[dict], o
     now = now or datetime.now(timezone.utc)
     today = now.date()
     o, d = resolve_end(watch.origin), resolve_end(watch.destination)
-    dates = plan_dates(watch.dates_hint, params, today) if o and d else None
+    dates = plan_dates(watch.dates_hint, params, today)
+    if dates.expired:  # also on "Run now": there is nothing left to find
+        return _watch_dates_passed(watch, on_event, now)
     exact_route = o is not None and d is not None and not params.nearby_airports
     plan = None if force else plan_for(watch, prior_rows, now)
     if exact_route and travelpayouts.configured():
@@ -776,6 +798,19 @@ def _skip_watch(watch: Watch, plan: WatchPlan, on_event, now: datetime) -> Searc
         logger.exception("watch #%s: logging the pre-screen failed", watch.id)
     _emitter(on_event)(f"Skipped today: {reason}")
     return SearchOutcome([], SearchMeta(decision="skipped: " + reason, skipped=True))
+
+
+def _watch_dates_passed(watch: Watch, on_event, now: datetime) -> SearchOutcome:
+    """The watch's dates are behind us: no pre-screen, no search, no web agent."""
+    reason = "its dates have passed"
+    logger.info("watch #%s skipped — %s", watch.id, reason)
+    try:
+        storage.log_prescreen(watch.id, False, reason, None, watch.currency, now)
+    except Exception:
+        logger.exception("watch #%s: logging the pre-screen failed", watch.id)
+    _emitter(on_event)(WATCH_DATES_PASSED)
+    return SearchOutcome([], SearchMeta(decision="skipped: " + reason, skipped=True, dates_passed=True,
+                                        messages=[WATCH_DATES_PASSED]))
 
 
 def _watch_via_cache(watch, params, prior_rows, o, d, plan, on_event, now, credit_plan=None) -> SearchOutcome:
@@ -847,9 +882,12 @@ def watch_credits(watch: Watch, today: date | None = None) -> WatchCredits:
     today = today or date.today()
     per_check = 0
     o, d = resolve_end(watch.origin), resolve_end(watch.destination)
+    params = SearchParams(**watch.model_dump(include=set(SearchParams.model_fields)))
+    plan = plan_dates(watch.dates_hint, params, today)
+    if plan.expired:
+        return WatchCredits(per_check=0, per_month=0, dates_passed=True,
+                            text="No more checks: this watch's dates have passed")
     if serpapi.configured() and o and d and not watch.nearby_airports:
-        params = SearchParams(**watch.model_dump(include=set(SearchParams.model_fields)))
-        plan = plan_dates(watch.dates_hint, params, today)
         per_check = WATCH_CONFIRM_LIVE
         if not plan.pairs and not travelpayouts.configured():
             per_check = min(MAX_FLEX_CREDITS, len(explore_months(plan, today)) + WATCH_CONFIRM_LIVE)

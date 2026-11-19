@@ -17,7 +17,8 @@
   opacity: 0.55;
 }
 
-.badge-paused {
+.badge-paused,
+.badge-expired {
   background: var(--warn-soft);
   color: var(--warn);
   border-color: transparent;
