@@ -32,7 +32,7 @@
 
 /* the trip's name is the nav label: keep long ones from widening the bar */
 .tab[href="#guide"] .tab-label {
-  max-width: 5.5rem;
+  max-width: 4.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -605,13 +605,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-}
-
-/* seven top tabs: on narrower desktops the brand's tagline has no room left */
-@media (max-width: 1000px) {
-  .brand .brand-text .muted {
-    display: none;
-  }
 }
 
 @media (min-width: 641px) {

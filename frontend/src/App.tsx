@@ -439,13 +439,12 @@ function FlightScout() {
     <div className="app">
       <header className="app-header">
         <div className="app-header-inner">
-          <a className="brand" href="#search" aria-label="Flight Scout home">
+          <a className="brand" href="#search" aria-label="Flight Scout home" title="Flight Scout — an agent that hunts the web for cheap flights">
             <span className="brand-mark" aria-hidden="true">
               <Icon name="plane" size={18} />
             </span>
             <span className="brand-text">
               <strong>Flight Scout</strong>
-              <span className="muted small hide-xs">An agent that hunts the web for cheap flights</span>
             </span>
           </a>
           <nav className="tabs" aria-label="Sections">
