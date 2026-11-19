@@ -98,14 +98,9 @@ export default function TrendsTab({
 
   return (
     <div className="tab-trends">
-      <div className="page-head">
-        <div>
-          <h2>Price trends</h2>
-          <p className="muted small">
-            {view === "chart" ? "Best price per search run, per route." : "Best fare found for each departure date, per route."}
-          </p>
-        </div>
-      </div>
+      <p className="muted small page-note">
+        {view === "chart" ? "Best price per search run, per route." : "Best fare found for each departure date, per route."}
+      </p>
 
       <section className="card trend-card" aria-labelledby="trend-title">
         <div className="trend-card-head">

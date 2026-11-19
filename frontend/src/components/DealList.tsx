@@ -1,9 +1,27 @@
 import { useMemo, useState } from "react";
+import { comparable, formatPrice, formatTripDate } from "../lib/format";
 import { rankDeals, type Sort } from "../lib/ranking";
 import { showAdvice } from "../lib/advice";
 import type { Advice, StoredDeal } from "../types";
 import DealCard from "./DealCard";
-import Segmented from "./Segmented";
+
+const SORTS: { value: Sort; label: string }[] = [
+  { value: "price", label: "Cheapest" },
+  { value: "duration", label: "Fastest" },
+  { value: "depart", label: "Earliest" },
+];
+
+/** What a sort tab says under its name: the deal that sort puts first. */
+function leadLine(deals: StoredDeal[], sort: Sort): string {
+  const ranked = rankDeals(deals, sort);
+  const d = ranked.confirmed[0] ?? ranked.estimates[0];
+  if (!d) return "";
+  const c = comparable(d);
+  const price = formatPrice(c.price, c.currency);
+  if (sort === "duration") return d.duration ? `${d.duration} · ${price}` : price;
+  if (sort === "depart") return `${formatTripDate(d.depart_date)} · ${price}`;
+  return d.duration ? `${price} · ${d.duration}` : price;
+}
 
 /** Deals of one run, sortable. Confirmed fares come first and the cheapest of
  *  them gets the "Cheapest" ribbon; unconfirmed estimates (Google Explore,
@@ -21,6 +39,7 @@ export default function DealList({
 }) {
   const [sort, setSort] = useState<Sort>("price");
   const { confirmed, estimates, cheapestId } = useMemo(() => rankDeals(deals, sort), [deals, sort]);
+  const leads = useMemo(() => Object.fromEntries(SORTS.map((s) => [s.value, leadLine(deals, s.value)])), [deals]);
   const card = (d: StoredDeal) => (
     <DealCard
       key={d.id}
@@ -33,19 +52,20 @@ export default function DealList({
   return (
     <div className="deal-list">
       {sortable && deals.length > 1 && (
-        <div className="deal-list-bar">
-          <span className="muted small">Sort by</span>
-          <Segmented
-            label="Sort deals"
-            size="sm"
-            value={sort}
-            onChange={setSort}
-            options={[
-              { value: "price", label: "Cheapest" },
-              { value: "duration", label: "Fastest" },
-              { value: "depart", label: "Earliest" },
-            ]}
-          />
+        <div className="sort-tabs" role="radiogroup" aria-label="Sort deals">
+          {SORTS.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              role="radio"
+              aria-checked={sort === s.value}
+              className={`sort-tab${sort === s.value ? " active" : ""}`}
+              onClick={() => setSort(s.value)}
+            >
+              <span className="sort-tab-label">{s.label}</span>
+              <span className="sort-tab-meta">{leads[s.value]}</span>
+            </button>
+          ))}
         </div>
       )}
       {confirmed.map(card)}

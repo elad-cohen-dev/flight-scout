@@ -1,14 +1,19 @@
+import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "../api";
+import { showAdvice } from "../lib/advice";
 import { formatPrice, timeAgo } from "../lib/format";
 import { insightsLine, priceLevelTone } from "../lib/providers";
 import type { QueryGroup } from "../lib/history";
 import type { SearchForm as Form } from "../lib/search";
-import type { Job, SearchMeta, StoredDeal } from "../types";
+import { watchForGroup } from "../lib/watches";
+import type { Job, SearchMeta, StoredDeal, Watch, WatchCreate } from "../types";
+import AdviceChip from "./AdviceChip";
 import AgentConsole from "./AgentConsole";
 import DealList from "./DealList";
 import Icon from "./Icon";
 import SearchForm from "./SearchForm";
 import UsageMeter from "./UsageMeter";
+import WatchPopover from "./WatchPopover";
 
 export interface RunState {
   title: string;
@@ -23,6 +28,14 @@ export interface LastResult {
   meta?: SearchMeta | null; // sources, Google price insights, notices (searches only)
 }
 
+/** "TLV -> Prague (10–20 Dec, direct only)" → the route and what's in the parens. */
+function splitQuery(query: string): { route: string; criteria: string } {
+  const text = query.replace(/\s*\[watch #\d+\]\s*$/, "");
+  const at = text.indexOf(" (");
+  const route = (at < 0 ? text : text.slice(0, at)).replace(" -> ", " → ");
+  return { route, criteria: at < 0 ? "" : text.slice(at + 2).replace(/\)$/, "") };
+}
+
 export default function SearchTab({
   form,
   onFormChange,
@@ -32,9 +45,13 @@ export default function SearchTab({
   onStop,
   lastResult,
   recent,
+  groups,
+  watches,
   onPickRecent,
   onOpenHistory,
-  priceRef,
+  onCreateWatch,
+  onEditWatch,
+  priceNudge,
   interrupted = null,
   onRunAgain,
   onDismissInterrupted,
@@ -48,17 +65,45 @@ export default function SearchTab({
   onStop: () => void;
   lastResult: LastResult | null;
   recent: QueryGroup[];
+  groups: QueryGroup[]; // every stored search: the one behind the results gives them a tidy title and a watch
+  watches: Watch[];
   onPickRecent: (g: QueryGroup) => void;
   onOpenHistory: () => void;
-  priceRef: React.RefObject<HTMLInputElement>;
+  onCreateWatch: (w: WatchCreate) => Promise<boolean>;
+  onEditWatch: (id: number) => void;
+  priceNudge: number;
   interrupted?: Job | null; // a run the server restart killed — offer to run it again
   onRunAgain?: () => void; // undefined when it can't be re-run from here
   onDismissInterrupted?: () => void;
   onCheckLive?: (deal: StoredDeal) => void; // an estimate's "Check this date live (1 search)"
 }) {
+  const [watchOpen, setWatchOpen] = useState(false);
+  useEffect(() => setWatchOpen(false), [lastResult?.finishedAt]);
+
+  // The stored search these results belong to: its criteria, parsed and ready.
+  const group = useMemo(() => {
+    if (!lastResult?.deals.length) return null;
+    const ids = new Set(lastResult.deals.map((d) => d.id));
+    return groups.find((g) => g.runs.some((r) => r.deals.some((d) => ids.has(d.id)))) ?? null;
+  }, [lastResult, groups]);
+  const match = useMemo(() => (group ? watchForGroup(group, watches) : null), [group, watches]);
+
+  const idle = !run && !lastResult && !interrupted;
+  const meta = lastResult?.meta;
+  const parsed = lastResult ? splitQuery(lastResult.query) : null;
+  const insights = insightsLine(meta?.price_insights);
+  const advice = showAdvice(meta?.advice) ? meta.advice : null;
+
   return (
     <div className="tab-search">
-      <SearchForm form={form} onChange={onFormChange} onSearch={onSearch} onWatch={onWatch} busy={!!run} priceRef={priceRef} />
+      {idle && (
+        <header className="hero">
+          <h1>Where to next?</h1>
+          <p className="muted">Live fares with your bags in the price — and a watch on any route you like.</p>
+        </header>
+      )}
+
+      <SearchForm form={form} onChange={onFormChange} onSearch={onSearch} onWatch={onWatch} busy={!!run} priceNudge={priceNudge} />
 
       {run && <AgentConsole title={run.title} events={run.events} onStop={onStop} stopping={run.stopping} />}
 
@@ -86,34 +131,73 @@ export default function SearchTab({
         </section>
       )}
 
-      {!run && lastResult && (
+      {!run && lastResult && parsed && (
         <section className="results" aria-labelledby="results-title">
-          <div className="section-head">
-            <div>
-              <h2 id="results-title">Results</h2>
+          <div className="results-head">
+            <div className="results-title">
+              <h2 id="results-title">{group?.route ?? parsed.route}</h2>
               <p className="muted small">
-                {lastResult.meta?.holiday && (
+                {meta?.holiday && (
                   <span className="badge badge-holiday" title="Trips that fit this school vacation">
-                    <Icon name="calendar" size={11} /> {lastResult.meta.holiday}
+                    <Icon name="calendar" size={11} /> {meta.holiday}
                   </span>
                 )}{" "}
-                {lastResult.query.replace(" -> ", " → ")} · {timeAgo(lastResult.finishedAt)}
+                {group ? [group.datesHint, ...group.chips].filter(Boolean).join(" · ") : parsed.criteria}
+                {" · "}
+                {timeAgo(lastResult.finishedAt)}
               </p>
-              {insightsLine(lastResult.meta?.price_insights) && (
-                <p className={`insights-line insights-${priceLevelTone(lastResult.meta?.price_insights)}`} title="Google Flights' typical price range for the route on the dates named — one date pair — for your whole party">
-                  {insightsLine(lastResult.meta?.price_insights)}
-                </p>
-              )}
-              {!!lastResult.meta?.messages.length && (
-                <ul className="search-notices">
-                  {lastResult.meta.messages.map((m) => (
-                    <li key={m}>{m}</li>
-                  ))}
-                </ul>
-              )}
             </div>
+            {group &&
+              (match ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm results-track tracking"
+                  onClick={() => onEditWatch(match.watch.id)}
+                  title={match.exact ? "A watch re-checks this search — open it" : "There is a watch on this route — open it"}
+                >
+                  <Icon name="bell" size={15} /> Tracking · {formatPrice(match.watch.max_price, match.watch.currency)}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm results-track"
+                  onClick={() => setWatchOpen(!watchOpen)}
+                  disabled={!group.request}
+                  aria-expanded={watchOpen}
+                  title="Re-check this search daily and get an alert when the price drops"
+                >
+                  <Icon name="bell" size={15} /> Track prices
+                </button>
+              ))}
           </div>
-          {lastResult.meta?.dates_passed ? (
+
+          {watchOpen && group && !match && (
+            <div className="results-watch card">
+              <WatchPopover group={group} onCreate={onCreateWatch} onClose={() => setWatchOpen(false)} />
+            </div>
+          )}
+
+          {(insights || advice) && (
+            <div
+              className={`insight insight-${advice ? "advice" : priceLevelTone(meta?.price_insights)}`}
+              title="Google Flights' typical price range for the route on the dates named — one date pair — for your whole party"
+            >
+              {advice ? <AdviceChip advice={advice} /> : <Icon name="chart" size={16} />}
+              <div className="insight-text">
+                {advice && <strong>{advice.reason}</strong>}
+                {insights && <span>{insights}</span>}
+              </div>
+            </div>
+          )}
+          {!!meta?.messages.length && (
+            <ul className="search-notices">
+              {meta.messages.map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
+          )}
+
+          {meta?.dates_passed ? (
             <div className="empty card">
               <Icon name="calendar" size={28} />
               <strong>Those dates have already passed</strong>
@@ -126,7 +210,7 @@ export default function SearchTab({
               <span className="muted">Try flexible dates, allowing a stop, or a wider destination like a country.</span>
             </div>
           ) : (
-            <DealList deals={lastResult.deals} onCheckLive={onCheckLive} advice={lastResult.meta?.advice} />
+            <DealList deals={lastResult.deals} onCheckLive={onCheckLive} />
           )}
         </section>
       )}

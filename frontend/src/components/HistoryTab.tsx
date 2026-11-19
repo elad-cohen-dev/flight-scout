@@ -268,14 +268,9 @@ export default function HistoryTab({
 
   return (
     <div className="tab-history">
-      <div className="page-head">
-        <div>
-          <h2>Search history</h2>
-          <p className="muted small">
-            {plural(groups.length, "search")} · {plural(totalRuns, "run")} — repeated runs of the same search are folded together.
-          </p>
-        </div>
-      </div>
+      <p className="muted small page-note">
+        {plural(groups.length, "search")} · {plural(totalRuns, "run")} — repeated runs of the same search are folded together.
+      </p>
 
       <div className="toolbar card">
         <label className="search-box">

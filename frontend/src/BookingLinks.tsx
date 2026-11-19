@@ -88,17 +88,21 @@ export interface DirectLink {
 
 /** `secondary`: the fare is an unconfirmed estimate, so the links are styled as
  *  look-ups ("Search on", outlined), never as a confirmed booking.
- *  `onBook`: told the clicked link's label (the "was it the same price?" check). */
+ *  `onBook`: told the clicked link's label (the "was it the same price?" check).
+ *  `part`: a deal card shows the main button beside the price ("primary") and
+ *  what it pre-fills plus the other sites under Details ("rest"). */
 export default function BookingLinks({
   deal,
   direct,
   secondary = false,
   onBook,
+  part = "all",
 }: {
   deal: StoredDeal;
   direct?: DirectLink;
   secondary?: boolean;
   onBook?: (label: string) => void;
+  part?: "all" | "primary" | "rest";
 }) {
   const [open, setOpen] = useState(false);
   const moreId = useId();
@@ -128,21 +132,63 @@ export default function BookingLinks({
       ? generic.filter((s) => !addBags(s))
       : generic;
   const verb = direct ? "Book with" : secondary ? "Search on" : primary.kind === "airline" ? "Book on" : primary.kind === "other" ? "Open" : "Search on";
+  const main = (
+    <a
+      href={primary.url}
+      target="_blank"
+      rel={direct ? "noopener noreferrer" : "noreferrer"}
+      className={secondary ? "bl-primary bl-secondary" : "bl-primary"}
+      title={hint ? `Opens with ${hint}` : undefined}
+      onClick={() => onBook?.(primary.label)}
+    >
+      {verb} {primary.label}
+      <span aria-hidden="true" className="bl-ext">↗</span>
+    </a>
+  );
+
+  if (part === "primary") return <div className="bl bl-solo">{main}</div>;
+  if (part === "rest") {
+    if (!hint && !steps.length && !others.length) return null;
+    return (
+      <div className="bl bl-rest">
+        {hint && (
+          <p className="bl-hint">
+            <span className="bl-check" aria-hidden="true">✓</span> {primary.label} opens with: {hint}
+          </p>
+        )}
+        {steps.map((s) => (
+          <p key={s} className="bl-warn">
+            <span aria-hidden="true">!</span> {s}
+          </p>
+        ))}
+        {others.length > 0 && (
+          <>
+            <span className="bl-caption">Also on</span>
+            <ul className="bl-list">
+              {others.map((l) => {
+                const h = prefilledHint(l, c);
+                return (
+                  <li key={l.url}>
+                    <a href={l.url} target="_blank" rel="noreferrer" className="bl-chip" title={h ? `Pre-filled: ${h}` : "Not pre-filled"} onClick={() => onBook?.(l.label)}>
+                      <span className="bl-chip-label">{l.label}</span>
+                      <span className="bl-chip-meta">
+                        {l.prefilled.includes("bags") ? "incl. bags" : l.prefilled.includes("dates") ? "dated" : l.prefilled.length ? "route" : "home"}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="bl">
       <div className="bl-row">
-        <a
-          href={primary.url}
-          target="_blank"
-          rel={direct ? "noopener noreferrer" : "noreferrer"}
-          className={secondary ? "bl-primary bl-secondary" : "bl-primary"}
-          title={hint ? `Opens with ${hint}` : undefined}
-          onClick={() => onBook?.(primary.label)}
-        >
-          {verb} {primary.label}
-          <span aria-hidden="true" className="bl-ext">↗</span>
-        </a>
+        {main}
         {others.length > 0 && (
           <button
             type="button"

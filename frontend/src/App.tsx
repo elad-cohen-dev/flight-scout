@@ -44,20 +44,41 @@ import { checkLiveRequest, formToRequest, formToWatch, loadForm, requestToForm, 
 import type { SearchForm } from "./lib/search";
 import { useHashTab } from "./lib/useHashTab";
 import type { Tab } from "./lib/useHashTab";
+import { alertSettingsOf } from "./lib/watches";
 import type { Job, RouteHistory, SearchRequest, StoredDeal, Watch, WatchCreate, WatchUpdate } from "./types";
 
 /** A remembered job that finished longer ago than this isn't resurfaced on load. */
 const RESUME_RESULT_MAX_AGE_MS = 6 * 60 * 60_000;
 
-const NAV: { tab: Tab; label: string; icon: IconName }[] = [
-  { tab: "search", label: "Search", icon: "search" },
-  { tab: "explore", label: "Explore", icon: "map" },
-  { tab: "history", label: "History", icon: "history" },
+/** The header has five sections. "Tracking" is everything that follows a price
+ *  over time: its three pages keep their own hashes (#watches, #history,
+ *  #trends), so links, reloads and the back button work as before. */
+type Section = "search" | "explore" | "tracking" | "trips" | "guide";
+const TRACKING: { tab: Tab; label: string; icon: IconName }[] = [
   { tab: "watches", label: "Watches", icon: "bell" },
-  { tab: "trips", label: "Trips", icon: "suitcase" },
+  { tab: "history", label: "History", icon: "history" },
   { tab: "trends", label: "Trends", icon: "chart" },
-  { tab: "guide", label: "Guide", icon: "pin" }, // shown under the trip's own name once a guide is loaded
 ];
+const isTracking = (t: Tab) => TRACKING.some((x) => x.tab === t);
+const sectionOf = (t: Tab): Section => (isTracking(t) ? "tracking" : (t as Section));
+
+const NAV: { section: Section; label: string; icon: IconName }[] = [
+  { section: "search", label: "Search", icon: "search" },
+  { section: "explore", label: "Explore", icon: "map" },
+  { section: "tracking", label: "Tracking", icon: "bell" },
+  { section: "trips", label: "Trips", icon: "suitcase" },
+  { section: "guide", label: "Guide", icon: "pin" }, // shown under the trip's own name once a guide is loaded
+];
+
+const TRACKING_KEY = "fs_tracking_tab";
+function lastTrackingTab(): Tab | null {
+  try {
+    const t = localStorage.getItem(TRACKING_KEY) as Tab | null;
+    return t && isTracking(t) ? t : null;
+  } catch {
+    return null;
+  }
+}
 
 function FlightScout() {
   const toast = useToast();
@@ -76,7 +97,7 @@ function FlightScout() {
   const [interrupted, setInterrupted] = useState<Job | null>(null);
   const [wakingSince, setWakingSince] = useState<number | null>(null);
   const currentJobId = useRef<string | null>(null);
-  const priceRef = useRef<HTMLInputElement>(null);
+  const [priceNudge, setPriceNudge] = useState(0); // bumped to open the search bar's price filter
 
   const lock = useCallback(() => {
     clearAppPassword();
@@ -137,6 +158,15 @@ function FlightScout() {
   }, []);
 
   useEffect(() => saveForm(form), [form]);
+  // "Tracking" reopens on the page last looked at.
+  useEffect(() => {
+    if (!isTracking(tab)) return;
+    try {
+      localStorage.setItem(TRACKING_KEY, tab);
+    } catch {
+      // best-effort
+    }
+  }, [tab]);
 
   const groups = useMemo(() => groupHistory(deals), [deals]);
   const recent = useMemo(
@@ -366,7 +396,7 @@ function FlightScout() {
     }
     if (!watch) {
       toast("error", "Set a max total price — you'll be alerted when a deal is at or below it.");
-      priceRef.current?.focus();
+      setPriceNudge((n) => n + 1);
       return;
     }
     try {
@@ -427,14 +457,20 @@ function FlightScout() {
 
   function onCreateWatch() {
     go("search");
-    setTimeout(() => priceRef.current?.focus(), 50);
-    toast("info", "Fill in the route and a max price, then tap “Watch this route”.");
+    setPriceNudge((n) => n + 1);
+    toast("info", "Fill in the route and a max price, then tap “Track prices”.");
   }
 
   if (locked) return <LockScreen onUnlock={unlock} />;
 
+  const section = sectionOf(tab);
   const counts: Partial<Record<Tab, number>> = { history: groups.length, watches: watches.length };
+  // Watches whose last check met their target: the one number worth a badge in the header.
+  const hits = watches.filter(
+    (w) => w.active && !w.credits?.dates_passed && alertSettingsOf(w).threshold && w.last_best_price != null && w.last_best_price <= w.max_price
+  ).length;
   const guideTitle = pickGuide(guides, todayISO())?.title;
+  const openSection = (s: Section) => go(s === "tracking" ? (lastTrackingTab() ?? (watches.length ? "watches" : "history")) : s);
 
   return (
     <TripsProvider onError={onTripsError}>
@@ -452,21 +488,25 @@ function FlightScout() {
           <nav className="tabs" aria-label="Sections">
             {NAV.map((n) => (
               <a
-                key={n.tab}
-                href={`#${n.tab}`}
-                className={`tab${tab === n.tab ? " active" : ""}`}
-                aria-current={tab === n.tab ? "page" : undefined}
+                key={n.section}
+                href={`#${n.section === "tracking" ? "watches" : n.section}`}
+                className={`tab${section === n.section ? " active" : ""}`}
+                aria-current={section === n.section ? "page" : undefined}
                 onClick={(e) => {
                   e.preventDefault();
-                  go(n.tab);
+                  openSection(n.section);
                 }}
               >
                 <span className="tab-icon">
                   <Icon name={n.icon} size={20} />
-                  {n.tab === "search" && run && <span className="tab-live" aria-label="search running" />}
+                  {n.section === "search" && run && <span className="tab-live" aria-label="search running" />}
                 </span>
-                <span className="tab-label">{(n.tab === "guide" && guideTitle) || n.label}</span>
-                {!!counts[n.tab] && <span className="tab-count">{counts[n.tab]}</span>}
+                <span className="tab-label">{(n.section === "guide" && guideTitle) || n.label}</span>
+                {n.section === "tracking" && hits > 0 && (
+                  <span className="tab-count tab-count-hit" title={`${hits} watch${hits > 1 ? "es" : ""} at or under target`}>
+                    {hits}
+                  </span>
+                )}
               </a>
             ))}
           </nav>
@@ -480,6 +520,26 @@ function FlightScout() {
             <span className="agent-dot" aria-hidden="true" /> {run.title}… <span className="live-banner-cta">View live</span>
           </button>
         )}
+        {section === "tracking" && (
+          <nav className="subnav" aria-label="Tracking">
+            {TRACKING.map((t) => (
+              <a
+                key={t.tab}
+                href={`#${t.tab}`}
+                className={`subnav-tab${tab === t.tab ? " active" : ""}`}
+                aria-current={tab === t.tab ? "page" : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  go(t.tab);
+                }}
+              >
+                <Icon name={t.icon} size={16} />
+                {t.label}
+                {!!counts[t.tab] && <span className="subnav-count">{counts[t.tab]}</span>}
+              </a>
+            ))}
+          </nav>
+        )}
         {tab === "search" && (
           <SearchTab
             form={form}
@@ -490,9 +550,13 @@ function FlightScout() {
             onStop={onStop}
             lastResult={lastResult}
             recent={recent}
+            groups={groups}
+            watches={watches}
             onPickRecent={onPickRecent}
             onOpenHistory={() => go("history")}
-            priceRef={priceRef}
+            onCreateWatch={onCreateWatchFrom}
+            onEditWatch={onEditWatch}
+            priceNudge={priceNudge}
             interrupted={interrupted}
             onRunAgain={interruptedRerun ? onRunAgain : undefined}
             onDismissInterrupted={() => setInterrupted(null)}

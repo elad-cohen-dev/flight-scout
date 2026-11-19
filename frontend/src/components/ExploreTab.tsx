@@ -20,10 +20,11 @@ import { CURRENCIES, currencySymbol, formatPrice, formatTripDate, plural, stopsL
 import { CABIN_LABELS, criteriaChips, passengersLabel, totalPassengers } from "../lib/search";
 import type { CabinClass, ExploreDestination, ExploreQuote, ExploreResult, SearchRequest, TravelDuration, WatchCreate } from "../types";
 import AirportInput from "./AirportInput";
+import Dropdown from "./Dropdown";
 import Icon from "./Icon";
 import PassengersPicker from "./PassengersPicker";
-import Segmented from "./Segmented";
 import WatchPopover from "./WatchPopover";
+import "./search.css";
 import "./explore.css";
 
 const ExploreMap = lazy(() => import("./ExploreMap"));
@@ -195,129 +196,146 @@ export default function ExploreTab({
           </button>
         </div>
       ) : (
-        <form
-          className="xp-criteria card"
-          onSubmit={(e) => {
-            e.preventDefault();
-            run();
-          }}
-        >
-          <div className="xp-head">
-            <div>
-              <h2>Explore</h2>
-              <p className="muted small">The cheapest places Google sees from your airport — on a map.</p>
-            </div>
-            {result && narrow() && (
-              <button type="button" className="btn btn-ghost btn-sm" aria-expanded={true} onClick={() => setCollapsed(true)}>
-                Hide
-              </button>
-            )}
-          </div>
-
-          <div className="xp-row-fields">
-            <div className="xp-from">
-              <AirportInput label="From" value={form.origin} onChange={(origin) => patch({ origin })} placeholder="City or airport, e.g. TLV" required />
-            </div>
-            <label className="field xp-month">
-              <span className="field-label">When</span>
-              <select value={form.month} onChange={(e) => patch({ month: Number(e.target.value) })}>
-                <option value={0}>Next 6 months</option>
-                {months.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="xp-options">
-            <div className="sf-option">
-              <span className="field-label">Trip length</span>
-              <Segmented<Length>
-                label="Trip length"
-                size="sm"
-                value={length}
-                onChange={(v) => (v === "one_way" ? patch({ trip_type: "one_way" }) : patch({ trip_type: "round_trip", travel_duration: v }))}
-                options={[
-                  ...(Object.keys(DURATION_LABELS) as TravelDuration[]).map((d) => ({ value: d as Length, label: DURATION_LABELS[d] })),
-                  { value: "one_way", label: "One way" },
-                ]}
-              />
-            </div>
-            <div className="sf-option">
-              <span className="field-label">Travellers &amp; cabin</span>
-              <div className="xp-inline">
-                <PassengersPicker value={form.passengers} onChange={(passengers) => patch({ passengers })} />
-                <label className="pill-select pill-native">
-                  <span className="sr-only">Cabin class</span>
-                  <select value={form.cabin_class} onChange={(e) => patch({ cabin_class: e.target.value as CabinClass })}>
-                    {(Object.keys(CABIN_LABELS) as CabinClass[]).map((c) => (
-                      <option key={c} value={c}>
-                        {CABIN_LABELS[c]}
-                      </option>
-                    ))}
-                  </select>
-                  <Icon name="chevronDown" size={14} />
-                </label>
-              </div>
-            </div>
-            <div className="sf-option">
-              <span className="field-label">Flights</span>
-              <div className="chip-row">
-                <button
-                  type="button"
-                  className={`chip chip-toggle${form.direct_only ? " chip-active" : ""}`}
-                  aria-pressed={form.direct_only}
-                  onClick={() => patch({ direct_only: !form.direct_only })}
-                >
-                  <Icon name="plane" size={14} /> Direct only
-                </button>
-                <button
-                  type="button"
-                  className={`chip chip-toggle${form.cabin_bag ? " chip-active" : ""}`}
-                  aria-pressed={form.cabin_bag}
-                  title="Prices include a carry-on per traveller (Google's bags filter)"
-                  onClick={() => patch({ cabin_bag: !form.cabin_bag })}
-                >
-                  <Icon name="bag" size={14} /> Cabin bag
-                </button>
-              </div>
-            </div>
-            <div className="sf-option">
-              <span className="field-label" id="xp-max-label">
-                Max total price <span className="xp-free">free filter</span>
-              </span>
-              <div className="price-input">
-                <select aria-label="Currency" value={form.currency} onChange={(e) => patch({ currency: e.target.value })}>
-                  {CURRENCIES.map((c) => (
+        <>
+          {!result && (
+            <header className="hero">
+              <h1>Explore</h1>
+              <p className="muted">The cheapest places Google sees from your airport — on a map.</p>
+            </header>
+          )}
+          <form
+            className="sb card xp-criteria"
+            onSubmit={(e) => {
+              e.preventDefault();
+              run();
+            }}
+          >
+            <div className="sb-top">
+              <PassengersPicker value={form.passengers} onChange={(passengers) => patch({ passengers })} />
+              <label className="pill-select pill-native">
+                <span className="sr-only">Cabin class</span>
+                <select value={form.cabin_class} onChange={(e) => patch({ cabin_class: e.target.value as CabinClass })}>
+                  {(Object.keys(CABIN_LABELS) as CabinClass[]).map((c) => (
                     <option key={c} value={c}>
-                      {currencySymbol(c)} {c}
+                      {CABIN_LABELS[c]}
                     </option>
                   ))}
                 </select>
-                <input
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  placeholder="No limit"
-                  aria-labelledby="xp-max-label"
-                  value={form.max_price}
-                  onChange={(e) => patch({ max_price: e.target.value })}
-                />
-              </div>
+                <Icon name="chevronDown" size={14} />
+              </label>
+              {result && narrow() && (
+                <button type="button" className="btn btn-ghost btn-sm xp-hide" aria-expanded={true} onClick={() => setCollapsed(true)}>
+                  Hide
+                </button>
+              )}
             </div>
-          </div>
 
-          <div className="xp-actions">
-            <button type="submit" className="btn btn-primary btn-lg" disabled={loading || noBudget || (!!quote && !quote.configured)}>
-              <Icon name="search" size={18} /> {loading ? "Exploring…" : quote?.cached ? "Show destinations" : "Explore destinations"}
-            </button>
-            <span className={`xp-cost${quote?.cached ? " xp-cost-free" : ""}${noBudget ? " xp-cost-out" : ""}`} aria-live="polite">
-              {quote && !quote.configured ? "Live Google search isn't configured on the server (SERPAPI_API_KEY)." : (cost ?? "Checking the cost…")}
-            </span>
-          </div>
-        </form>
+            <div className="sb-bar xp-bar">
+              <div className="sb-route sb-route-one">
+                <AirportInput label="From" value={form.origin} onChange={(origin) => patch({ origin })} placeholder="City or airport" required />
+              </div>
+              <label className="sb-cell">
+                <span className="field-label">When</span>
+                <select value={form.month} onChange={(e) => patch({ month: Number(e.target.value) })}>
+                  <option value={0}>Next 6 months</option>
+                  {months.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <Icon name="chevronDown" size={14} />
+              </label>
+              <label className="sb-cell">
+                <span className="field-label">Trip length</span>
+                <select
+                  value={length}
+                  onChange={(e) => {
+                    const v = e.target.value as Length;
+                    if (v === "one_way") patch({ trip_type: "one_way" });
+                    else patch({ trip_type: "round_trip", travel_duration: v });
+                  }}
+                >
+                  {(Object.keys(DURATION_LABELS) as TravelDuration[]).map((d) => (
+                    <option key={d} value={d}>
+                      {DURATION_LABELS[d]}
+                    </option>
+                  ))}
+                  <option value="one_way">One way</option>
+                </select>
+                <Icon name="chevronDown" size={14} />
+              </label>
+              <button type="submit" className="btn btn-primary sb-go" disabled={loading || noBudget || (!!quote && !quote.configured)}>
+                <Icon name="search" size={18} /> {loading ? "Exploring…" : quote?.cached ? "Show" : "Explore"}
+              </button>
+            </div>
+
+            <div className="sb-filters">
+              <button
+                type="button"
+                className={`chip chip-toggle${form.direct_only ? " chip-active" : ""}`}
+                aria-pressed={form.direct_only}
+                onClick={() => patch({ direct_only: !form.direct_only })}
+              >
+                Direct only
+              </button>
+              <button
+                type="button"
+                className={`chip chip-toggle${form.cabin_bag ? " chip-active" : ""}`}
+                aria-pressed={form.cabin_bag}
+                title="Prices include a carry-on per traveller (Google's bags filter)"
+                onClick={() => patch({ cabin_bag: !form.cabin_bag })}
+              >
+                <Icon name="bag" size={14} /> Cabin bag
+              </button>
+              <Dropdown
+                label="Price"
+                value={Number(form.max_price) > 0 ? `Up to ${formatPrice(Number(form.max_price), form.currency)}` : form.currency !== "USD" ? `Price · ${form.currency}` : undefined}
+                active={Number(form.max_price) > 0}
+              >
+                {(close) => (
+                  <div className="sb-panel sb-panel-wide">
+                    <span className="field-label" id="xp-max-label">
+                      Max total price
+                    </span>
+                    <div className="price-input">
+                      <select aria-label="Currency" value={form.currency} onChange={(e) => patch({ currency: e.target.value })}>
+                        {CURRENCIES.map((c) => (
+                          <option key={c} value={c}>
+                            {currencySymbol(c)} {c}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min={1}
+                        inputMode="numeric"
+                        placeholder="No limit"
+                        aria-labelledby="xp-max-label"
+                        value={form.max_price}
+                        onChange={(e) => patch({ max_price: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault(); // Enter closes the panel; it doesn't spend a live search
+                          close();
+                        }}
+                      />
+                    </div>
+                    <span className="muted small">A free filter: it narrows the destinations already found, without a new search.</span>
+                    <div className="dd-foot">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={close}>
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </Dropdown>
+              <span className={`xp-cost sb-note${quote?.cached ? " xp-cost-free" : ""}${noBudget ? " xp-cost-out" : ""}`} aria-live="polite">
+                {quote && !quote.configured ? "Live Google search isn't configured on the server (SERPAPI_API_KEY)." : (cost ?? "Checking the cost…")}
+              </span>
+            </div>
+          </form>
+        </>
       )}
 
       {error && (

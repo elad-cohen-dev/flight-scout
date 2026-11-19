@@ -1,0 +1,652 @@
+/* The search bar (SearchForm, and Explore's criteria), its dropdown panels,
+   and the results header. Uses the design tokens from styles.css. */
+
+/* ---------- hero ---------- */
+.hero {
+  margin: 0.75rem 0 1.1rem;
+}
+
+.hero h1 {
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.hero p {
+  margin-top: 0.3rem;
+}
+
+/* ---------- the bar ---------- */
+.sb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  box-shadow: var(--shadow);
+}
+
+.sb-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sb-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+/* From ⇄ To: two cells in one box */
+.sb-route {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.sb-cell,
+.sb-route .ai-field {
+  gap: 0.05rem;
+  padding: 0.5rem 0.9rem 0.45rem;
+  border-radius: 11px;
+  min-width: 0;
+}
+
+.sb-route .ai-field + .swap-btn + .ai-field {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--border);
+  border-radius: 0 11px 11px 0;
+}
+
+.sb-route .ai-field:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: 11px;
+}
+
+.sb-bar .field-label,
+.dd-caption {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.sb-route .ai-field input,
+.sb-route .ai-field input:focus,
+.sb-cell select,
+.sb-cell select:focus {
+  width: 100%;
+  min-height: 0;
+  height: 1.7rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  font-size: 1.02rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.sb-route .ai-field input::placeholder {
+  font-weight: 500;
+}
+
+.sb-route .ai-list {
+  top: calc(100% + 12px);
+  left: -0.9rem;
+  right: -0.9rem;
+  min-width: 340px;
+}
+
+.sb-route .swap-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+.sb-route .swap-btn:hover:not(:disabled) {
+  transform: translate(-50%, -50%) rotate(180deg);
+}
+
+/* a plain cell in the bar (Explore's month and trip length) */
+.sb-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.sb-cell:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+
+.sb-cell {
+  position: relative;
+}
+
+.sb-cell select {
+  appearance: none;
+  padding-right: 1.2rem;
+  cursor: pointer;
+}
+
+.sb-cell > .icon {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0.95rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* one airport, no swap */
+.sb-route-one {
+  grid-template-columns: 1fr;
+}
+
+.sb-go {
+  min-height: 58px;
+  padding: 0 1.5rem;
+  border-radius: 12px;
+  font-size: 1.02rem;
+}
+
+/* ---------- dropdowns ---------- */
+.dd {
+  position: relative;
+  display: flex;
+}
+
+.dd-btn {
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.dd-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.dd-field {
+  min-width: 0;
+}
+
+.dd-field .dd-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.05rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.9rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+}
+
+.dd-field.dd-open .dd-btn {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+
+.dd-value {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  height: 1.7rem;
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.dd-value .icon {
+  color: var(--muted);
+}
+
+.dd-value-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dd-chip .dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 34px;
+  padding: 0.3rem 0.6rem 0.3rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dd-chip .dd-btn:hover,
+.dd-chip.dd-open .dd-btn {
+  border-color: var(--accent);
+}
+
+.dd-chip.dd-active .dd-btn {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.dd-caret {
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+
+.dd-active .dd-caret {
+  color: inherit;
+}
+
+.dd-open .dd-caret {
+  transform: rotate(180deg);
+}
+
+.dd-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 30;
+  padding: 0.9rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  animation: pop 0.12s ease-out;
+}
+
+.dd-panel-left {
+  left: 0;
+}
+
+.dd-panel-right {
+  right: 0;
+}
+
+.dd-field .dd-panel {
+  width: min(480px, calc(100vw - 2rem));
+}
+
+.dd-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.sb-when,
+.sb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.sb-when > .segmented {
+  align-self: flex-start;
+}
+
+.sb-when .holiday-picks {
+  margin-top: 0;
+  padding-top: 0.7rem;
+  border-top: 1px dashed var(--border);
+}
+
+.sb-when .holiday-note {
+  margin: 0;
+}
+
+.sb-when .sf-exact {
+  grid-template-columns: 1fr 1fr;
+}
+
+.sb-when .sf-exact .nights {
+  grid-column: 1 / -1;
+  max-width: 14rem;
+}
+
+.sb-panel {
+  min-width: 15rem;
+}
+
+.sb-panel-wide {
+  width: min(330px, calc(100vw - 3rem));
+}
+
+.sb-panel .price-input {
+  width: 100%;
+  min-height: 42px;
+}
+
+.sb-panel .sf-option {
+  gap: 0.5rem;
+}
+
+.sb-panel .bags-picker {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* ---------- filters under the bar ---------- */
+.sb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sb-filters > .chip {
+  min-height: 34px;
+  font-size: 0.85rem;
+}
+
+.sb-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  min-height: 34px;
+  padding: 0.3rem 0.65rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.sb-track:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.sb-track:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.sb-track:disabled {
+  opacity: 0.55;
+}
+
+.sb-note {
+  margin-left: auto;
+}
+
+/* ---------- results ---------- */
+.results-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.6rem 0 0.75rem;
+}
+
+.results-title {
+  min-width: 0;
+}
+
+.results-title h2 {
+  font-size: 1.4rem;
+}
+
+.results-title p {
+  margin-top: 0.25rem;
+}
+
+.results-track {
+  flex: none;
+}
+
+.results-track.tracking {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.results-watch {
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.insight {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: 0.88rem;
+}
+
+.insight > .icon {
+  color: var(--muted);
+}
+
+.insight-good {
+  border-color: color-mix(in srgb, var(--green) 30%, var(--border));
+  background: var(--good-soft);
+}
+
+.insight-good > .icon,
+.insight-good .insight-text {
+  color: var(--green);
+}
+
+.insight-bad {
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--border));
+  background: var(--bad-soft);
+}
+
+.insight-bad > .icon,
+.insight-bad .insight-text {
+  color: var(--bad);
+}
+
+.insight-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.insight-text strong {
+  font-weight: 600;
+}
+
+.insight-text strong + span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.sort-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 0.3rem; /* room for the first card's "Cheapest" ribbon */
+}
+
+.sort-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  padding: 0.6rem 0.9rem 0.65rem;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.sort-tab:last-child {
+  border-right: none;
+}
+
+.sort-tab:hover {
+  background: var(--surface-2);
+}
+
+.sort-tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.sort-tab.active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.sort-tab-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.sort-tab.active .sort-tab-label {
+  color: var(--accent);
+}
+
+.sort-tab-meta {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- phones ---------- */
+@media (max-width: 760px) {
+  .sb-bar {
+    grid-template-columns: 1fr;
+  }
+  .sb-note {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  .sb-go {
+    min-height: 50px;
+  }
+  /* panels span the form instead of hanging off a chip near the edge */
+  .sb-filters {
+    position: relative;
+  }
+  .sb-filters > .dd {
+    position: static;
+  }
+  .sb-bar > .dd > .dd-panel,
+  .sb-filters > .dd > .dd-panel {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+  .dd-panel {
+    scroll-margin-bottom: 6rem; /* clear of the bottom tab bar when scrolled into view */
+  }
+  .sb-panel,
+  .sb-panel-wide {
+    width: auto;
+    min-width: 0;
+  }
+  /* one swipeable line each, so the dates panel stays short */
+  .sb-when .chip-row,
+  .sb-when .holiday-picks {
+    flex-wrap: nowrap;
+    margin-right: -1rem;
+    padding-right: 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sb-when .chip-row::-webkit-scrollbar,
+  .sb-when .holiday-picks::-webkit-scrollbar {
+    display: none;
+  }
+  .sb-when .chip,
+  .sb-when .holiday-picks .field-label {
+    flex: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    margin: 0.25rem 0 0.9rem;
+  }
+  .hero h1 {
+    font-size: 1.45rem;
+  }
+  .sb {
+    padding: 0.8rem;
+  }
+  .sb-route {
+    grid-template-columns: 1fr;
+  }
+  .sb-route .ai-field + .swap-btn + .ai-field {
+    padding-left: 0.9rem;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 11px 11px;
+  }
+  .sb-route .swap-btn {
+    left: auto;
+    right: 0.75rem;
+    transform: translateY(-50%) rotate(90deg);
+  }
+  .sb-route .swap-btn:hover:not(:disabled) {
+    transform: translateY(-50%) rotate(270deg);
+  }
+  .sb-route .ai-list {
+    left: -0.5rem;
+    right: -0.5rem;
+    min-width: 0;
+  }
+  .sb-track {
+    margin-left: 0;
+  }
+  .results-head {
+    margin-top: 1.25rem;
+  }
+  .insight {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  .sb-top .pill-select,
+  .sb-top .pill-native select {
+    font-size: 0.85rem;
+  }
+  .results-title h2 {
+    font-size: 1.2rem;
+  }
+  .sort-tab {
+    padding: 0.5rem 0.6rem 0.55rem;
+  }
+  .sort-tab-meta {
+    font-size: 0.74rem;
+  }
+}

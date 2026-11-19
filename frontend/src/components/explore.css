@@ -5,11 +5,17 @@
   gap: 1rem;
 }
 
-.xp-criteria {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.25rem;
+/* The criteria use the shared search bar (search.css): from · when · trip length. */
+.xp-bar {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+.xp-hide {
+  margin-left: auto;
+}
+
+.tab-explore > .hero {
+  margin-bottom: 0.1rem;
 }
 
 .xp-summary {
@@ -33,56 +39,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.xp-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.xp-head h2 {
-  margin-bottom: 0.15rem;
-}
-
-.xp-row-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 0.75rem;
-  align-items: end;
-}
-
-.xp-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 1.5rem;
-}
-
-.xp-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.xp-free {
-  margin-left: 0.3rem;
-  padding: 0 0.4rem;
-  border-radius: 999px;
-  background: var(--good-soft);
-  color: var(--green);
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.xp-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 1rem;
 }
 
 .xp-cost {
@@ -383,18 +339,12 @@
 }
 
 @media (max-width: 640px) {
-  .xp-criteria {
-    padding: 1rem;
+  .xp-bar {
+    grid-template-columns: 1fr 1fr;
   }
-  .xp-row-fields {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .xp-options {
-    flex-direction: column;
-    gap: 0.9rem;
-  }
-  .xp-actions .btn {
-    width: 100%;
+  .xp-bar > .sb-route,
+  .xp-bar > .sb-go {
+    grid-column: 1 / -1;
   }
   .xp-row {
     gap: 0.55rem;

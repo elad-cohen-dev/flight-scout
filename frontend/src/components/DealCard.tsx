@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import BookingLinks from "../BookingLinks";
 import { approx, asQuoted, bagCountWords, bagsAdded, checkoutPreview, freshness } from "../lib/bags";
 import { bagBadges, bagCheckoutNote, bagTotal, bagWords, directSeller } from "../lib/dealDetails";
@@ -135,6 +135,8 @@ export default function DealCard({
   const [rechecked, setRechecked] = useState<StoredDeal | null>(null);
   const deal = rechecked ?? listed;
   const [ask, setAsk] = useState<PendingCheck | null>(null);
+  const [open, setOpen] = useState(false); // "Details": freshness, other sites, sellers, notes
+  const moreId = useId();
   const estimate = isUnconfirmed(deal);
   const criteria = dealCriteria(deal);
   const pax = criteria.passengers ? totalPassengers(criteria.passengers) : 1;
@@ -176,142 +178,169 @@ export default function DealCard({
     noteBookClick({ dealId: deal.id, seller, shownTotal: total ?? shownTotal, currency: deal.currency });
 
   return (
-    <article className={`deal card${highlight ? " deal-best" : ""}`}>
+    <article className={`deal card${highlight ? " deal-best" : ""}${open ? " deal-open" : ""}`}>
       {highlight && <span className="deal-ribbon">Cheapest</span>}
-      <div className="deal-top">
-        <div className="deal-carrier">
-          <AirlineMark code={deal.airline_code} name={deal.airline} />
-          <div className="deal-carrier-text">
-            <div className="deal-airline">{deal.airline || "Airline n/a"}</div>
-            <div className="muted small">
+      <div className="deal-main">
+        <div className="deal-flight">
+          <div className="deal-carrier">
+            <AirlineMark code={deal.airline_code} name={deal.airline} />
+            <span className="deal-airline">{deal.airline || "Airline n/a"}</span>
+            <span className="deal-flightno">
               {deal.flight_numbers || (deal.origin_airport ? `${from} → ${to}` : `${deal.origin} → ${deal.destination}`)}
-            </div>
+            </span>
           </div>
+          {hasTimes || deal.origin_airport ? (
+            <div className="deal-legs">
+              <Leg
+                label="Out"
+                date={deal.depart_date}
+                dep={deal.depart_time}
+                arr={deal.arrive_time}
+                from={from}
+                to={to}
+                duration={deal.duration}
+                stops={deal.stops}
+                nextDay={nextDay(out)}
+              />
+              {deal.return_date && (
+                <Leg
+                  label="Back"
+                  date={deal.return_date}
+                  dep={back?.depart_time || deal.return_depart_time}
+                  arr={back?.arrive_time ?? ""}
+                  from={to}
+                  to={from}
+                  duration={back?.duration}
+                  stops={back?.stops}
+                  nextDay={nextDay(back)}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="deal-dates">
+              <Icon name="calendar" size={15} />
+              <span>
+                {formatTripDate(deal.depart_date)}
+                {deal.return_date && <> – {formatTripDate(deal.return_date)}</>}
+              </span>
+              {deal.duration && <span className="muted">· {deal.duration}</span>}
+            </div>
+          )}
         </div>
-        <div className="deal-price-block">
-          {added ? (
-            <>
-              <div className="deal-price" title={`Fare + ${bagCountWords(added)} — tap the fare below for the breakdown`}>
-                <span className="deal-price-approx">{approx(added)}</span>
-                {formatPrice(added.total, added.currency)}
+
+        <div className="deal-side">
+          <div className="deal-price-block">
+            {added ? (
+              <>
+                <div className="deal-price" title={`Fare + ${bagCountWords(added)} — tap the fare below for the breakdown`}>
+                  <span className="deal-price-approx">{approx(added)}</span>
+                  {formatPrice(added.total, added.currency)}
+                </div>
+                <div className="deal-price-with small">with {bagCountWords(added)}</div>
+                <BagBreakdown pricing={added} />
+              </>
+            ) : (
+              <div className="deal-price">{formatPrice(deal.price, deal.currency)}</div>
+            )}
+            {!added && asQuoted(pricing) && (
+              <div className="muted small" title="The web search quoted this price with your bags; it wasn't priced from a fee table">
+                as quoted, incl. bags
               </div>
-              <div className="deal-price-with small">with {bagCountWords(added)}</div>
-              <BagBreakdown pricing={added} />
-            </>
-          ) : (
-            <div className="deal-price">{formatPrice(deal.price, deal.currency)}</div>
-          )}
-          {!added && asQuoted(pricing) && (
-            <div className="muted small" title="The web search quoted this price with your bags; it wasn't priced from a fee table">
-              as quoted, incl. bags
-            </div>
-          )}
-          {comparable(deal).currency !== deal.currency && (
-            <div className="deal-price-converted small" title="Converted at today's rate, for comparing deals quoted in different currencies">
-              ≈ {formatPrice(comparable(deal).price, comparable(deal).currency)}
-            </div>
-          )}
-          {pax > 1 && deal.price_per_person != null && !added ? (
-            <div className="muted small" title={`Total for ${pax} travellers`}>
-              {formatPrice(deal.price_per_person, deal.currency)} per person
-            </div>
-          ) : (
-            <div className="muted small">{deal.return_date ? "round trip" : "one way"}{pax > 1 ? ` · ${pax} travellers` : ""}</div>
-          )}
-          {withBags != null && ready && (
-            <div className="deal-price-bags small" title={`Exact total incl. your ${bagWords(ready.bags_requested)}, from the seller's bag fees`}>
-              {formatPrice(withBags, ready.currency || deal.currency)} with your {bagWords(ready.bags_requested)}
-            </div>
-          )}
+            )}
+            {comparable(deal).currency !== deal.currency && (
+              <div className="deal-price-converted small" title="Converted at today's rate, for comparing deals quoted in different currencies">
+                ≈ {formatPrice(comparable(deal).price, comparable(deal).currency)}
+              </div>
+            )}
+            {pax > 1 && deal.price_per_person != null && !added ? (
+              <div className="muted small" title={`Total for ${pax} travellers`}>
+                {formatPrice(deal.price_per_person, deal.currency)} per person
+              </div>
+            ) : (
+              <div className="muted small">{deal.return_date ? "round trip" : "one way"}{pax > 1 ? ` · ${pax} travellers` : ""}</div>
+            )}
+            {withBags != null && ready && (
+              <div className="deal-price-bags small" title={`Exact total incl. your ${bagWords(ready.bags_requested)}, from the seller's bag fees`}>
+                {formatPrice(withBags, ready.currency || deal.currency)} with your {bagWords(ready.bags_requested)}
+              </div>
+            )}
+          </div>
+          <div className="deal-cta">
+            {estimate && onCheckLive && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm deal-check-live"
+                onClick={() => onCheckLive(deal)}
+                title="Search Google Flights for exactly these dates — uses 1 live search"
+              >
+                <Icon name="refresh" size={14} /> Check live (1 search)
+              </button>
+            )}
+            <BookingLinks
+              part="primary"
+              deal={deal}
+              direct={direct ? { label: direct.seller.book_with, url: direct.link.url, bagsNote } : undefined}
+              secondary={estimate}
+              onBook={(label) => onBook(label, label === direct?.seller.book_with ? withBags : null)}
+            />
+          </div>
         </div>
       </div>
 
-      {hasTimes || deal.origin_airport ? (
-        <div className="deal-legs">
-          <Leg
-            label="Out"
-            date={deal.depart_date}
-            dep={deal.depart_time}
-            arr={deal.arrive_time}
-            from={from}
-            to={to}
-            duration={deal.duration}
-            stops={deal.stops}
-            nextDay={nextDay(out)}
-          />
-          {deal.return_date && (
-            <Leg
-              label="Back"
-              date={deal.return_date}
-              dep={back?.depart_time || deal.return_depart_time}
-              arr={back?.arrive_time ?? ""}
-              from={to}
-              to={from}
-              duration={back?.duration}
-              stops={back?.stops}
-              nextDay={nextDay(back)}
+      <div className="deal-bar">
+        <div className="deal-tags">
+          {withBags == null && (
+            <ConfidenceBadge
+              value={deal.price_confidence}
+              withBagFees={!!added && deal.source === "google_flights"}
+              liveFareWithoutBag={
+                !pricing && // pre-3.0 server: the headline is the bare fare
+                deal.source === "google_flights" &&
+                deal.price_confidence === "estimated" &&
+                !!(deal.search_params?.checked_bag)
+              }
             />
           )}
+          {withBags != null && (
+            <span className="badge badge-conf-verified" title="The seller's exact fare plus the exact fees for the bags you asked for">
+              <Icon name="check" size={12} />
+              Verified incl. bags
+            </span>
+          )}
+          <SourceBadge deal={deal} />
+          {!hasTimes && !deal.origin_airport && (
+            <span className={`badge${deal.stops === 0 ? " badge-good" : ""}`}>{stopsLabel(deal.stops)}</span>
+          )}
+          {nights != null && <span className="badge">{nights} night{nights > 1 ? "s" : ""}</span>}
+          {bagBadgeList.map((b) => (
+            <span key={b.bag} className={`badge${b.included ? "" : " badge-bag-excl"}`} title={b.tip}>
+              <Icon name={b.bag === "carry_on" ? "bag" : "luggage"} size={12} /> {b.label}
+            </span>
+          ))}
+          {deal.times_seen > 1 && deal.first_found_at && (
+            <span className="badge badge-seen hide-xs" title="This exact fare keeps appearing across runs — likely a stable price">
+              Seen {deal.times_seen}× since {shortDate(deal.first_found_at)}
+            </span>
+          )}
         </div>
-      ) : (
-        <div className="deal-dates">
-          <Icon name="calendar" size={15} />
-          <span>
-            {formatTripDate(deal.depart_date)}
-            {deal.return_date && <> – {formatTripDate(deal.return_date)}</>}
-          </span>
-          {deal.duration && <span className="muted">· {deal.duration}</span>}
+        <button type="button" className="deal-toggle" aria-expanded={open} aria-controls={moreId} onClick={() => setOpen(!open)}>
+          {open ? "Hide" : "Details"} <Icon name="chevronDown" size={14} />
+        </button>
+      </div>
+
+      {advice && (
+        <div className="deal-advice">
+          <AdviceChip advice={advice} withReason />
+        </div>
+      )}
+      {ask && (
+        <div className="deal-ask">
+          <PriceCheckPrompt check={ask} onClose={() => setAsk(null)} />
         </div>
       )}
 
-      <div className="deal-tags">
-        {withBags == null && (
-          <ConfidenceBadge
-            value={deal.price_confidence}
-            withBagFees={!!added && deal.source === "google_flights"}
-            liveFareWithoutBag={
-              !pricing && // pre-3.0 server: the headline is the bare fare
-              deal.source === "google_flights" &&
-              deal.price_confidence === "estimated" &&
-              !!(deal.search_params?.checked_bag)
-            }
-          />
-        )}
-        {withBags != null && (
-          <span className="badge badge-conf-verified" title="The seller's exact fare plus the exact fees for the bags you asked for">
-            <Icon name="check" size={12} />
-            Verified incl. bags
-          </span>
-        )}
-        <SourceBadge deal={deal} />
-        {!hasTimes && !deal.origin_airport && (
-          <span className={`badge${deal.stops === 0 ? " badge-good" : ""}`}>{stopsLabel(deal.stops)}</span>
-        )}
-        {nights != null && <span className="badge">{nights} night{nights > 1 ? "s" : ""}</span>}
-        {bagBadgeList.map((b) => (
-          <span key={b.bag} className={`badge${b.included ? "" : " badge-bag-excl"}`} title={b.tip}>
-            <Icon name={b.bag === "carry_on" ? "bag" : "luggage"} size={12} /> {b.label}
-          </span>
-        ))}
-        {deal.times_seen > 1 && deal.first_found_at && (
-          <span className="badge badge-seen" title="This exact fare keeps appearing across runs — likely a stable price">
-            Seen {deal.times_seen}× since {shortDate(deal.first_found_at)}
-          </span>
-        )}
-      </div>
-      {advice && <AdviceChip advice={advice} withReason />}
-
-      <div className="deal-foot">
-        {estimate && onCheckLive && (
-          <button
-            type="button"
-            className="btn btn-primary btn-sm deal-check-live"
-            onClick={() => onCheckLive(deal)}
-            title="Search Google Flights for exactly these dates — uses 1 live search"
-          >
-            <Icon name="refresh" size={14} /> Check this date live (1 search)
-          </button>
-        )}
+      {/* hidden, not unmounted: a fetched seller list or a recheck result survives closing it */}
+      <div className="deal-more" id={moreId} hidden={!open}>
         {(fresh || deal.source === "google_flights") && (
           <div className="deal-fresh muted small">
             {fresh && <span title={deal.seen_at ? "When the source saw this price" : "When this search ran"}>{fresh}</span>}
@@ -332,35 +361,32 @@ export default function DealCard({
           </p>
         )}
         <BookingLinks
+          part="rest"
           deal={deal}
           direct={direct ? { label: direct.seller.book_with, url: direct.link.url, bagsNote } : undefined}
           secondary={estimate}
           onBook={(label) => onBook(label, label === direct?.seller.book_with ? withBags : null)}
         />
-        {ask && <PriceCheckPrompt check={ask} onClose={() => setAsk(null)} />}
         {(deal.notes || showSource) && (
-          <details className="deal-details">
-            <summary>
-              Details <Icon name="chevronDown" size={14} />
-            </summary>
-            <div className="deal-details-body">
-              {deal.notes && <p>{deal.notes}</p>}
-              <p className="muted small">
-                Found {timeAgo(deal.found_at)}
-                {showSource && (
-                  <>
-                    {" · "}
-                    <a href={deal.source_url} target="_blank" rel="noreferrer">
-                      Source page <Icon name="external" size={12} />
-                    </a>
-                  </>
-                )}
-              </p>
-            </div>
-          </details>
+          <div className="deal-notes">
+            {deal.notes && <p>{deal.notes}</p>}
+            <p className="muted small">
+              Found {timeAgo(deal.found_at)}
+              {showSource && (
+                <>
+                  {" · "}
+                  <a href={deal.source_url} target="_blank" rel="noreferrer">
+                    Source page <Icon name="external" size={12} />
+                  </a>
+                </>
+              )}
+            </p>
+          </div>
         )}
-        <DirectBooking deal={deal} details={details} onDetails={setDetails} onBook={onBook} />
-        <AddToTrip item={{ kind: "deal", ref_id: deal.id }} defaults={() => tripFromDeal(deal)} />
+        <div className="deal-more-actions">
+          <DirectBooking deal={deal} details={details} onDetails={setDetails} onBook={onBook} />
+          <AddToTrip item={{ kind: "deal", ref_id: deal.id }} defaults={() => tripFromDeal(deal)} />
+        </div>
       </div>
     </article>
   );
