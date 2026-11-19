@@ -15,10 +15,9 @@ from app import agent, engine, main, storage, watcher
 from app.agent import SearchCancelled
 from app.models import AlertSettings, FlightDeal, Passengers, SearchParams, WatchCreate
 from app.providers import base
+from tests.conftest import NOW, TODAY  # 2026-10-01 06:00 UTC: the suite's frozen clock
 
 FIXTURES = Path(__file__).parent / "fixtures"
-TODAY = date(2026, 10, 1)
-NOW = datetime(2026, 10, 1, 6, 0, tzinfo=timezone.utc)
 TWO = SearchParams(passengers=Passengers(adults=2))
 
 

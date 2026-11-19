@@ -1,12 +1,41 @@
-"""Shared fixtures: an isolated temp SQLite DB and offline currency rates.
+"""Shared fixtures: a frozen clock, an isolated temp SQLite DB and offline
+currency rates.
 
-Nothing here touches backend/flight_scout.db, Turso, or any network service."""
+Nothing here touches backend/flight_scout.db, Turso, any network service — or
+the real date."""
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 import pytest
+import time_machine
 
 from app import bags, currency, storage
+
+# The moment every test runs at. The suite's fixtures are written around it —
+# the London watch's "October - November" window, the November 2026 fares in
+# the recorded SerpApi answers, "2026-11-05 to 2026-11-09" as a future trip —
+# and much of the app asks the clock itself (date.today() behind an API route,
+# "this month" in the usage counters), where no test can pass `today=` in.
+NOW = datetime(2026, 10, 1, 6, 0, tzinfo=timezone.utc)
+TODAY = NOW.date()
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock():
+    """Run the test at NOW, in UTC, with time passing from there as usual.
+
+    Without it the suite only passed for a couple of weeks around the day it
+    was written: "mid October" became next year's, the watch's window shrank
+    and its dated fares slid into the past. A test that needs another day
+    passes `today=` / `now=` where the code takes one, or moves this clock:
+    `frozen_clock.move_to(...)`."""
+    # A ZoneInfo destination also pins the local timezone (date.today() is
+    # local), so a laptop west of UTC sees the same day as the server does.
+    with time_machine.travel(NOW.astimezone(ZoneInfo("UTC")), tick=True) as clock:
+        yield clock
 
 
 @pytest.fixture(autouse=True)

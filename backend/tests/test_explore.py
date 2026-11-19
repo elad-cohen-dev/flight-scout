@@ -19,10 +19,9 @@ from fastapi.testclient import TestClient
 from app import agent, alerts, engine, main, storage, watcher
 from app.models import FlightDeal, Passengers, SearchParams, WatchCreate
 from app.providers import base, serpapi
+from tests.conftest import NOW, TODAY  # 2026-10-01 06:00 UTC: the suite's frozen clock
 
 FIXTURES = Path(__file__).parent / "fixtures"
-TODAY = date(2026, 10, 1)
-NOW = datetime(2026, 10, 1, 6, 0, tzinfo=timezone.utc)
 # The production watch: TLV -> London, direct, 1 adult (its 20kg checked bag left
 # out here so prices stay plain fares; bag pricing is tested in test_bags).
 LONDON = dict(origin="TLV", destination="London", dates_hint="October - November after October 11th",
@@ -344,7 +343,12 @@ def test_watch_credit_estimates(temp_db, monkeypatch):
     assert engine.watch_credits(w, TODAY).per_check == 1  # the free calendar picks the dates
 
 
-def test_usage_warns_when_watches_exceed_budget(temp_db, monkeypatch):
+def test_usage_warns_when_watches_exceed_budget(temp_db, monkeypatch, frozen_clock):
+    # The projection is what is still to come THIS month, so the day matters.
+    # On 14 Oct the watch is 23 days out (a daily check, 3 searches each) with
+    # 18 days of October left: 54 searches if its own budget allows them. On the
+    # 1st it is 35 days out and checks every third day — 33, under the 40.
+    frozen_clock.move_to(datetime(2026, 10, 14, 6, 0, tzinfo=timezone.utc))
     monkeypatch.delenv("APP_PASSWORD", raising=False)
     monkeypatch.setenv("SERPAPI_API_KEY", "k")
     london_watch()

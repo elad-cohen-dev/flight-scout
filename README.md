@@ -32,6 +32,7 @@ uv sync
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
+Tests: `uv run pytest`. They are offline (no keys, a temp database, recorded provider answers) and run on a frozen clock — 1 Oct 2026, UTC (`tests/conftest.py`) — so the result doesn't depend on the day you run them.
 
 
 ### Frontend
